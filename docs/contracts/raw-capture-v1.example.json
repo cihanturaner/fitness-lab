@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "units": "kg",
+  "capture_note": "written by hand; app unavailable",
+  "workouts": [
+    {
+      "performed_on": "2026-10-01",
+      "performed_time_local": "18:30",
+      "notes": "first logged session",
+      "sets": [
+        { "exercise": "Incline Chest Press", "equipment_label": "Hammer Strength",
+          "set_type": "warmup",  "load_kg": 40,   "reps": 10 },
+        { "exercise": "Incline Chest Press", "equipment_label": "Hammer Strength",
+          "set_type": "working", "load_kg": 60,   "reps": 9, "rir": 2 },
+        { "exercise": "Incline Chest Press", "equipment_label": "Hammer Strength",
+          "set_type": "working", "load_kg": 60,   "reps": 8, "rir": 1 },
+        { "exercise": "Incline dumbbell press",
+          "set_type": "backoff", "load_kg": 32.5, "reps": 10, "rir": 2,
+          "notes": "bench notch 3" }
+      ]
+    }
+  ]
+}
