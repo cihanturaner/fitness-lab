@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,12 +39,53 @@ def database_path() -> Path:
 
 
 def connect(path: Path | None = None) -> sqlite3.Connection:
-    """Open a connection with row access by column name."""
+    """Open a hardened connection.
+
+    ``foreign_keys`` is the critical one: it is OFF by default, and without it every
+    ON DELETE RESTRICT/CASCADE in the schema is silently inert. ``isolation_level=None``
+    hands transaction control to us, which the migration runner and ``VACUUM INTO``
+    both require.
+    """
     db_path = path if path is not None else database_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(db_path)
+    connection = sqlite3.connect(db_path, isolation_level=None)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA busy_timeout = 5000")
+    connection.execute("PRAGMA synchronous = FULL")
     return connection
+
+
+@contextmanager
+def connection_scope(path: Path | None = None) -> Iterator[sqlite3.Connection]:
+    """A hardened connection that is actually closed afterwards."""
+    connection = connect(path)
+    try:
+        yield connection
+    finally:
+        connection.close()
+
+
+@contextmanager
+def transaction(connection: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
+    """One explicit transaction. Rolls back and re-raises on any exception."""
+    connection.execute("BEGIN")
+    try:
+        yield connection
+    except BaseException:
+        connection.execute("ROLLBACK")
+        raise
+    connection.execute("COMMIT")
+
+
+def bootstrap_database(path: Path | None = None) -> None:
+    """Persistent database configuration, set once — not routine connection state.
+
+    WAL is recorded in the file header and read back by any later connection, so
+    re-issuing it per connection would be noise.
+    """
+    with connection_scope(path) as connection:
+        connection.execute("PRAGMA journal_mode = WAL")
 
 
 def init_db(path: Path | None = None) -> None:
@@ -65,7 +108,7 @@ def init_db(path: Path | None = None) -> None:
 
 def read_technical_check(path: Path | None = None) -> TechnicalCheck:
     """Read the M0 row back out of SQLite. Raises if the row is missing."""
-    with connect(path) as connection:
+    with connection_scope(path) as connection:
         row = connection.execute(
             "SELECT id, token, created_at FROM m0_technical_check WHERE id = 1"
         ).fetchone()
