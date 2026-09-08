@@ -98,6 +98,11 @@ def migration_lock(db_path: Path) -> Iterator[None]:
 
 
 def discover_migrations(directory: Path = MIGRATIONS_DIR) -> tuple[Migration, ...]:
+    if not directory.is_dir():
+        raise MigrationError(
+            f"migrations directory does not exist: {directory}; refusing to start "
+            "against an unmigrated database instead of silently applying nothing"
+        )
     migrations: list[Migration] = []
     seen: set[int] = set()
     for path in sorted(directory.glob("*.sql")):
@@ -148,10 +153,17 @@ def pending_migrations(
             raise MigrationError(
                 f"applied migration {version} is missing from the migrations directory"
             )
+    head = max(applied, default=0)
     pending: list[Migration] = []
     for migration in migrations:
         recorded = applied.get(migration.version)
         if recorded is None:
+            if migration.version <= head:
+                raise MigrationError(
+                    f"{migration.filename} is numbered {migration.version}, at or below the "
+                    f"applied head ({head}); it would never run, and a forward-only runner "
+                    "never skips a migration in silence"
+                )
             pending.append(migration)
         elif recorded != migration.sha256:
             raise ChecksumMismatchError(

@@ -215,3 +215,26 @@ def test_migrations_run_with_foreign_keys_enabled(tmp_path: Path, db_path: Path)
 
     with db.connection_scope(db_path) as connection:
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+
+
+def test_a_missing_migrations_directory_is_refused_not_a_silent_no_op(
+    tmp_path: Path, db_path: Path
+) -> None:
+    """A directory that was never created must not read as an empty, already-migrated one."""
+    directory = tmp_path / "does_not_exist"
+
+    with pytest.raises(MigrationError, match="does not exist"):
+        migrate_to_head(db_path, directory=directory)
+
+
+def test_a_new_migration_numbered_at_or_below_the_applied_head_is_refused(
+    tmp_path: Path, db_path: Path
+) -> None:
+    """A file that would never run again must raise, not be skipped in silence forever."""
+    directory = tmp_path / "migrations"
+    write_migration(directory, "0002_two.sql", CREATE_TWO)
+    migrate_to_head(db_path, directory=directory)
+    write_migration(directory, "0001_one.sql", CREATE_ONE)
+
+    with pytest.raises(MigrationError, match="0001_one.sql"):
+        migrate_to_head(db_path, directory=directory)

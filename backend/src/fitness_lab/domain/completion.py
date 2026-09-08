@@ -94,7 +94,16 @@ def evaluate_completion(sets: Sequence[PerformedSet]) -> CompletionReport:
 def complete_workout(
     workout: Workout, sets: Sequence[PerformedSet], *, now: str | None = None
 ) -> tuple[Workout, CompletionReport]:
-    """Promote draft -> complete when C1-C4 pass. Returns the workout unchanged if not."""
+    """Promote draft -> complete when C1-C4 pass. Returns the workout unchanged if not.
+
+    NOT PERSISTED: ``report.sets`` carries C3's renumbering repair computed in memory
+    only. This function is pure domain logic and touches no database. A caller that
+    promotes this workout to ``complete`` (e.g. via ``storage.workouts.update_workout``)
+    MUST ALSO persist the renumbering in the same transaction — call
+    ``storage.workouts.renumber_workout_sets`` alongside the status update. Otherwise the
+    workout is marked complete while the database still holds the sparse, pre-repair
+    ``set_order`` sequence that C3 declared repaired, and the two diverge silently.
+    """
     report = evaluate_completion(sets)
     if not report.ok:
         return workout, report
