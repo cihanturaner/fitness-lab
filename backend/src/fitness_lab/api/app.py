@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from fitness_lab import __version__
-from fitness_lab.storage import db
+from fitness_lab.storage import db, migrations
 
 WEB_DIST = db.REPO_ROOT / "web" / "dist"
 
@@ -36,7 +36,7 @@ class PingDbResponse(BaseModel):
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    db.init_db()
+    migrations.migrate_to_head()
     yield
 
 

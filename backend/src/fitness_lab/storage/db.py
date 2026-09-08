@@ -2,7 +2,7 @@
 
 M0 scope only: this module proves a real SQLite round-trip. The single
 ``m0_technical_check`` table is a technical fixture, not part of the fitness
-domain schema, and will be dropped once real migrations arrive.
+domain schema, and now lives in ``backend/migrations/0001_baseline.sql``.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 # backend/src/fitness_lab/storage/db.py -> repository root is 5 levels up.
@@ -86,24 +85,6 @@ def bootstrap_database(path: Path | None = None) -> None:
     """
     with connection_scope(path) as connection:
         connection.execute("PRAGMA journal_mode = WAL")
-
-
-def init_db(path: Path | None = None) -> None:
-    """Create and seed the M0 technical table if it is not there yet."""
-    with connect(path) as connection:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS m0_technical_check (
-                id         INTEGER PRIMARY KEY CHECK (id = 1),
-                token      TEXT    NOT NULL,
-                created_at TEXT    NOT NULL
-            )
-            """
-        )
-        connection.execute(
-            "INSERT OR IGNORE INTO m0_technical_check (id, token, created_at) VALUES (1, ?, ?)",
-            (M0_TOKEN, datetime.now(UTC).isoformat(timespec="seconds")),
-        )
 
 
 def read_technical_check(path: Path | None = None) -> TechnicalCheck:

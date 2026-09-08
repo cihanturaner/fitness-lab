@@ -8,11 +8,12 @@ from pathlib import Path
 import pytest
 
 from fitness_lab.storage import db
+from fitness_lab.storage.migrations import migrate_to_head
 
 
-def test_init_db_creates_and_seeds_the_technical_table(tmp_path: Path) -> None:
+def test_migrate_to_head_creates_and_seeds_the_technical_table(tmp_path: Path) -> None:
     db_file = tmp_path / "roundtrip.db"
-    db.init_db(db_file)
+    migrate_to_head(db_file)
 
     assert db_file.exists()
     with sqlite3.connect(db_file) as raw:
@@ -22,7 +23,7 @@ def test_init_db_creates_and_seeds_the_technical_table(tmp_path: Path) -> None:
 
 def test_read_technical_check_returns_the_stored_row(tmp_path: Path) -> None:
     db_file = tmp_path / "roundtrip.db"
-    db.init_db(db_file)
+    migrate_to_head(db_file)
 
     check = db.read_technical_check(db_file)
 
@@ -32,11 +33,11 @@ def test_read_technical_check_returns_the_stored_row(tmp_path: Path) -> None:
     assert check.sqlite_version
 
 
-def test_init_db_is_idempotent(tmp_path: Path) -> None:
+def test_migrate_to_head_is_idempotent(tmp_path: Path) -> None:
     db_file = tmp_path / "roundtrip.db"
-    db.init_db(db_file)
+    migrate_to_head(db_file)
     first = db.read_technical_check(db_file)
-    db.init_db(db_file)
+    migrate_to_head(db_file)
 
     assert db.read_technical_check(db_file) == first
 
