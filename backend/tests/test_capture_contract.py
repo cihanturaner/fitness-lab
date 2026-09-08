@@ -335,3 +335,76 @@ def test_an_empty_workouts_array_is_refused() -> None:
     document["workouts"] = []
 
     assert validate_capture(document).ok is False
+
+
+def test_an_explicit_null_performed_time_local_is_refused() -> None:
+    document = example()
+    document["workouts"][0]["performed_time_local"] = None
+
+    report = validate_capture(document)
+
+    assert report.ok is False
+    assert any(
+        "performed_time_local must be HH:MM when present: None" in issue.message
+        for issue in report.errors
+    )
+
+
+def test_an_explicit_null_equipment_label_is_refused() -> None:
+    document = example()
+    document["workouts"][0]["sets"][0]["equipment_label"] = None
+
+    report = validate_capture(document)
+
+    assert report.ok is False
+    assert any(
+        "equipment_label must be a non-blank string when present: None" in issue.message
+        for issue in report.errors
+    )
+
+
+def test_an_explicit_null_notes_is_refused_on_a_workout() -> None:
+    document = example()
+    document["workouts"][0]["notes"] = None
+
+    report = validate_capture(document)
+
+    assert report.ok is False
+    assert any(
+        "notes must be a string when present: None" in issue.message for issue in report.errors
+    )
+
+
+def test_an_explicit_null_notes_is_refused_on_a_set() -> None:
+    document = example()
+    document["workouts"][0]["sets"][3]["notes"] = None
+
+    report = validate_capture(document)
+
+    assert report.ok is False
+    assert any(
+        "notes must be a string when present: None" in issue.message for issue in report.errors
+    )
+
+
+def test_an_absent_notes_is_accepted() -> None:
+    document = example()
+    assert "notes" not in document["workouts"][0]["sets"][0]
+
+    assert validate_capture(document).ok is True
+
+
+@pytest.mark.parametrize("notes", [99, [1, 2], {"a": 1}, 3.5])
+def test_non_string_notes_is_refused_on_a_workout(notes: object) -> None:
+    document = example()
+    document["workouts"][0]["notes"] = notes
+
+    assert validate_capture(document).ok is False
+
+
+@pytest.mark.parametrize("notes", [99, [1, 2], {"a": 1}, 3.5])
+def test_non_string_notes_is_refused_on_a_set(notes: object) -> None:
+    document = example()
+    document["workouts"][0]["sets"][3]["notes"] = notes
+
+    assert validate_capture(document).ok is False

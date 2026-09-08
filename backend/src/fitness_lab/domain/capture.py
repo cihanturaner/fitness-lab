@@ -66,8 +66,14 @@ def _check_date(value: object, path: str, errors: list[CaptureIssue]) -> None:
         errors.append(CaptureIssue(path, f"not a real calendar date: {value!r}"))
 
 
-def _check_time(value: object, path: str, errors: list[CaptureIssue]) -> None:
+def _check_time(entry: dict[str, object], path: str, errors: list[CaptureIssue]) -> None:
+    if "performed_time_local" not in entry:
+        return
+    value = entry["performed_time_local"]
     if value is None:
+        errors.append(
+            CaptureIssue(path, f"performed_time_local must be HH:MM when present: {value!r}")
+        )
         return
     if not isinstance(value, str) or not TIME_PATTERN.match(value):
         errors.append(CaptureIssue(path, f"performed_time_local must be HH:MM: {value!r}"))
@@ -76,6 +82,14 @@ def _check_time(value: object, path: str, errors: list[CaptureIssue]) -> None:
         time.fromisoformat(value)
     except ValueError:
         errors.append(CaptureIssue(path, f"not a real wall-clock time: {value!r}"))
+
+
+def _check_notes(entry: dict[str, object], path: str, errors: list[CaptureIssue]) -> None:
+    if "notes" not in entry:
+        return
+    notes = entry["notes"]
+    if not isinstance(notes, str):
+        errors.append(CaptureIssue(path, f"notes must be a string when present: {notes!r}"))
 
 
 def _check_exercise_reference(
@@ -105,14 +119,26 @@ def _check_exercise_reference(
         )
         return
 
-    label = entry.get("equipment_label")
-    if label is not None and (not isinstance(label, str) or not label.strip()):
-        errors.append(
-            CaptureIssue(
-                f"{path}.equipment_label", f"equipment_label must be absent or non-blank: {label!r}"
+    if "equipment_label" in entry:
+        label = entry["equipment_label"]
+        if label is None:
+            errors.append(
+                CaptureIssue(
+                    f"{path}.equipment_label",
+                    f"equipment_label must be a non-blank string when present: {label!r}",
+                )
             )
-        )
-        return
+            return
+        if not isinstance(label, str) or not label.strip():
+            errors.append(
+                CaptureIssue(
+                    f"{path}.equipment_label",
+                    f"equipment_label must be absent or non-blank: {label!r}",
+                )
+            )
+            return
+    else:
+        label = None
 
     if catalog is None:
         return
@@ -221,6 +247,8 @@ def _check_set(
             )
         )
 
+    _check_notes(entry, f"{path}.notes", errors)
+
 
 def validate_capture(
     document: object, *, catalog: Sequence[CatalogEntry] | None = None
@@ -279,7 +307,8 @@ def validate_capture(
             continue
         workout_count += 1
         _check_date(workout.get("performed_on"), f"{path}.performed_on", errors)
-        _check_time(workout.get("performed_time_local"), f"{path}.performed_time_local", errors)
+        _check_time(workout, f"{path}.performed_time_local", errors)
+        _check_notes(workout, f"{path}.notes", errors)
 
         entries = workout.get("sets")
         if not isinstance(entries, list):
