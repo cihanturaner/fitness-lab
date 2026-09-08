@@ -27,7 +27,10 @@ See `raw-capture-v1.example.json`, which is loaded verbatim by
 - `load_kg` is kilograms and is converted through the canonical mapper
   (`fitness_lab.domain.units.kg_to_g`). The file **must** be parsed with
   `json.loads(..., parse_float=Decimal)` so no value passes through binary floating point.
-  Sub-gram precision and negative loads are refused, never rounded.
+  Sub-gram precision and negative loads are refused, never rounded. `load_kg` is
+  **optional**. Omitting it imports as NULL and is reported, not rejected. An explicit
+  `null` is refused: omission is the only representation of "not recorded", so a hand-typed
+  `null` is a mistake to catch, not a second way to say the same thing.
 - `reps` is **optional**. Omitting it imports as NULL. This is safe because imported
   workouts land as `draft`, and completion rule C2 blocks promotion until reps are
   supplied. The validator **reports** every set missing reps rather than rejecting the

@@ -117,6 +117,32 @@ def test_a_negative_load_is_refused() -> None:
     assert any("negative" in issue.message for issue in report.errors)
 
 
+def test_an_explicit_null_load_kg_is_refused() -> None:
+    document = example()
+    document["workouts"][0]["sets"][0]["load_kg"] = None
+
+    report = validate_capture(document)
+
+    assert report.ok is False
+    assert any(
+        "load_kg must be a decimal load when present: None" in issue.message
+        for issue in report.errors
+    )
+
+
+def test_missing_load_kg_is_reported_not_rejected() -> None:
+    document = example()
+    del document["workouts"][0]["sets"][0]["load_kg"]
+
+    report = validate_capture(document)
+
+    assert report.ok is True
+    assert any(
+        issue.path.endswith("load_kg") and "no load recorded; imports as NULL" in issue.message
+        for issue in report.warnings
+    )
+
+
 def test_sub_gram_precision_is_refused() -> None:
     document = parse_capture_json(
         json.dumps(

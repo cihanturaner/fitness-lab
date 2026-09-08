@@ -166,7 +166,13 @@ def _check_set(
 
     if "load_kg" in entry:
         load = entry["load_kg"]
-        if isinstance(load, str | int | Decimal) or load is None:
+        if load is None:
+            errors.append(
+                CaptureIssue(
+                    f"{path}.load_kg", f"load_kg must be a decimal load when present: {load!r}"
+                )
+            )
+        elif isinstance(load, str | int | Decimal):
             try:
                 kg_to_g(load)
             except (TypeError, ValueError) as exc:
