@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fitness_lab.storage import db
+from fitness_lab.storage.snapshots import create_snapshot
 
 MIGRATIONS_DIR = db.REPO_ROOT / "backend" / "migrations"
 FILENAME_PATTERN = re.compile(r"^(\d{4})_[a-z0-9_]+\.sql$")
@@ -205,8 +206,13 @@ def migrate_to_head(
             pending = pending_migrations(connection, migrations)
             if not pending:
                 return MigrationResult(applied=(), snapshot=None)
+            # Discovery first, snapshot second, both under the lock: starting the app at
+            # head must not accumulate a snapshot per launch, and a process that waited
+            # for the lock must not snapshot against a pending list it read earlier.
+            # One snapshot covers the whole sequence.
+            snapshot = create_snapshot(connection, db_path, f"pre-{pending[0].version:04d}")
             for migration in pending:
                 _apply(connection, migration)
             return MigrationResult(
-                applied=tuple(migration.version for migration in pending), snapshot=None
+                applied=tuple(migration.version for migration in pending), snapshot=snapshot
             )

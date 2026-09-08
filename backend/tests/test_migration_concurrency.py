@@ -114,3 +114,18 @@ def test_concurrent_starts_record_each_version_exactly_once_and_leave_a_valid_da
         assert raw.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     finally:
         raw.close()
+
+
+def test_concurrent_starts_create_exactly_one_pre_migration_snapshot(
+    db_path: Path, migrations_dir: Path
+) -> None:
+    """Without the lock this produced two snapshots (verified); with it, exactly one."""
+    from fitness_lab.storage.snapshots import snapshot_directory
+
+    results = run_concurrent_migrations(db_path, migrations_dir)
+
+    snapshots = sorted(snapshot_directory(db_path).glob("*.db"))
+    assert len(snapshots) == 1
+    named = [result["snapshot"] for result in results if result["snapshot"] is not None]
+    assert named == [snapshots[0].name]
+    assert snapshots[0].name.endswith("-pre-0001.db")
