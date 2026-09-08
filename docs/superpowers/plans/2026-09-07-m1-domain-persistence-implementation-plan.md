@@ -48,6 +48,11 @@ Every task's requirements implicitly include this section.
 - **Migrations are numbered `NNNN_description.sql`, forward-only, and never edited after being
   applied.** `schema_migrations` is the single source of truth for applied state;
   `PRAGMA user_version` is deliberately not maintained.
+- **Migration is serialized across processes** by an exclusive advisory lock
+  (`fcntl.flock`, standard library) held from discovery through to the last applied
+  statement. The launcher can be started twice; a second process must wait, then
+  **re-discover** state rather than act on a stale pending list. The lock file sits beside
+  the database as `<database file>.migrate.lock`, inside gitignored `data/`.
 - **A snapshot is created only when migrations are pending** — exactly one per pending
   sequence, and none at all when there is nothing to apply. No pruning or retention in M1.
 - **No generic table-rebuild helper.** Every M1 migration is purely additive.
@@ -94,7 +99,26 @@ plan. They are mechanism facts, not spec changes.
    `m0_technical_check` with token `sqlite-roundtrip-ok`, and has no `schema_migrations` table.
    Bootstrap must therefore switch a legacy file to WAL, and adoption must not reset it.
 5. **`VACUUM INTO` requires no open transaction** and produces a readable single-file copy
-   (`PRAGMA integrity_check` → `ok`).
+   (`PRAGMA integrity_check` → `ok`). It fails with a `sqlite3.Error` when the target
+   directory is not writable, and `Path.mkdir(parents=True, exist_ok=True)` raises
+   `FileExistsError` when a regular file occupies the directory's path — both are wrapped
+   into `SnapshotError` so callers have one failure type to guard against.
+6. **Two processes migrating the same database concurrently corrupt the migration story
+   without a lock.** Verified with a prototype runner and four real processes released at
+   the same instant against one database:
+   - **without a lock:** one process succeeded, **two** pre-migration snapshots were
+     created, and three processes exited non-zero — two with
+     `sqlite3.OperationalError: database is locked` and one with
+     `MigrationError: 0001_first.sql failed: table slow already exists` (it acted on a
+     pending list that had gone stale while it waited on SQLite).
+   - **with `fcntl.flock` around discovery → snapshot → apply:** exactly one process
+     applied `(1, 2)`, the other three returned `applied=()` having re-discovered head,
+     `schema_migrations` held each version once, exactly one snapshot existed,
+     `integrity_check` was `ok`, and all four processes exited `0`. The burst took
+     **0.62 s** wall-clock.
+   A multi-process barrier must compare the **same clock in parent and child**: passing a
+   `time.time()` deadline to a child that waits on `time.monotonic()` hangs forever (hit
+   and corrected while verifying this).
 
 ### One recorded resolution of a spec-internal tension
 
@@ -131,6 +155,7 @@ E2E suite changes.
 | `backend/tests/conftest.py` | Shared `db_path` / `migrated_db` fixtures |
 | `backend/tests/test_connection.py` | Connection hardening assertions |
 | `backend/tests/test_migrations.py` | Migration runner behaviour against synthetic migration directories |
+| `backend/tests/test_migration_concurrency.py` | Two or more real processes migrating one database at once |
 | `backend/tests/test_snapshots.py` | Snapshot policy |
 | `backend/tests/test_baseline_migration.py` | Real `0001` against empty and legacy M0 databases |
 | `backend/tests/test_units.py` | kg↔gram exactness and rejections |
@@ -162,7 +187,7 @@ no snapshot pruning.
 ```
 1 connection hardening
 2 architecture guards
-3 migration runner core            (needs 1)
+3 migration runner + process lock  (needs 1)
 4 snapshot policy                  (needs 3)
 5 baseline migration + adoption    (needs 4)   <- M0 database adopted here
 6 kg<->gram mapper                 (needs 2)
@@ -483,6 +508,7 @@ git commit -m "test(architecture): guard the storage boundary and keep grams out
 - Create: `backend/src/fitness_lab/storage/migrations.py`
 - Create: `backend/tests/conftest.py`
 - Test: `backend/tests/test_migrations.py` (create)
+- Test: `backend/tests/test_migration_concurrency.py` (create)
 
 **Interfaces:**
 - Consumes: `db.connection_scope`, `db.transaction`, `db.bootstrap_database`, `db.database_path`.
@@ -495,6 +521,8 @@ git commit -m "test(architecture): guard the storage boundary and keep grams out
   - `ensure_schema_migrations(connection: sqlite3.Connection) -> None`
   - `applied_versions(connection: sqlite3.Connection) -> dict[int, str]`
   - `pending_migrations(connection: sqlite3.Connection, migrations: Sequence[Migration]) -> tuple[Migration, ...]`
+  - `migration_lock(db_path: Path) -> Iterator[None]` — context manager holding an exclusive
+    advisory `fcntl.flock` on `<database file>.migrate.lock`
   - `migrate_to_head(path: Path | None = None, *, directory: Path = MIGRATIONS_DIR) -> MigrationResult`
   - In this task `MigrationResult.snapshot` is always `None`; Task 4 fills it in.
 
@@ -779,10 +807,12 @@ instead of silent divergence.
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import re
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -840,6 +870,31 @@ def _split_statements(sql: str) -> tuple[str, ...]:
     if leftover:
         raise MigrationError(f"unterminated SQL statement: {leftover[0]!r}")
     return tuple(statements)
+
+
+@contextmanager
+def migration_lock(db_path: Path) -> Iterator[None]:
+    """Serialize migration across processes.
+
+    The launcher can be started twice by accident. Without this lock both processes read
+    an empty schema_migrations, both take a pre-migration snapshot, and the loser dies on
+    "database is locked" or on re-applying a migration whose objects already exist —
+    verified: four concurrent unlocked starts produced two snapshots and three non-zero
+    exits. flock is advisory, released automatically if the process dies, needs no
+    dependency, and is scoped to this machine, which is the whole world for a local
+    single-user desktop application.
+    """
+    lock_path = db_path.with_name(db_path.name + ".migrate.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock_path.open("w")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    finally:
+        handle.close()
 
 
 def discover_migrations(directory: Path = MIGRATIONS_DIR) -> tuple[Migration, ...]:
@@ -939,21 +994,25 @@ def migrate_to_head(
 ) -> MigrationResult:
     """Bring the database at ``path`` up to the newest migration.
 
-    Never drops or recreates anything: the runner only applies pending files.
+    Everything from discovery to the last applied statement happens under the migration
+    lock, so a second process starting at the same time waits and then re-discovers
+    state instead of acting on a pending list that went stale while it waited. Never
+    drops or recreates anything: the runner only applies pending files.
     """
     db_path = path if path is not None else db.database_path()
-    db.bootstrap_database(db_path)
-    migrations = discover_migrations(directory)
-    with db.connection_scope(db_path) as connection:
-        ensure_schema_migrations(connection)
-        pending = pending_migrations(connection, migrations)
-        if not pending:
-            return MigrationResult(applied=(), snapshot=None)
-        for migration in pending:
-            _apply(connection, migration)
-        return MigrationResult(
-            applied=tuple(migration.version for migration in pending), snapshot=None
-        )
+    with migration_lock(db_path):
+        db.bootstrap_database(db_path)
+        migrations = discover_migrations(directory)
+        with db.connection_scope(db_path) as connection:
+            ensure_schema_migrations(connection)
+            pending = pending_migrations(connection, migrations)
+            if not pending:
+                return MigrationResult(applied=(), snapshot=None)
+            for migration in pending:
+                _apply(connection, migration)
+            return MigrationResult(
+                applied=tuple(migration.version for migration in pending), snapshot=None
+            )
 ```
 
 - [ ] **Step 5: Run the tests to verify they pass**
@@ -964,7 +1023,145 @@ cd backend && uv run pytest tests/test_migrations.py -v
 
 Expected: PASS, all 14 tests.
 
-- [ ] **Step 6: Run the full backend gate**
+- [ ] **Step 6: Write the cross-process concurrency test**
+
+Same-process tests cannot prove inter-process locking — `fcntl.flock` is held per open file
+description, so only real, separately started processes exercise the guarantee that matters
+when the launcher is double-clicked twice. Create
+`backend/tests/test_migration_concurrency.py`:
+
+```python
+"""Two launchers started at once must not both migrate.
+
+These tests start real subprocesses on purpose: flock is an inter-process mechanism, and a
+threads-in-one-process test would prove nothing about the case this guards against.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import pytest
+
+SRC = Path(__file__).resolve().parents[1] / "src"
+
+# The child migrates, then prints its result as JSON. It waits for a shared wall-clock
+# deadline so all workers are released at the same instant. Parent and child MUST use the
+# same clock: handing a time.time() deadline to a child that waits on time.monotonic()
+# never fires.
+CHILD_PROGRAM = """
+import json, sys, time
+from pathlib import Path
+from fitness_lab.storage.migrations import migrate_to_head
+
+db_path, directory, release_at = Path(sys.argv[1]), Path(sys.argv[2]), float(sys.argv[3])
+while time.time() < release_at:
+    time.sleep(0.001)
+result = migrate_to_head(db_path, directory=directory)
+print(json.dumps({
+    "applied": list(result.applied),
+    "snapshot": None if result.snapshot is None else result.snapshot.name,
+}))
+"""
+
+# Slow enough that the workers genuinely overlap rather than finishing one after another.
+SLOW_MIGRATION = (
+    "CREATE TABLE slow (id INTEGER PRIMARY KEY) STRICT;\n"
+    "INSERT INTO slow (id) WITH RECURSIVE counter(x) AS "
+    "(SELECT 1 UNION ALL SELECT x + 1 FROM counter WHERE x < 200000) SELECT x FROM counter;\n"
+)
+SECOND_MIGRATION = "CREATE TABLE second (id INTEGER PRIMARY KEY) STRICT;\n"
+
+
+@pytest.fixture
+def migrations_dir(tmp_path: Path) -> Path:
+    directory = tmp_path / "migrations"
+    directory.mkdir()
+    (directory / "0001_slow.sql").write_text(SLOW_MIGRATION, encoding="utf-8")
+    (directory / "0002_second.sql").write_text(SECOND_MIGRATION, encoding="utf-8")
+    return directory
+
+
+def run_concurrent_migrations(
+    db_path: Path, directory: Path, *, workers: int = 4
+) -> list[dict[str, object]]:
+    """Start `workers` real processes that all migrate the same database at once."""
+    release_at = time.time() + 0.5
+    environment = {**os.environ, "PYTHONPATH": str(SRC)}
+    processes = [
+        subprocess.Popen(
+            [sys.executable, "-c", CHILD_PROGRAM, str(db_path), str(directory), str(release_at)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=environment,
+        )
+        for _ in range(workers)
+    ]
+    results: list[dict[str, object]] = []
+    for process in processes:
+        stdout, stderr = process.communicate(timeout=120)
+        assert process.returncode == 0, f"a migration process failed:\n{stderr}"
+        results.append(json.loads(stdout.strip()))
+    return results
+
+
+def test_only_one_concurrent_start_applies_the_pending_sequence(
+    db_path: Path, migrations_dir: Path
+) -> None:
+    results = run_concurrent_migrations(db_path, migrations_dir)
+
+    appliers = [result for result in results if result["applied"]]
+    assert len(appliers) == 1, f"more than one process applied migrations: {results}"
+    assert appliers[0]["applied"] == [1, 2]
+
+
+def test_the_processes_that_waited_observe_head_rather_than_a_stale_pending_list(
+    db_path: Path, migrations_dir: Path
+) -> None:
+    """The losers must re-discover state after the lock, not replay what they saw before."""
+    results = run_concurrent_migrations(db_path, migrations_dir)
+
+    assert sum(1 for result in results if result["applied"] == []) == len(results) - 1
+
+
+def test_concurrent_starts_record_each_version_exactly_once_and_leave_a_valid_database(
+    db_path: Path, migrations_dir: Path
+) -> None:
+    import sqlite3
+
+    run_concurrent_migrations(db_path, migrations_dir)
+
+    raw = sqlite3.connect(db_path)
+    try:
+        versions = [row[0] for row in raw.execute("SELECT version FROM schema_migrations ORDER BY version")]
+        assert versions == [1, 2]
+        assert raw.execute("SELECT count(*) FROM slow").fetchone()[0] == 200000
+        assert raw.execute("PRAGMA foreign_key_check").fetchall() == []
+        assert raw.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    finally:
+        raw.close()
+```
+
+- [ ] **Step 7: Run the concurrency test**
+
+```bash
+cd backend && uv run pytest tests/test_migration_concurrency.py -v
+```
+
+Expected: PASS. Each test starts four processes and takes roughly 1 second (measured: a
+4-worker burst completes in ~0.6 s wall-clock plus the 0.5 s barrier). To confirm the lock is
+load-bearing rather than decorative, temporarily comment out the `with migration_lock(db_path):`
+line (dedenting its body) and re-run — the suite must FAIL, with two snapshots created and
+processes dying on `database is locked` or `table slow already exists`. Restore the lock
+afterwards.
+
+- [ ] **Step 8: Run the full backend gate**
 
 ```bash
 cd backend && uv run pytest && uv run ruff check . && uv run ruff format --check . && uv run mypy
@@ -972,11 +1169,11 @@ cd backend && uv run pytest && uv run ruff check . && uv run ruff format --check
 
 Expected: all green.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add backend/src/fitness_lab/storage/migrations.py backend/tests/test_migrations.py backend/tests/conftest.py
-git commit -m "feat(storage): deterministic forward-only migration runner"
+git add backend/src/fitness_lab/storage/migrations.py backend/tests/test_migrations.py backend/tests/test_migration_concurrency.py backend/tests/conftest.py
+git commit -m "feat(storage): deterministic forward-only migration runner, serialized across processes"
 ```
 
 ---
@@ -987,11 +1184,14 @@ git commit -m "feat(storage): deterministic forward-only migration runner"
 - Create: `backend/src/fitness_lab/storage/snapshots.py`
 - Modify: `backend/src/fitness_lab/storage/migrations.py`
 - Test: `backend/tests/test_snapshots.py` (create)
+- Test: `backend/tests/test_migration_concurrency.py` (modify — add the snapshot assertion)
 
 **Interfaces:**
-- Consumes: `db.connection_scope`, `migrations.migrate_to_head`.
+- Consumes: `db.connection_scope`, `migrations.migrate_to_head`,
+  `test_migration_concurrency.run_concurrent_migrations` (from Task 3).
 - Produces:
-  - `class SnapshotError(RuntimeError)`
+  - `class SnapshotError(RuntimeError)` — the single failure type for every snapshot
+    failure, including OS errors and `sqlite3` errors raised by `VACUUM INTO`
   - `snapshot_directory(db_path: Path) -> Path` (= `<db parent>/snapshots`)
   - `create_snapshot(connection: sqlite3.Connection, db_path: Path, label: str) -> Path`
   - `migrate_to_head` now returns a real `MigrationResult.snapshot` path when anything was
@@ -1148,6 +1348,29 @@ def test_snapshots_taken_in_quick_succession_do_not_collide(db_path: Path) -> No
 
     assert first != second
     assert first.exists() and second.exists()
+
+
+def test_a_snapshot_that_cannot_be_written_raises_snapshot_error(db_path: Path) -> None:
+    """Callers guard one failure type; VACUUM INTO's sqlite3 error is wrapped into it."""
+    with db.connection_scope(db_path) as connection:
+        connection.execute("CREATE TABLE t (id INTEGER PRIMARY KEY) STRICT")
+        directory = snapshot_directory(db_path)
+        directory.mkdir(parents=True, exist_ok=True)
+        directory.chmod(0o500)
+        try:
+            with pytest.raises(SnapshotError, match="snapshot failed"):
+                create_snapshot(connection, db_path, "pre-0001")
+        finally:
+            directory.chmod(0o700)
+
+
+def test_a_snapshot_directory_blocked_by_a_file_raises_snapshot_error(db_path: Path) -> None:
+    with db.connection_scope(db_path) as connection:
+        connection.execute("CREATE TABLE t (id INTEGER PRIMARY KEY) STRICT")
+        snapshot_directory(db_path).write_text("a regular file where the directory belongs")
+
+        with pytest.raises(SnapshotError, match="snapshot directory unusable"):
+            create_snapshot(connection, db_path, "pre-0001")
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -1192,12 +1415,18 @@ def create_snapshot(connection: sqlite3.Connection, db_path: Path, label: str) -
     if connection.in_transaction:
         raise SnapshotError("a snapshot cannot be taken inside an open transaction")
     directory = snapshot_directory(db_path)
-    directory.mkdir(parents=True, exist_ok=True)
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise SnapshotError(f"snapshot directory unusable: {exc}") from exc
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     target = directory / f"{stamp}-{label}.db"
     if target.exists():
         raise SnapshotError(f"snapshot already exists: {target}")
-    connection.execute("VACUUM INTO ?", (str(target),))
+    try:
+        connection.execute("VACUUM INTO ?", (str(target),))
+    except sqlite3.Error as exc:
+        raise SnapshotError(f"snapshot failed: {exc}") from exc
     return target
 ```
 
@@ -1205,20 +1434,24 @@ def create_snapshot(connection: sqlite3.Connection, db_path: Path, label: str) -
 
 In `backend/src/fitness_lab/storage/migrations.py`, import
 `from fitness_lab.storage.snapshots import create_snapshot` and replace the tail of
-`migrate_to_head`:
+`migrate_to_head`. Note the indentation: this body sits inside `with migration_lock(db_path):`
+from Task 3, so snapshot creation is covered by the lock and two concurrent starts cannot
+each take one.
 
 ```python
-        pending = pending_migrations(connection, migrations)
-        if not pending:
-            return MigrationResult(applied=(), snapshot=None)
-        # Discovery first, snapshot second: starting the app at head must not
-        # accumulate a snapshot per launch. One snapshot covers the whole sequence.
-        snapshot = create_snapshot(connection, db_path, f"pre-{pending[0].version:04d}")
-        for migration in pending:
-            _apply(connection, migration)
-        return MigrationResult(
-            applied=tuple(migration.version for migration in pending), snapshot=snapshot
-        )
+            pending = pending_migrations(connection, migrations)
+            if not pending:
+                return MigrationResult(applied=(), snapshot=None)
+            # Discovery first, snapshot second, both under the lock: starting the app at
+            # head must not accumulate a snapshot per launch, and a process that waited
+            # for the lock must not snapshot against a pending list it read earlier.
+            # One snapshot covers the whole sequence.
+            snapshot = create_snapshot(connection, db_path, f"pre-{pending[0].version:04d}")
+            for migration in pending:
+                _apply(connection, migration)
+            return MigrationResult(
+                applied=tuple(migration.version for migration in pending), snapshot=snapshot
+            )
 ```
 
 Note the ordering that must not be changed: `ensure_schema_migrations` runs *before* the
@@ -1234,7 +1467,37 @@ cd backend && uv run pytest tests/test_snapshots.py tests/test_migrations.py -v
 
 Expected: PASS.
 
-- [ ] **Step 6: Run the full backend gate**
+- [ ] **Step 6: Prove concurrent starts still produce exactly one snapshot**
+
+The lock from Task 3 exists partly to stop two stale pending-state observations from each
+taking a snapshot. Append to `backend/tests/test_migration_concurrency.py`, reusing that
+file's `run_concurrent_migrations` helper and `migrations_dir` fixture:
+
+```python
+def test_concurrent_starts_create_exactly_one_pre_migration_snapshot(
+    db_path: Path, migrations_dir: Path
+) -> None:
+    """Without the lock this produced two snapshots (verified); with it, exactly one."""
+    from fitness_lab.storage.snapshots import snapshot_directory
+
+    results = run_concurrent_migrations(db_path, migrations_dir)
+
+    snapshots = sorted(snapshot_directory(db_path).glob("*.db"))
+    assert len(snapshots) == 1
+    named = [result["snapshot"] for result in results if result["snapshot"] is not None]
+    assert named == [snapshots[0].name]
+    assert snapshots[0].name.endswith("-pre-0001.db")
+```
+
+Run it:
+
+```bash
+cd backend && uv run pytest tests/test_migration_concurrency.py -v
+```
+
+Expected: PASS, all four concurrency tests.
+
+- [ ] **Step 7: Run the full backend gate**
 
 ```bash
 cd backend && uv run pytest && uv run ruff check . && uv run ruff format --check . && uv run mypy
@@ -1242,10 +1505,10 @@ cd backend && uv run pytest && uv run ruff check . && uv run ruff format --check
 
 Expected: all green.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add backend/src/fitness_lab/storage/snapshots.py backend/src/fitness_lab/storage/migrations.py backend/tests/test_snapshots.py
+git add backend/src/fitness_lab/storage/snapshots.py backend/src/fitness_lab/storage/migrations.py backend/tests/test_snapshots.py backend/tests/test_migration_concurrency.py
 git commit -m "feat(storage): take exactly one pre-migration snapshot when migrations are pending"
 ```
 
@@ -3937,6 +4200,11 @@ git commit -m "feat(storage): workout and performed-set persistence with exact g
     renumbers the workout's remaining sets to a dense `1..n`, returning them)
   - `delete_draft_workout(connection, workout_id: str) -> None`
   - `delete_complete_workout(connection, workout_id: str, *, db_path: Path, i_understand_this_deletes_evidence: bool = False) -> Path` (returns the safety snapshot path)
+- **Two ordering guarantees this task must not lose, each proven by a failure-boundary test:**
+  1. **Snapshot before delete.** If the safety snapshot raises, **no** row is deleted and the
+     database is unchanged. The snapshot is not best-effort.
+  2. **Delete and renumber are one transaction.** If renumbering fails after the delete, the
+     whole thing rolls back and the original rows and positions survive.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -3963,14 +4231,14 @@ from fitness_lab.domain.models import (
     new_draft_workout,
     new_id,
 )
-from fitness_lab.storage import db
 from fitness_lab.storage.exercises import insert_exercise
-from fitness_lab.storage.snapshots import snapshot_directory
+from fitness_lab.storage.snapshots import SnapshotError, snapshot_directory
 from fitness_lab.storage.workouts import (
     DeletionRefused,
     delete_complete_workout,
     delete_draft_workout,
     delete_performed_set,
+    get_workout,
     insert_performed_set,
     insert_workout,
     list_sets_for_workout,
@@ -4177,6 +4445,79 @@ def test_the_connection_is_left_without_an_open_transaction(
     delete_performed_set(migrated_db, performed.id)
 
     assert not migrated_db.in_transaction
+
+
+def test_a_failure_between_delete_and_renumber_rolls_the_whole_thing_back(
+    migrated_db: sqlite3.Connection,
+    workout: Workout,
+    exercise_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Failure injected between the DELETE and the renumbering: nothing may survive it."""
+    add_set(migrated_db, workout.id, exercise_id, 1)
+    second = add_set(migrated_db, workout.id, exercise_id, 2)
+    add_set(migrated_db, workout.id, exercise_id, 3)
+    before = list_sets_for_workout(migrated_db, workout.id)
+
+    def explode(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("renumbering failed midway")
+
+    monkeypatch.setattr("fitness_lab.storage.workouts._write_renumbering", explode)
+
+    with pytest.raises(RuntimeError, match="renumbering failed midway"):
+        delete_performed_set(migrated_db, second.id)
+
+    after = list_sets_for_workout(migrated_db, workout.id)
+    assert after == before, "the deleted set must come back with the rolled-back transaction"
+    assert [performed.set_order for performed in after] == [1, 2, 3]
+    assert not migrated_db.in_transaction
+
+
+def test_a_failed_safety_snapshot_deletes_nothing(
+    migrated_db: sqlite3.Connection,
+    workout: Workout,
+    exercise_id: str,
+    db_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fail-safe ordering: no snapshot, no delete. The snapshot is not best-effort."""
+    add_set(migrated_db, workout.id, exercise_id, 1)
+    update_workout(migrated_db, replace(workout, status=WorkoutStatus.COMPLETE))
+
+    def explode(*_args: object, **_kwargs: object) -> Path:
+        raise SnapshotError("VACUUM INTO failed")
+
+    monkeypatch.setattr("fitness_lab.storage.workouts.create_snapshot", explode)
+
+    with pytest.raises(SnapshotError):
+        delete_complete_workout(
+            migrated_db, workout.id, db_path=db_path, i_understand_this_deletes_evidence=True
+        )
+
+    assert get_workout(migrated_db, workout.id) is not None
+    assert len(list_sets_for_workout(migrated_db, workout.id)) == 1
+
+
+def test_a_snapshot_that_cannot_be_written_leaves_the_workout_and_its_sets_intact(
+    migrated_db: sqlite3.Connection, workout: Workout, exercise_id: str, db_path: Path
+) -> None:
+    """The same guarantee against a real OS-level failure, not a patched one."""
+    add_set(migrated_db, workout.id, exercise_id, 1)
+    update_workout(migrated_db, replace(workout, status=WorkoutStatus.COMPLETE))
+    directory = snapshot_directory(db_path)
+    directory.mkdir(parents=True, exist_ok=True)
+    directory.chmod(0o500)
+
+    try:
+        with pytest.raises(SnapshotError):
+            delete_complete_workout(
+                migrated_db, workout.id, db_path=db_path, i_understand_this_deletes_evidence=True
+            )
+    finally:
+        directory.chmod(0o700)
+
+    assert get_workout(migrated_db, workout.id) is not None
+    assert migrated_db.execute("SELECT count(*) AS n FROM performed_set").fetchone()["n"] == 1
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -4291,7 +4632,12 @@ def delete_complete_workout(
     db_path: Path,
     i_understand_this_deletes_evidence: bool = False,
 ) -> Path:
-    """The only guarded path. Takes a safety snapshot first and returns its location."""
+    """The only guarded path. Takes a safety snapshot first and returns its location.
+
+    Ordering is fail-safe and must not be rearranged: create_snapshot() raises rather
+    than returning a partial file, so a failed snapshot propagates before the DELETE is
+    ever issued and the database is left exactly as it was.
+    """
     workout = _require_workout(connection, workout_id)
     if workout.status is not WorkoutStatus.COMPLETE:
         raise DeletionRefused(
@@ -5283,9 +5629,12 @@ Each binding requirement of the spec, and the task that implements or proves it.
 | §11.2 | `foreign_keys`, `busy_timeout`, `synchronous`, `isolation_level=None` per connection | 1 |
 | §12.1–12.2 | Hand-rolled runner, numbered forward-only files, checksum refusal, one transaction, `foreign_key_check` before commit | 3 |
 | §12.3 | No generic rebuild helper; every M1 migration additive | 3, 9 |
+| §12.2 (safety) | Two processes starting at once cannot both apply, double-record or corrupt; the waiter re-discovers state | 3 |
 | §12.4 | `0001_baseline` adopts the legacy M0 database; `init_db` removed; lifespan migrates | 5 |
 | §13 | Snapshot only when pending, exactly one, readable, no pruning | 4 |
+| §13 (safety) | Exactly one snapshot even when several processes start at once | 4 |
 | §14 | Correction and deletion policy, guarded complete-workout delete with snapshot | 12 |
+| §14 (safety) | A failed safety snapshot deletes nothing; delete + renumber roll back together | 12 |
 | §15 | Capture contract v1 documented; validator only, no importer | 13 |
 | §16 | Exact `Decimal` kg↔g mapper, float refused, sub-gram refused, `format(normalize(), "f")` | 6 |
 | §17 | No outward FK and no program column on `workout`/`performed_set` | 9 |
