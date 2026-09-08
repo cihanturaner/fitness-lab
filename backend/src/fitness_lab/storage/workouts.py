@@ -8,9 +8,14 @@ exists so hand-written SQL reads in kilograms.
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Sequence
+from pathlib import Path
 
+from fitness_lab.domain.completion import renumber_sets
 from fitness_lab.domain.models import PerformedSet, SetTypeCode, Workout, WorkoutStatus
 from fitness_lab.domain.units import g_to_kg, kg_to_g
+from fitness_lab.storage import db
+from fitness_lab.storage.snapshots import create_snapshot
 
 WORKOUT_COLUMNS = (
     "id, performed_on, performed_time_local, status, notes, entered_at_utc, updated_at_utc"
@@ -145,3 +150,104 @@ def list_sets_for_workout(
         (workout_id,),
     ).fetchall()
     return tuple(row_to_performed_set(row) for row in rows)
+
+
+class DeletionRefused(RuntimeError):
+    """A deletion was refused because it would destroy evidence unguarded."""
+
+
+_RENUMBER_OFFSET = 1_000_000
+
+
+def _write_renumbering(
+    connection: sqlite3.Connection, workout_id: str, target: Sequence[PerformedSet]
+) -> None:
+    """Assign the target positions. Caller must already hold a transaction.
+
+    The offset pass exists because UNIQUE (workout_id, set_order) would otherwise be
+    violated mid-update while positions are being reassigned.
+    """
+    connection.execute(
+        "UPDATE performed_set SET set_order = set_order + ? WHERE workout_id = ?",
+        (_RENUMBER_OFFSET, workout_id),
+    )
+    for performed in target:
+        connection.execute(
+            "UPDATE performed_set SET set_order = ? WHERE id = ?",
+            (performed.set_order, performed.id),
+        )
+
+
+def renumber_workout_sets(
+    connection: sqlite3.Connection, workout_id: str
+) -> tuple[PerformedSet, ...]:
+    """Compact this workout's sets to a dense 1..n (rule C3's repair), persisted."""
+    current = list_sets_for_workout(connection, workout_id)
+    target = renumber_sets(current)
+    if [performed.set_order for performed in current] == [
+        performed.set_order for performed in target
+    ]:
+        return current
+    with db.transaction(connection):
+        _write_renumbering(connection, workout_id, target)
+    return target
+
+
+def delete_performed_set(connection: sqlite3.Connection, set_id: str) -> tuple[PerformedSet, ...]:
+    """Hard DELETE, then renumber the workout's remaining sets. Returns what is left.
+
+    Both halves run in one transaction: a set removed but not renumbered would leave the
+    workout in a state rule C3 exists to prevent.
+    """
+    row = connection.execute(
+        "SELECT workout_id FROM performed_set WHERE id = ?", (set_id,)
+    ).fetchone()
+    if row is None:
+        raise DeletionRefused(f"no set with id {set_id!r}")
+    workout_id = str(row["workout_id"])
+    with db.transaction(connection):
+        connection.execute("DELETE FROM performed_set WHERE id = ?", (set_id,))
+        remaining = renumber_sets(list_sets_for_workout(connection, workout_id))
+        _write_renumbering(connection, workout_id, remaining)
+    return remaining
+
+
+def _require_workout(connection: sqlite3.Connection, workout_id: str) -> Workout:
+    workout = get_workout(connection, workout_id)
+    if workout is None:
+        raise DeletionRefused(f"no workout with id {workout_id!r}")
+    return workout
+
+
+def delete_draft_workout(connection: sqlite3.Connection, workout_id: str) -> None:
+    """A draft is not evidence; nothing is lost. Sets cascade."""
+    workout = _require_workout(connection, workout_id)
+    if workout.status is not WorkoutStatus.DRAFT:
+        raise DeletionRefused(f"workout {workout_id!r} is complete; use delete_complete_workout()")
+    connection.execute("DELETE FROM workout WHERE id = ?", (workout_id,))
+
+
+def delete_complete_workout(
+    connection: sqlite3.Connection,
+    workout_id: str,
+    *,
+    db_path: Path,
+    i_understand_this_deletes_evidence: bool = False,
+) -> Path:
+    """The only guarded path. Takes a safety snapshot first and returns its location.
+
+    Ordering is fail-safe and must not be rearranged: create_snapshot() raises rather
+    than returning a partial file, so a failed snapshot propagates before the DELETE is
+    ever issued and the database is left exactly as it was.
+    """
+    workout = _require_workout(connection, workout_id)
+    if workout.status is not WorkoutStatus.COMPLETE:
+        raise DeletionRefused(f"workout {workout_id!r} is a draft; use delete_draft_workout()")
+    if not i_understand_this_deletes_evidence:
+        raise DeletionRefused(
+            "deleting a complete workout requires confirm via "
+            "i_understand_this_deletes_evidence=True"
+        )
+    snapshot = create_snapshot(connection, db_path, f"pre-delete-workout-{workout_id}")
+    connection.execute("DELETE FROM workout WHERE id = ?", (workout_id,))
+    return snapshot
