@@ -31,8 +31,8 @@ Dependency direction is one-way:
 
 - `domain` — pure fitness logic. No I/O, no database, no HTTP. Must not import `storage`,
   `api`, `sqlite3` or `fastapi`. Enforced by `backend/tests/test_architecture.py`.
-- `storage` — SQLite access and (later) migrations and repositories. The only layer that
-  touches the database.
+- `storage` — SQLite access, migrations, and repositories. The only layer that touches
+  the database.
 - `api` — FastAPI boundary. Also serves the production React build in normal local use.
 - `web` — React SPA. Calls the API on a relative `/api` path in both dev and production.
 
@@ -45,11 +45,14 @@ Dependency direction is one-way:
 
 ## Repository layout
 
-    backend/    uv project; src/fitness_lab/{domain,storage,api}, tests/
-    web/        React SPA; src/components/ui holds generated shadcn components
-    e2e/        Playwright end-to-end tests
-    scripts/    start.sh (normal use), dev.sh (hot reload)
-    data/       SQLite database files (gitignored, created on first run)
+    backend/            uv project; src/fitness_lab/{domain,storage,api}, tests/
+    backend/migrations/ forward-only, numbered SQL migration files (NNNN_description.sql)
+    web/                React SPA; src/components/ui holds generated shadcn components
+    e2e/                Playwright end-to-end tests
+    scripts/            start.sh (normal use), dev.sh (hot reload)
+    data/               SQLite database (gitignored, created on first run); also holds
+                        fitness_lab.db.migrate.lock (cross-process migration lock) and
+                        snapshots/ (pre-migration backups; see "Snapshots and restore" below)
 
 ## Running the app
 
@@ -61,6 +64,20 @@ http://127.0.0.1:8000, opens the browser:
 Development with hot reload (Vite on :5173 proxying `/api` to FastAPI on :8000):
 
     ./scripts/dev.sh
+
+## Snapshots and restore
+
+Two operations take a full-file snapshot (SQLite `VACUUM INTO`) into `data/snapshots/`
+before touching the database: applying pending migrations (once per run, before the
+first pending migration), and `delete_complete_workout` (before every hard delete of a
+completed workout). Files are named `<UTC timestamp>-<label>.db`, e.g.
+`20260907T120000000000Z-pre-0003.db` (pre-migration) or
+`20260907T120000000000Z-pre-delete-workout-<id>.db` (pre-deletion). Snapshots are never
+pruned in M1 — they accumulate forever by design.
+
+To restore from a snapshot: stop the app, copy the chosen file over `data/fitness_lab.db`,
+then delete `data/fitness_lab.db-wal` and `data/fitness_lab.db-shm` if present (stale WAL
+state must not survive under the restored file).
 
 ## Verification commands
 
