@@ -54,7 +54,9 @@ Dependency direction is one-way:
 - A workout row in the UI is not a set until the lifter saves it; its set type is never
   taken from the plan.
 
-Current design: `docs/superpowers/specs/2026-09-23-v2-product-ux-note.md` (V2: Week,
+Current design: `docs/superpowers/specs/2026-09-23-v2-1-product-polish.md` (V2.1 visual
+contract: tokens, type scale, shell, per-screen hierarchy — follow it for any UI change) over
+`docs/superpowers/specs/2026-09-23-v2-product-ux-note.md` (V2: Week,
 Workout, Bodyweight, Nutrition, History), on top of
 `docs/superpowers/specs/2026-09-23-m2-planned-program-workflow-design.md` (M2) and the M1
 spec in the same directory. The authoritative nutrition source is
@@ -150,6 +152,11 @@ starts the real launcher on port 8710 (V1 journey; 8711 for the restart test) an
 `FITNESS_LAB_DB` and never reuses a running server:
 
     npx playwright test
+
+Visual QA (from `e2e/`, not part of the suite above) — screenshots every screen from an empty
+and a seeded scratch database at 1440×900 and 1728×1117 into `artifacts/visual/<VISUAL_TAG>/`:
+
+    VISUAL_TAG=check npx playwright test -c playwright.visual.config.ts
 
 ## Component base
 

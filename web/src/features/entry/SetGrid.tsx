@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react'
+import { ChevronDown, ChevronUp, MessageSquareText, Plus, X } from 'lucide-react'
 import type { PerformedSet, PlannedSet, SetFields, SetType } from '@/api/types'
 import { compactSet, formatReps, formatRir } from '@/lib/format'
 import { markUnsaved, useUnsavedKey } from '@/lib/unsaved'
 import { CommitInput } from './fields'
 import { moveWithinExercise } from './model'
-import { gridInputClass, parseCount, parseLoad } from './parse'
+import { parseCount, parseLoad, pendingInputClass } from './parse'
 
 export interface SetActions {
   add: (exerciseId: string, fields: SetFields) => Promise<boolean>
@@ -14,9 +15,9 @@ export interface SetActions {
 }
 
 const TYPE_OPTIONS: { code: SetType; label: string }[] = [
-  { code: 'working', label: 'Work' },
-  { code: 'warmup', label: 'Warm' },
-  { code: 'backoff', label: 'Back' },
+  { code: 'working', label: 'Working' },
+  { code: 'warmup', label: 'Warm-up' },
+  { code: 'backoff', label: 'Back-off' },
 ]
 
 const validLoad = (text: string) => parseLoad(text).ok
@@ -26,14 +27,13 @@ const LOAD_HINT = 'kilograms with up to 3 decimals, e.g. 82.5'
 const COUNT_HINT = 'a whole number'
 
 const selectClass =
-  'h-7 w-full rounded-md border border-input bg-card px-1 text-[13px] outline-none ' +
-  'focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 ' +
-  'disabled:border-transparent disabled:bg-transparent disabled:opacity-100 ' +
-  'aria-invalid:border-destructive'
+  'h-8 w-full appearance-none rounded-md border border-transparent pr-6 pl-2 text-[13px] outline-none ' +
+  'transition-colors focus-visible:border-ring focus-visible:bg-card focus-visible:ring-2 ' +
+  'focus-visible:ring-ring/40 disabled:opacity-100 aria-invalid:border-destructive aria-invalid:bg-destructive/5'
 
 const iconButton =
-  'inline-flex size-6 items-center justify-center rounded text-xs text-muted-foreground ' +
-  'hover:bg-muted hover:text-foreground disabled:opacity-30'
+  'inline-flex size-7 items-center justify-center rounded-md text-muted-foreground ' +
+  'hover:bg-sunken hover:text-foreground disabled:opacity-30 [&_svg]:size-3.5'
 
 function TypeSelect({
   label,
@@ -41,6 +41,7 @@ function TypeSelect({
   disabled,
   invalid,
   quiet = false,
+  pending = false,
   onChange,
 }: {
   label: string
@@ -49,28 +50,41 @@ function TypeSelect({
   invalid?: boolean
   /** Unset but not yet asked for: rows after the first take the previous row's type. */
   quiet?: boolean
+  /** A row not yet saved: shown as a well, like its number fields. */
+  pending?: boolean
   onChange: (value: SetType) => void
 }) {
   const unset = value === null || value === ''
+  const surface = pending || unset ? 'bg-sunken hover:border-border-strong' : 'bg-transparent hover:bg-sunken disabled:hover:bg-transparent'
   return (
-    <select
-      aria-label={label}
-      aria-invalid={invalid || undefined}
-      className={`${selectClass} ${unset ? 'text-muted-foreground' : ''}`}
-      value={value ?? ''}
-      disabled={disabled}
-      // Once chosen, the type is skipped by Tab so load → reps → RIR runs straight on to
-      // the next row; it stays one click (or a letter key) away.
-      tabIndex={unset ? 0 : -1}
-      onChange={(event) => event.target.value && onChange(event.target.value as SetType)}
-    >
-      {unset && <option value="">{quiet ? '–' : 'Type…'}</option>}
-      {TYPE_OPTIONS.map((option) => (
-        <option key={option.code} value={option.code}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    <span className="group/type relative block">
+      <select
+        aria-label={label}
+        aria-invalid={invalid || undefined}
+        className={`${selectClass} ${surface} ${unset ? 'text-muted-foreground' : value === 'warmup' ? 'text-muted-foreground' : 'text-foreground'}`}
+        value={value ?? ''}
+        disabled={disabled}
+        // Once chosen, the type is skipped by Tab so load → reps → RIR runs straight on to
+        // the next row; it stays one click (or a letter key) away.
+        tabIndex={unset ? 0 : -1}
+        onChange={(event) => event.target.value && onChange(event.target.value as SetType)}
+      >
+        {unset && <option value="">{quiet ? '–' : 'Set type'}</option>}
+        {TYPE_OPTIONS.map((option) => (
+          <option key={option.code} value={option.code}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {!disabled && (
+        <ChevronDown
+          aria-hidden
+          className={`pointer-events-none absolute top-1/2 right-1.5 size-3.5 -translate-y-1/2 text-faint transition-opacity ${
+            pending || unset ? '' : 'opacity-0 group-hover/type:opacity-100 group-focus-within/type:opacity-100'
+          }`}
+        />
+      )}
+    </span>
   )
 }
 
@@ -101,11 +115,11 @@ function SavedRow({
 
   return (
     <>
-      <tr data-testid="set-row" className="group/row">
-        <td className={`num pr-1 text-[13px] ${performed.set_type === 'warmup' ? 'text-muted-foreground' : ''}`}>
+      <tr data-testid="set-row" className={`group/row ${performed.set_type === 'warmup' ? '[&_input]:text-muted-foreground' : ''}`}>
+        <td className={`num text-[13px] ${performed.set_type === 'warmup' ? 'text-faint' : 'text-muted-foreground'}`}>
           {index + 1}
         </td>
-        <td className="py-0.5 pr-1">
+        <td>
           <CommitInput
             label={`Load in kg, ${label}`}
             context={exerciseName}
@@ -121,7 +135,7 @@ function SavedRow({
             }}
           />
         </td>
-        <td className="py-0.5 pr-1">
+        <td>
           <CommitInput
             label={`Reps, ${label}`}
             context={exerciseName}
@@ -134,7 +148,7 @@ function SavedRow({
             onCommit={(text) => commitCount('reps', text)}
           />
         </td>
-        <td className="py-0.5 pr-1">
+        <td>
           <CommitInput
             label={`RIR, ${label}`}
             context={exerciseName}
@@ -147,7 +161,7 @@ function SavedRow({
             onCommit={(text) => commitCount('rir', text)}
           />
         </td>
-        <td className="py-0.5 pr-1">
+        <td>
           <TypeSelect
             label={`Set type, ${label}`}
             value={performed.set_type}
@@ -156,9 +170,9 @@ function SavedRow({
             onChange={(code) => void actions.patch(performed.id, { set_type: code })}
           />
         </td>
-        <td className="py-0.5 text-right whitespace-nowrap">
+        <td className="text-right whitespace-nowrap">
           {!locked && (
-            <span className="opacity-40 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100">
+            <span className="inline-flex opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100">
               <button
                 type="button"
                 tabIndex={-1}
@@ -167,7 +181,7 @@ function SavedRow({
                 aria-expanded={showNote}
                 onClick={() => setNoteOpen((open) => !open)}
               >
-                ✎
+                <MessageSquareText aria-hidden />
               </button>
               <button
                 type="button"
@@ -177,7 +191,7 @@ function SavedRow({
                 disabled={up === null}
                 onClick={() => up && actions.reorder(up)}
               >
-                ↑
+                <ChevronUp aria-hidden />
               </button>
               <button
                 type="button"
@@ -187,7 +201,7 @@ function SavedRow({
                 disabled={down === null}
                 onClick={() => down && actions.reorder(down)}
               >
-                ↓
+                <ChevronDown aria-hidden />
               </button>
               <button
                 type="button"
@@ -200,7 +214,7 @@ function SavedRow({
                   }
                 }}
               >
-                ✕
+                <X aria-hidden />
               </button>
             </span>
           )}
@@ -379,7 +393,7 @@ function PendingRow({
       onKeyDown,
       // readOnly, not disabled: a disabled field drops the lifter's focus mid-save.
       readOnly: saving,
-      className: gridInputClass,
+      className: pendingInputClass,
     }
   }
   const rirHint = planned ? formatRir(planned.target_rir_min, planned.target_rir_max) : null
@@ -387,8 +401,8 @@ function PendingRow({
   return (
     <>
       <tr ref={rowRef} data-testid="new-set-row" onBlur={onBlur} aria-busy={saving || undefined}>
-        <td className="num pr-1 text-[13px] text-muted-foreground">{number}</td>
-        <td className="py-0.5 pr-1">
+        <td className="num text-[13px] text-faint">{number}</td>
+        <td>
           <input
             ref={loadRef}
             aria-label={`Load in kg, ${label}`}
@@ -400,7 +414,7 @@ function PendingRow({
             {...input('load')}
           />
         </td>
-        <td className="py-0.5 pr-1">
+        <td>
           <input
             aria-label={`Reps, ${label}`}
             inputMode="numeric"
@@ -409,7 +423,7 @@ function PendingRow({
             {...input('reps')}
           />
         </td>
-        <td className="py-0.5 pr-1">
+        <td>
           <input
             aria-label={`RIR, ${label}`}
             inputMode="numeric"
@@ -417,12 +431,13 @@ function PendingRow({
             {...input('rir')}
           />
         </td>
-        <td className="py-0.5 pr-1" onKeyDown={onKeyDown}>
+        <td onKeyDown={onKeyDown}>
           <TypeSelect
             label={`Set type, ${label}`}
             value={type}
             invalid={problem !== null && type === ''}
             quiet={!first && problem === null}
+            pending
             onChange={(code) => {
               if (saving) return
               setType(code)
@@ -430,13 +445,13 @@ function PendingRow({
             }}
           />
         </td>
-        <td className="text-right text-[11px] text-muted-foreground">{saving ? 'saving' : ''}</td>
+        <td className="pr-1 text-right text-[12px] text-muted-foreground">{saving ? 'Saving…' : ''}</td>
       </tr>
       {problem && (
         <tr>
           <td />
           <td colSpan={5}>
-            <p role="alert" className="pb-1 text-xs text-destructive">
+            <p role="alert" className="pb-1 text-[12px] text-destructive">
               {problem}
             </p>
           </td>
@@ -481,22 +496,22 @@ export function SetGrid({
 
   return (
     <div>
-      <table className="w-full table-fixed border-collapse" aria-label={`Sets, ${exerciseName}`}>
+      <table className="w-full max-w-[30rem] table-fixed border-separate border-spacing-x-1 border-spacing-y-[2px]" aria-label={`Sets, ${exerciseName}`}>
         <colgroup>
           <col className="w-7" />
+          <col className="w-[5.25rem]" />
+          <col className="w-[4.25rem]" />
+          <col className="w-[3.75rem]" />
+          <col className="w-[6.25rem]" />
           <col />
-          <col />
-          <col />
-          <col className="w-[4.5rem]" />
-          <col className="w-[5.5rem]" />
         </colgroup>
         <thead>
-          <tr className="text-left text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
-            <th className="pb-0.5 font-medium">Set</th>
-            <th className="pb-0.5 pr-2 text-right font-medium">kg</th>
-            <th className="pb-0.5 pr-2 text-right font-medium">Reps</th>
-            <th className="pb-0.5 pr-2 text-right font-medium">RIR</th>
-            <th className="pb-0.5 pl-1 font-medium">Type</th>
+          <tr className="text-left text-[12px] text-muted-foreground">
+            <th className="pb-1 font-medium">Set</th>
+            <th className="pr-2 pb-1 text-right font-medium">kg</th>
+            <th className="pr-2 pb-1 text-right font-medium">Reps</th>
+            <th className="pr-2 pb-1 text-right font-medium">RIR</th>
+            <th className="pb-1 pl-2 font-medium">Type</th>
             <th />
           </tr>
         </thead>
@@ -537,15 +552,16 @@ export function SetGrid({
             ))}
         </tbody>
       </table>
-      {sets.length === 0 && locked && <p className="text-[13px] text-muted-foreground">No sets recorded.</p>}
+      {sets.length === 0 && locked && <p className="t-micro pl-9">No sets recorded.</p>}
       {!locked && (
         <button
           type="button"
-          className="mt-1 rounded px-1.5 py-0.5 text-xs font-medium text-plan hover:bg-muted"
+          className="mt-1 ml-8 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] font-medium text-muted-foreground hover:bg-sunken hover:text-foreground"
           aria-label={`Add set, ${exerciseName}`}
           onClick={addRow}
         >
-          + Set
+          <Plus className="size-3.5" aria-hidden />
+          Add set
         </button>
       )}
     </div>

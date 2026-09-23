@@ -41,14 +41,9 @@ export function describeSet(performed: PerformedSet): string {
 }
 
 export function formatDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split('-').map(Number)
-  if (!year || !month || !day) return isoDate
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
+  const date = civil(isoDate)
+  if (!date) return isoDate
+  return `${WEEKDAYS[date.getDay()]?.slice(0, 3)} ${date.getDate()} ${MONTHS[date.getMonth()]?.slice(0, 3)} ${date.getFullYear()}`
 }
 
 /** "80×7@2" — the notebook shorthand. Unrecorded load is "–", unrecorded RIR is left off. */
@@ -80,17 +75,54 @@ export function targetSummary(sets: PlannedSet[]): string {
   return parts.join(' · ')
 }
 
-/** "Mon 28 Sep" — dates inside the current year read without the year. */
-export function formatShortDate(isoDate: string): string {
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+function civil(isoDate: string): Date | null {
   const [year, month, day] = isoDate.split('-').map(Number)
-  if (!year || !month || !day) return isoDate
-  const date = new Date(year, month - 1, day)
-  return date.toLocaleDateString('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    ...(year === new Date().getFullYear() ? {} : { year: 'numeric' }),
-  })
+  if (!year || !month || !day) return null
+  return new Date(year, month - 1, day)
+}
+
+/**
+ * "Mon 28 Sep" — dates inside the current year read without the year. Built by hand, not by
+ * the locale, so every browser writes the same three-letter month ("Sep", never "Sept").
+ */
+export function formatShortDate(isoDate: string): string {
+  const date = civil(isoDate)
+  if (!date) return isoDate
+  const text = `${WEEKDAYS[date.getDay()]?.slice(0, 3)} ${date.getDate()} ${MONTHS[date.getMonth()]?.slice(0, 3)}`
+  return date.getFullYear() === new Date().getFullYear() ? text : `${text} ${date.getFullYear()}`
+}
+
+/** "Wednesday 23 September" — the page-title form. */
+export function formatLongDate(isoDate: string): string {
+  const date = civil(isoDate)
+  if (!date) return isoDate
+  const text = `${WEEKDAYS[date.getDay()]} ${date.getDate()} ${MONTHS[date.getMonth()]}`
+  return date.getFullYear() === new Date().getFullYear() ? text : `${text} ${date.getFullYear()}`
+}
+
+/** "21–27 Sep" or "28 Sep – 4 Oct": a Monday–Sunday span without weekdays. */
+export function formatRange(startIso: string, endIso: string): string {
+  const start = civil(startIso)
+  const end = civil(endIso)
+  if (!start || !end) return `${startIso} – ${endIso}`
+  const month = (date: Date) => MONTHS[date.getMonth()]?.slice(0, 3)
+  return start.getMonth() === end.getMonth()
+    ? `${start.getDate()}–${end.getDate()} ${month(end)}`
+    : `${start.getDate()} ${month(start)} – ${end.getDate()} ${month(end)}`
+}
+
+/** Whole days from one civil date to another (positive when `to` is later). */
+export function daysBetween(fromIso: string, toIso: string): number {
+  const from = civil(fromIso)
+  const to = civil(toIso)
+  if (!from || !to) return 0
+  return Math.round((to.getTime() - from.getTime()) / 86_400_000)
 }
 
 /** "+0.70" / "-0.25" / "0.00": a change always says which way it went. */

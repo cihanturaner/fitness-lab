@@ -284,7 +284,7 @@ test('history: chronological kg/reps/RIR per exercise, week by week', async ({ p
   await expect(rows.first().getByTestId('history-set')).toHaveText(['100×8@2', '100×7@2', '102.5×7@1'])
   await expect(rows.first()).toContainText('Lower A')
   // Week column: today is in week 3 of the block.
-  await expect(rows.first().locator('td').nth(1)).toHaveText('3')
+  await expect(rows.first().locator('td').nth(0)).toHaveText('3')
 
   await page.getByRole('navigation', { name: 'Exercises' }).getByRole('link', { name: /Romanian Deadlift/ }).click()
   await expect(page.getByTestId('history-exposure').first().getByTestId('history-set')).toHaveText(['80×10'])

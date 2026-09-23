@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import { DateField } from '@/components/app/primitives'
 import { markUnsaved, useUnsavedKey } from '@/lib/unsaved'
 import { gridInputClass, gridTextInputClass, numberInputClass, textInputClass } from './parse'
 
@@ -103,39 +104,48 @@ export function CommitInput({
     }
   }
 
+  const props = {
+    'aria-label': label,
+    'aria-invalid': invalid || problem !== null || undefined,
+    value: draft,
+    disabled,
+    placeholder,
+    inputMode,
+    onFocus: () => {
+      focused.current = true
+    },
+    onBlur: () => {
+      focused.current = false
+      commit()
+    },
+    onChange: (event: ChangeEvent<HTMLInputElement>) => {
+      setDraft(event.target.value)
+      setProblem(null)
+      track(event.target.value)
+    },
+    onKeyDown,
+  }
+
   return (
     <>
-      <input
-        type={type}
-        aria-label={label}
-        aria-invalid={invalid || problem !== null || undefined}
-        value={draft}
-        disabled={disabled}
-        placeholder={placeholder}
-        inputMode={inputMode}
-        className={`${
-          dense
-            ? align === 'left'
-              ? gridTextInputClass
-              : gridInputClass
-            : align === 'left'
-              ? textInputClass
-              : numberInputClass
-        } ${className ?? ''}`}
-        onFocus={() => {
-          focused.current = true
-        }}
-        onBlur={() => {
-          focused.current = false
-          commit()
-        }}
-        onChange={(event) => {
-          setDraft(event.target.value)
-          setProblem(null)
-          track(event.target.value)
-        }}
-        onKeyDown={onKeyDown}
-      />
+      {type === 'date' ? (
+        // Reads "Wed 23 Sep" like every other date; the native field on top does the work.
+        <DateField {...props} className={className} quiet />
+      ) : (
+        <input
+          type={type}
+          {...props}
+          className={`${
+            dense
+              ? align === 'left'
+                ? gridTextInputClass
+                : gridInputClass
+              : align === 'left'
+                ? textInputClass
+                : numberInputClass
+          } ${className ?? ''}`}
+        />
+      )}
       {problem && (
         <p role="alert" className="mt-1 text-left text-xs font-normal text-destructive">
           {problem}

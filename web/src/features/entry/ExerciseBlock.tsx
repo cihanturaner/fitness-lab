@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ArrowLeftRight, Info } from 'lucide-react'
 import type { Exercise, LastPerformance, PerformedSet, PlannedSet } from '@/api/types'
 import { compactSet, exerciseLabel, formatShortDate, targetSummary } from '@/lib/format'
 import { SetGrid, type SetActions } from './SetGrid'
@@ -6,17 +7,17 @@ import { SetGrid, type SetActions } from './SetGrid'
 function LastLine({ performance }: { performance: LastPerformance | null | undefined }) {
   if (performance === undefined) return null
   if (performance === null) {
-    return <p className="text-[12px] text-muted-foreground">Last: none yet</p>
+    return <p className="text-[13px] text-muted-foreground">Last: none yet</p>
   }
   return (
-    <p className="num text-[12px] leading-snug" data-testid="last-performance">
+    <p className="num text-[13px] leading-[18px]" data-testid="last-performance">
       <span className="text-muted-foreground">Last </span>
       {performance.sets.map((performed, index) => (
-        <span key={performed.id} className={performed.set_type === 'warmup' ? 'text-muted-foreground' : ''}>
+        <span key={performed.id} className={performed.set_type === 'warmup' ? 'text-muted-foreground' : 'font-medium'}>
           {index > 0 && <span className="text-muted-foreground"> · </span>}
           {compactSet(performed)}
-          {performed.set_type === 'warmup' && <sup className="ml-px text-[9px]">w</sup>}
-          {performed.set_type === 'backoff' && <sup className="ml-px text-[9px]">b</sup>}
+          {performed.set_type === 'warmup' && <sup className="ml-px text-[10px]">w</sup>}
+          {performed.set_type === 'backoff' && <sup className="ml-px text-[10px]">b</sup>}
         </span>
       ))}
       <span className="text-muted-foreground">
@@ -75,54 +76,64 @@ export function ExerciseBlock({
   const name = exerciseLabel(exercise)
   const toggle = (next: 'notes' | 'swap') => setPanel((current) => (current === next ? null : next))
 
+  const worked = sets.filter((performed) => performed.set_type !== 'warmup').length
+  const planned = plannedSets.length
+  const iconButton =
+    'inline-flex size-7 items-center justify-center rounded-md text-faint transition-colors hover:bg-sunken ' +
+    'hover:text-foreground aria-expanded:bg-sunken aria-expanded:text-foreground'
+
   return (
     <article
       data-testid={slot ? `slot-${slot.key}` : `extra-${exerciseId}`}
       aria-label={name}
-      className="flex flex-col gap-1.5 rounded-lg border border-border bg-card px-3 pt-2.5 pb-2"
+      className="flex break-inside-avoid flex-col gap-1.5 border-b border-border pt-4 pb-3.5"
     >
       <header className="flex items-start gap-2">
-        <span className="num w-4 shrink-0 pt-px text-[12px] text-muted-foreground">
-          {slot ? slot.position : '+'}
-        </span>
+        <span className="num w-6 shrink-0 pt-px text-[13px] font-medium text-faint">{slot ? slot.position : '+'}</span>
         <div className="min-w-0 flex-1">
-          <h3 className="text-[14px] leading-tight font-semibold tracking-tight">{name}</h3>
-          {slot?.substituted && (
-            <p className="text-[11px] text-plan">replaces {exerciseLabel(plannedExercise)}</p>
-          )}
-          {!slot && <p className="text-[11px] text-muted-foreground">Extra exercise</p>}
+          <h3 className="text-[15px] leading-5 font-semibold tracking-[-0.01em]">{name}</h3>
+          {slot?.substituted && <p className="text-[12px] text-plan">replaces {exerciseLabel(plannedExercise)}</p>}
+          {!slot && <p className="text-[12px] text-muted-foreground">Extra exercise</p>}
         </div>
+        {planned > 0 && sharedWith === null && (
+          <span
+            className={`num shrink-0 pt-0.5 text-[12px] font-medium ${worked >= planned ? 'text-ok' : 'text-muted-foreground'}`}
+            title="Working sets saved of planned"
+          >
+            {worked}/{planned}
+          </span>
+        )}
         {slot && (
-          <div className="flex shrink-0 gap-0.5">
+          <div className="-mt-1 flex shrink-0 gap-0.5">
             {slot.notes && (
               <button
                 type="button"
-                className="rounded px-1.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground aria-expanded:bg-muted"
+                className={iconButton}
                 aria-label={`Notes, ${name}`}
                 aria-expanded={panel === 'notes'}
                 onClick={() => toggle('notes')}
               >
-                ⓘ
+                <Info className="size-4" aria-hidden />
               </button>
             )}
             {!locked && (
               <button
                 type="button"
-                className="rounded px-1.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground aria-expanded:bg-muted"
+                className={iconButton}
                 aria-label={`Substitute, slot ${slot.position}`}
                 aria-expanded={panel === 'swap'}
                 onClick={() => toggle('swap')}
               >
-                ⇄
+                <ArrowLeftRight className="size-4" aria-hidden />
               </button>
             )}
           </div>
         )}
       </header>
 
-      <div className="flex flex-col gap-0.5 pl-6">
+      <div className="flex flex-col gap-0.5 pl-8">
         {plannedSets.length > 0 && (
-          <p className="num text-[12px] text-plan" data-testid="target">
+          <p className="num text-[13px] leading-[18px] text-plan" data-testid="target">
             <span className="text-muted-foreground">Target </span>
             {targetSummary(plannedSets)}
           </p>
@@ -131,16 +142,16 @@ export function ExerciseBlock({
       </div>
 
       {panel === 'notes' && slot?.notes && (
-        <p className="ml-6 rounded-md bg-plan-surface px-2 py-1.5 text-[12px] leading-relaxed whitespace-pre-line text-plan">
+        <p className="ml-8 animate-in rounded-md bg-plan-surface px-3 py-2 text-[13px] leading-relaxed whitespace-pre-line text-plan fade-in duration-150">
           {slot.notes}
         </p>
       )}
       {panel === 'swap' && slot && substitutes && onSubstitute && (
-        <label className="ml-6 flex items-center gap-2 text-[12px] text-muted-foreground">
+        <label className="ml-8 flex animate-in items-center gap-2 text-[13px] text-muted-foreground fade-in duration-150">
           Performed as
           <select
             aria-label={`Exercise performed for slot ${slot.position}`}
-            className="h-7 min-w-0 flex-1 rounded-md border border-input bg-card px-1.5 text-[13px] text-foreground"
+            className="h-8 min-w-0 flex-1 rounded-md border border-input bg-card px-2 text-[13px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
             value={exerciseId}
             onChange={(event) => event.target.value && onSubstitute(event.target.value)}
           >
@@ -156,9 +167,9 @@ export function ExerciseBlock({
         </label>
       )}
 
-      <div className="pl-6">
+      <div className="pl-1">
         {sharedWith !== null ? (
-          <p className="text-[12px] text-muted-foreground">Sets are recorded under exercise {sharedWith} above.</p>
+          <p className="pl-7 text-[13px] text-muted-foreground">Sets are recorded under exercise {sharedWith} above.</p>
         ) : (
           <SetGrid
             exerciseId={exerciseId}

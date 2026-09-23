@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowLeft, Check, Dumbbell, Plus, SlidersHorizontal } from 'lucide-react'
 import { ApiError, api } from '@/api/client'
 import type { CompletionIssue, Entry, Exercise } from '@/api/types'
 import { Button } from '@/components/ui/button'
+import { Callout, EmptyState, LoadError, Skeleton } from '@/components/app/primitives'
 import { exerciseLabel, formatDate, localDate } from '@/lib/format'
 import { navigate } from '@/lib/route'
 import { installUnloadGuard, unsavedDescriptions } from '@/lib/unsaved'
@@ -34,7 +36,7 @@ function ExerciseSelect({
   return (
     <select
       aria-label={label}
-      className="h-7 rounded-md border border-input bg-card px-2 text-[13px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+      className="h-9 min-w-64 rounded-md border border-input bg-card px-2.5 text-[14px] outline-none hover:border-border-strong focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
       value=""
       onChange={(event) => event.target.value && onChange(event.target.value)}
     >
@@ -59,7 +61,8 @@ function NewExerciseForm({
 
   if (!open) {
     return (
-      <Button size="sm" variant="ghost" onPress={() => setOpen(true)}>
+      <Button variant="ghost" className="h-9 gap-1.5 text-muted-foreground" onPress={() => setOpen(true)}>
+        <Plus aria-hidden />
         New exercise…
       </Button>
     )
@@ -81,7 +84,7 @@ function NewExerciseForm({
       <input
         aria-label="New exercise name"
         placeholder="Exercise name"
-        className="h-8 rounded-md border border-input bg-card px-2 text-sm"
+        className="h-9 rounded-md border border-input bg-card px-2.5 text-[14px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
         value={name}
         autoFocus
         onChange={(event) => setName(event.target.value)}
@@ -89,14 +92,14 @@ function NewExerciseForm({
       <input
         aria-label="New exercise equipment"
         placeholder="Machine or equipment (optional)"
-        className="h-8 w-64 rounded-md border border-input bg-card px-2 text-sm"
+        className="h-9 w-64 rounded-md border border-input bg-card px-2.5 text-[14px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
         value={equipment}
         onChange={(event) => setEquipment(event.target.value)}
       />
-      <Button size="sm" type="submit">
+      <Button type="submit" className="h-9">
         Create exercise
       </Button>
-      <Button size="sm" variant="ghost" onPress={() => setOpen(false)}>
+      <Button variant="ghost" className="h-9" onPress={() => setOpen(false)}>
         Cancel
       </Button>
     </form>
@@ -133,29 +136,27 @@ function CompletionFeedback({ feedback, entry }: { feedback: Feedback; entry: En
   if (!feedback) return null
   if (feedback.kind === 'completed') {
     return (
-      <div role="status" className="rounded-md border border-ok/40 bg-card p-3 text-sm">
-        <p className="font-medium text-ok">Workout completed and saved as evidence.</p>
+      <Callout tone="ok" role="status" title="Workout completed and saved as evidence.">
         {feedback.advisories.length > 0 && (
-          <ul className="mt-1 list-disc pl-5 text-muted-foreground">
+          <ul className="list-disc pl-4 text-muted-foreground">
             {feedback.advisories.map((issue) => (
               <li key={issue.rule}>{describeIssue(issue, entry)}</li>
             ))}
           </ul>
         )}
-      </div>
+      </Callout>
     )
   }
   return (
-    <div role="alert" className="rounded-md border border-destructive/40 bg-card p-3 text-sm">
-      <p className="font-medium text-destructive">{feedback.message}</p>
+    <Callout tone="error" role="alert" title={feedback.message}>
       {feedback.blockers.length > 0 && (
-        <ul className="mt-1 list-disc pl-5">
+        <ul className="list-disc pl-4">
           {feedback.blockers.map((issue) => (
             <li key={issue.rule}>{describeIssue(issue, entry)}</li>
           ))}
         </ul>
       )}
-    </div>
+    </Callout>
   )
 }
 
@@ -230,14 +231,14 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
 
   if (!entry) {
     return loadError ? (
-      <div role="alert" className="flex flex-col gap-3">
-        <p className="text-destructive">This workout could not be loaded: {loadError}</p>
-        <a href="#/" className="text-plan underline-offset-4 hover:underline">
+      <div className="flex flex-col items-center gap-2">
+        <LoadError what="this workout" detail={loadError} />
+        <a href="#/" className="text-[13px] font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
           Back to the week
         </a>
       </div>
     ) : (
-      <p className="text-muted-foreground">Loading the workout…</p>
+      <Skeleton label="Loading the workout…" blocks={['h-10 w-96', 'h-[32rem]']} />
     )
   }
 
@@ -313,16 +314,29 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
       (exercise) => exercise.is_active || exercise.id === effectiveId || exercise.id === slotExerciseId,
     )
 
+  const plannedTotal = view.slots.reduce((total, { slot, sharedWith }) => total + (sharedWith === null ? slot.sets.length : 0), 0)
+  const workedTotal = entry.sets.filter((performed) => performed.set_type !== 'warmup').length
+
   return (
-    <div className="flex flex-col gap-3">
-      <header className="sticky top-0 z-10 -mx-6 flex flex-col gap-2 border-b border-border bg-background/95 px-6 py-2.5 backdrop-blur">
+    <div className="flex flex-col gap-5">
+      <header className="sticky top-0 z-10 -mx-10 -mt-8 flex flex-col gap-3 border-b border-border bg-background/90 px-10 pt-5 pb-4 backdrop-blur-md">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <a href="#/" className="text-[13px] text-muted-foreground hover:text-foreground">
-            ← Week
+          <a
+            href="#/"
+            aria-label="Back to the week"
+            className="-ml-2 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-sunken hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" aria-hidden />
           </a>
-          <h1 className="text-xl font-semibold tracking-tight">
-            {origin ? origin.planned_workout_name : 'Unplanned session'}
-          </h1>
+          <h1 className="t-title">{origin ? origin.planned_workout_name : 'Unplanned session'}</h1>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${
+              locked ? 'bg-ok-surface text-ok' : 'bg-warn-surface text-warn'
+            }`}
+          >
+            {locked ? <Check className="size-3.5" strokeWidth={2.5} aria-hidden /> : <span className="size-1.5 rounded-full bg-warn" aria-hidden />}
+            <span data-testid="workout-status">{locked ? 'Complete' : 'Draft'}</span>
+          </span>
           <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
             <span className="sr-only">Date performed</span>
             <CommitInput
@@ -331,58 +345,73 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
               value={workout.performed_on}
               align="left"
               dense
-              className="w-36"
+              className="w-[9.5rem]"
               disabled={locked}
               isValid={(text) => /^\d{4}-\d{2}-\d{2}$/.test(text)}
               invalidHint="a date"
               onCommit={(text) => run(() => api.patchWorkout(workout.id, { performed_on: text }))}
             />
           </label>
-          <span
-            data-testid="workout-status"
-            className={`rounded px-1.5 py-0.5 text-[12px] font-medium ${locked ? 'bg-ok/10 text-ok' : 'bg-warn/10 text-warn'}`}
-          >
-            {locked ? 'Complete' : 'Draft'}
+          <span className="num flex items-center gap-2 text-[13px] text-muted-foreground">
+            {plannedTotal > 0 ? (
+              <>
+                <span className="relative h-1.5 w-20 overflow-hidden rounded-full bg-sunken" aria-hidden>
+                  <span
+                    className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ${workedTotal >= plannedTotal ? 'bg-ok' : 'bg-plan'}`}
+                    style={{ width: `${Math.min(workedTotal / plannedTotal, 1) * 100}%` }}
+                  />
+                </span>
+                <span>
+                  <span className="font-medium text-foreground">{workedTotal}</span> of {plannedTotal} working sets
+                  {setCount !== workedTotal && ` · ${setCount} total`}
+                </span>
+              </>
+            ) : (
+              <>
+                {setCount} {setCount === 1 ? 'set' : 'sets'} recorded
+              </>
+            )}
           </span>
-          <span className="num text-[12px] text-muted-foreground">
-            {setCount} {setCount === 1 ? 'set' : 'sets'} recorded
+          <span className="w-16 text-[12px] text-muted-foreground" aria-live="polite">
+            {saving ? 'Saving…' : ''}
           </span>
-          {saving && <span className="text-[12px] text-muted-foreground">Saving…</span>}
           <div className="ml-auto flex items-center gap-2">
             <Button
               variant="ghost"
-              size="sm"
+              className="h-9 gap-1.5 text-muted-foreground"
+              aria-label="Details"
               aria-expanded={detailsOpen}
               onPress={() => setDetailsOpen((open) => !open)}
             >
+              <SlidersHorizontal aria-hidden />
               Details
             </Button>
             {locked ? (
               <Button
                 variant="outline"
-                size="sm"
+                className="h-9 border-border-strong bg-card px-4"
                 isDisabled={saving}
                 onPress={() => void run(() => api.reopen(workout.id)).then(() => setFeedback(null))}
               >
                 Reopen to correct
               </Button>
             ) : (
-              <Button size="sm" onPress={() => void complete()}>
+              <Button className="h-9 px-4" onPress={() => void complete()}>
                 Complete workout
               </Button>
             )}
           </div>
         </div>
         {detailsOpen && (
-          <div className="flex flex-wrap items-end gap-3 text-[12px] text-muted-foreground">
+          <div className="flex animate-in flex-wrap items-end gap-4 rounded-lg border border-border bg-card p-4 text-[12px] text-muted-foreground fade-in slide-in-from-top-1 duration-150">
             {origin && (
-              <p className="basis-full">
+              <p className="basis-full text-[13px]">
                 {origin.program_name}
                 {origin.version_label ? ` ${origin.version_label}` : ''}
                 {origin.day_label ? ` · planned for ${origin.day_label}` : ''}
               </p>
             )}
-            <label className="flex flex-col gap-0.5">
+            <label className="flex flex-col gap-1 font-medium">
               Start time
               <CommitInput
                 type="time"
@@ -397,7 +426,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
                 }
               />
             </label>
-            <label className="flex min-w-72 flex-1 flex-col gap-0.5">
+            <label className="flex min-w-72 flex-1 flex-col gap-1 font-medium">
               Session notes
               <CommitInput
                 label="Session notes"
@@ -410,27 +439,37 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
               />
             </label>
             {!locked && (
-              <Button variant="ghost" size="sm" className="text-destructive" isDisabled={saving} onPress={() => void discard()}>
+              <Button variant="ghost" className="h-8 text-destructive hover:bg-destructive/10" isDisabled={saving} onPress={() => void discard()}>
                 {entry.sets.length === 0 ? 'Discard draft' : 'Delete workout…'}
               </Button>
             )}
           </div>
         )}
         {locked && (
-          <p className="text-[12px] text-muted-foreground">
-            Complete. Reopen it to correct sets, substitutions or details.
-          </p>
+          <p className="t-micro">Complete. Reopen it to correct sets, substitutions or details.</p>
         )}
         {!locked && workout.performed_on !== today && (
-          <p role="status" data-testid="draft-date-notice" className="text-[12px] text-warn">
-            This draft is dated {formatDate(workout.performed_on)}, not today ({formatDate(today)}). If you
-            are training today, complete or delete this earlier record first, or correct its date.
-          </p>
+          <Callout tone="warn" role="status" testId="draft-date-notice" title={`This draft is dated ${formatDate(workout.performed_on)}, not today (${formatDate(today)}).`}>
+            If you are training today, complete or delete this earlier record first, or correct its date.
+          </Callout>
         )}
         <CompletionFeedback feedback={feedback} entry={entry} />
       </header>
 
-      <section aria-label="Exercises" className="grid items-start gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+      {view.slots.length === 0 && view.extras.length === 0 && (
+        <div className="rounded-[10px] border border-dashed border-border-strong bg-card/50">
+          <EmptyState icon={Dumbbell} title={locked ? 'No exercises were recorded.' : 'No exercises yet.'}>
+            {locked
+              ? 'This session was completed without sets.'
+              : 'Add the first exercise below; its sets are entered here, one row per set.'}
+          </EmptyState>
+        </div>
+      )}
+      <section
+        hidden={view.slots.length === 0 && view.extras.length === 0}
+        aria-label="Exercises"
+        className="gap-x-12 rounded-[10px] border border-border bg-card px-7 pb-1 [column-rule:1px_solid_var(--border)] lg:columns-2 [&>article:last-child]:border-b-0"
+      >
         {view.slots.map(({ slot, sets, sharedWith }) => (
           <ExerciseBlock
             // A new lock state starts the grid afresh (no pending rows on a complete record).
@@ -475,6 +514,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
 
       {!locked && (
         <div className="flex flex-wrap items-center gap-2">
+          <span className="t-micro mr-1 font-medium">Extra work</span>
           <ExerciseSelect
             label="Add an exercise"
             exercises={addable}

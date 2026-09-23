@@ -40,6 +40,12 @@
     --color-foreground: var(--foreground);
     --color-background: var(--background);
     --color-plan: var(--plan);
+    --color-faint: var(--faint);
+    --color-sunken: var(--sunken);
+    --color-border-strong: var(--border-strong);
+    --color-ok-surface: var(--ok-surface);
+    --color-warn-surface: var(--warn-surface);
+    --color-series-target: var(--series-target);
     --color-plan-surface: var(--plan-surface);
     --color-plan-rule: var(--plan-rule);
     --color-ok: var(--ok);
@@ -56,48 +62,56 @@
 }
 
 :root {
-    /* fitness-lab: a training ledger. Cool paper, slate ink; plan-blue marks what was
-       prescribed, full ink marks what was performed. */
-    --background: #f5f6f4;
-    --foreground: #1b2328;
+    /* Fitness Lab V2.1: a quiet training notebook. Neutral paper, graphite ink, one
+       slate-blue for what was PLANNED; performed numbers are always full ink. Status hues
+       (done, draft) are small signals, never fills. Contrast checked on --background and
+       --card: --muted-foreground >= 5.3:1, --faint >= 3.6:1 (placeholders and non-essential marks only). */
+    --background: #f4f4f1;
+    --foreground: #16191c;
     --card: #ffffff;
-    --card-foreground: #1b2328;
+    --card-foreground: #16191c;
     --popover: #ffffff;
-    --popover-foreground: #1b2328;
-    --primary: #1b2328;
-    --primary-foreground: #f5f6f4;
-    --secondary: #e9ecea;
-    --secondary-foreground: #1b2328;
-    --muted: #eceeec;
-    --muted-foreground: #5f6a72;
-    --accent: #e4e9ee;
-    --accent-foreground: #1b2328;
-    --destructive: #a8321e;
-    --border: #d8ddde;
-    --input: #c9d0d3;
-    --ring: #35587a;
-    --plan: #35587a;
-    --plan-surface: #f1f4f7;
-    --plan-rule: #9fb2c4;
-    --ok: #2f6b4f;
-    --warn: #8a5a12;
+    --popover-foreground: #16191c;
+    --primary: #16191c;
+    --primary-foreground: #ffffff;
+    --secondary: #ebebe7;
+    --secondary-foreground: #16191c;
+    --muted: #eeeeea;
+    --muted-foreground: #5c6268;
+    --faint: #7d8389;
+    --accent: #ebebe7;
+    --accent-foreground: #16191c;
+    --destructive: #a5341f;
+    --border: #e2e2dd;
+    --border-strong: #cfcfc9;
+    --input: #868b90; /* field edges: >= 3:1 on paper and card (WCAG 1.4.11) */
+    --ring: #2f5d86;
+    --sunken: #efefeb;
+    --plan: #2f5d86;
+    --plan-surface: #eef3f8;
+    --plan-rule: #a9bdd0;
+    --ok: #2b6a47;
+    --ok-surface: #ecf4ef;
+    --warn: #93600f;
+    --warn-surface: #fbf3e4;
     /* Chart series, validated (lightness, chroma, CVD, contrast) on the card surface. */
-    --series-trend: #2b6aa3;
-    --series-daily: #b8792f;
-    --chart-1: #35587a;
-    --chart-2: #5f6a72;
-    --chart-3: #9fb2c4;
-    --chart-4: #2f6b4f;
-    --chart-5: #8a5a12;
-    --radius: 0.5rem;
-    --sidebar: #eef0ee;
-    --sidebar-foreground: #1b2328;
-    --sidebar-primary: #1b2328;
-    --sidebar-primary-foreground: #f5f6f4;
-    --sidebar-accent: #e4e9ee;
-    --sidebar-accent-foreground: #1b2328;
-    --sidebar-border: #d8ddde;
-    --sidebar-ring: #35587a;
+    --series-trend: #2f5d86;
+    --series-daily: #a3aab0;
+    --series-target: #93600f;
+    --chart-1: #2f5d86;
+    --chart-2: #5c6268;
+    --chart-3: #a9bdd0;
+    --chart-4: #2b6a47;
+    --chart-5: #93600f;
+    --radius: 0.625rem;
+    --sidebar: #efefeb;
+    --sidebar-foreground: #16191c;
+    --sidebar-primary: #16191c;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #ebebe7;
+    --sidebar-accent-foreground: #16191c;
+    --sidebar-border: #e2e2dd;
+    --sidebar-ring: #2f5d86;
 }
 
 .dark {
@@ -148,9 +162,15 @@
 
 @layer base {
   body {
-    font-feature-settings: "tnum" 0;
+    font-size: 14px;
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
   }
-  .num {
+  /* Every number in this product is read in columns: tabular figures everywhere. */
+  .num,
+  table,
+  input,
+  select {
     font-variant-numeric: tabular-nums;
   }
   input[type="number"]::-webkit-inner-spin-button,
@@ -158,10 +178,38 @@
     -webkit-appearance: none;
     margin: 0;
   }
+  /* Native date fields: quiet the WebKit picker glyph so it reads as part of the field. */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.45;
+    cursor: pointer;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 0.8;
+  }
+  /* One focus signal everywhere: a solid 2px ring in the plan colour (6.3:1 on paper).
+     Fields replace it with their own border + ring (outline-none in their classes). */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
   @media (prefers-reduced-motion: reduce) {
     * {
       transition-duration: 0ms !important;
       animation-duration: 0ms !important;
     }
   }
+}
+
+@layer components {
+  /* The type scale (px): title 28/32, metric 32/36 (hero 44/48), section 15/20,
+     body 14/20, meta 13/18, micro 12/16. Nothing smaller than 12. */
+  .t-title { font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: -0.02em; }
+  .t-hero { font-size: 44px; line-height: 48px; font-weight: 500; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .t-metric { font-size: 32px; line-height: 36px; font-weight: 500; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
+  .t-stat { font-size: 20px; line-height: 24px; font-weight: 500; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
+  .t-section { font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  .t-body { font-size: 14px; line-height: 20px; }
+  .t-meta { font-size: 13px; line-height: 18px; color: var(--muted-foreground); }
+  .t-micro { font-size: 12px; line-height: 16px; color: var(--muted-foreground); }
+  .t-unit { font-size: 14px; line-height: 20px; font-weight: 400; letter-spacing: 0; color: var(--muted-foreground); }
 }

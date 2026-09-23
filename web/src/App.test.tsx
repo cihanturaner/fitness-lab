@@ -38,7 +38,7 @@ describe('home: the week', () => {
     const nutrition = screen.getByTestId('home-nutrition')
     expect(within(nutrition).getByTestId('home-nut-protein')).toHaveTextContent('150 gtarget 145 g')
     expect(within(nutrition).getByTestId('home-nut-fat')).toHaveTextContent('62 gtarget 60 g')
-    expect(within(nutrition).getByTestId('home-nut-kcal')).toHaveTextContent('2410 kcaltarget —')
+    expect(within(nutrition).getByTestId('home-nut-kcal')).toHaveTextContent('2410 kcaltarget not set')
     expect(nutrition).toHaveTextContent('Calorie target not calibrated yet.')
   })
 

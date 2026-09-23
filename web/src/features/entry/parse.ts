@@ -19,20 +19,37 @@ export function parseCount(
 }
 
 export const inputClass =
-  'num h-8 w-full rounded-md border border-input bg-card px-2 text-sm outline-none ' +
-  'placeholder:text-muted-foreground/60 focus-visible:border-ring focus-visible:ring-2 ' +
-  'focus-visible:ring-ring/30 disabled:border-transparent disabled:bg-transparent ' +
+  'num h-9 w-full rounded-md border border-input bg-card px-2.5 text-[14px] outline-none transition-colors ' +
+  'placeholder:text-faint hover:border-border-strong focus-visible:border-ring focus-visible:ring-2 ' +
+  'focus-visible:ring-ring/40 disabled:border-transparent disabled:bg-transparent ' +
   'aria-invalid:border-destructive aria-invalid:ring-destructive/20'
 
 /** Numbers read right-aligned in a column; words read left-aligned. */
 export const numberInputClass = `${inputClass} text-right`
 export const textInputClass = `${inputClass} text-left`
 
-/** The workout grid: one row per set, so every pixel of height counts. */
-const denseInputClass =
-  'num h-7 w-full rounded-md border border-input bg-card px-1.5 text-[13px] outline-none ' +
-  'placeholder:text-muted-foreground/45 focus-visible:border-ring focus-visible:ring-2 ' +
-  'focus-visible:ring-ring/30 disabled:border-transparent disabled:bg-transparent ' +
-  'disabled:text-foreground aria-invalid:border-destructive aria-invalid:ring-destructive/20'
-export const gridInputClass = `${denseInputClass} text-right`
-export const gridTextInputClass = `${denseInputClass} text-left`
+/**
+ * The workout sheet: one row per set, so every pixel of height counts. A SAVED value reads
+ * as text — no box until the pointer or the cursor arrives — so recorded work and empty
+ * fields never look alike.
+ */
+const savedCellClass =
+  'num h-8 w-full rounded-md border border-transparent bg-transparent px-2 text-[14px] font-medium outline-none ' +
+  'transition-colors hover:bg-sunken focus-visible:border-ring focus-visible:bg-card focus-visible:ring-2 ' +
+  'focus-visible:ring-ring/40 disabled:text-foreground disabled:hover:bg-transparent ' +
+  'aria-invalid:border-destructive aria-invalid:bg-destructive/5 aria-invalid:ring-destructive/20'
+export const gridInputClass = `${savedCellClass} text-right`
+
+/** A row still to be entered: a sunken well, the plan's hint in plan-blue. */
+export const pendingInputClass =
+  'num h-8 w-full rounded-md border border-transparent bg-sunken px-2 text-right text-[14px] font-medium ' +
+  'outline-none transition-colors placeholder:font-normal placeholder:text-plan/70 hover:border-border-strong ' +
+  'focus-visible:border-ring focus-visible:bg-card focus-visible:ring-2 focus-visible:ring-ring/40 ' +
+  'read-only:opacity-60 aria-invalid:border-destructive aria-invalid:ring-destructive/20'
+
+/** Free text inside the sheet (set notes, session details): a quiet field. */
+export const gridTextInputClass =
+  'h-8 w-full rounded-md border border-input bg-card px-2 text-left text-[13px] outline-none transition-colors ' +
+  'placeholder:text-faint hover:border-border-strong focus-visible:border-ring focus-visible:ring-2 ' +
+  'focus-visible:ring-ring/40 disabled:border-transparent disabled:bg-transparent disabled:text-foreground ' +
+  'aria-invalid:border-destructive aria-invalid:ring-destructive/20'

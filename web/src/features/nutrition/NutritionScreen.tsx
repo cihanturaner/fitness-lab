@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { Check, ChevronLeft, ChevronRight, Utensils } from 'lucide-react'
 import { ApiError, api } from '@/api/client'
 import type { Nutrition, NutritionDay } from '@/api/types'
 import { Button } from '@/components/ui/button'
-import { addDays, formatShortDate, localDate } from '@/lib/format'
+import { DateField, EmptyState, LoadError, Meter, PageHeader, Skeleton } from '@/components/app/primitives'
+import { addDays, formatLongDate, formatShortDate, localDate } from '@/lib/format'
 import { parseWhole } from '@/lib/numbers'
 import { confirmLeave, markUnsaved, useUnsavedKey } from '@/lib/unsaved'
 
@@ -12,8 +14,9 @@ const MAX_KCAL = 15000
 const MAX_MACRO_G = 1500
 
 const inputClass =
-  'num h-8 rounded-md border border-input bg-card px-2 text-[13px] outline-none ' +
-  'focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 aria-invalid:border-destructive'
+  'num h-9 rounded-md border border-input bg-card px-2.5 text-[14px] outline-none transition-colors ' +
+  'hover:border-border-strong focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 ' +
+  'aria-invalid:border-destructive aria-invalid:ring-destructive/20'
 
 type FieldKey = 'calories_kcal' | 'protein_g' | 'carbs_g' | 'fat_g'
 const FIELDS: { key: FieldKey; label: string; unit: string; max: number }[] = [
@@ -45,7 +48,11 @@ function carbsFor(kcal: number): number {
   return Math.floor((kcal - FIXED_PROTEIN_FAT_KCAL) / 4 + 0.5)
 }
 
-function TargetRow({
+/**
+ * One macro for the day: the logged number leads, the target follows, and a bar appears only
+ * when the target is known. An unknown target is said in words, never drawn as an empty bar.
+ */
+function MacroMeter({
   label,
   logged,
   target,
@@ -62,18 +69,39 @@ function TargetRow({
 }) {
   const diff = logged !== null && target !== null ? logged - target : null
   return (
-    <tr className="border-t border-border/70">
-      <th scope="row" className="py-1.5 text-left font-medium">
-        {label}
-      </th>
-      <td className="num py-1.5 text-right">{logged === null ? '—' : `${logged} ${unit}`}</td>
-      <td className="num py-1.5 pl-6" data-testid={testId}>
-        {target === null ? <span className="text-muted-foreground">{unknown}</span> : `${target} ${unit}`}
-      </td>
-      <td className="num py-1.5 text-right text-muted-foreground">
-        {diff === null ? '' : `${diff > 0 ? '+' : ''}${diff} ${unit}`}
-      </td>
-    </tr>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-[13px] font-medium text-muted-foreground">{label}</span>
+        {diff !== null && (
+          <span className={`num text-[12px] ${diff >= 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
+            {diff >= 0 ? (
+              <span className="inline-flex items-center gap-1">
+                <Check className="size-3.5 text-ok" strokeWidth={2.5} aria-hidden />
+                {diff === 0 ? 'on target' : `${diff} ${unit} over`}
+              </span>
+            ) : (
+              `${-diff} ${unit} to go`
+            )}
+          </span>
+        )}
+      </div>
+      <p className="num flex items-baseline gap-1.5">
+        <span className={`t-metric ${logged === null ? 'text-faint' : ''}`}>{logged ?? '—'}</span>
+        <span className="t-unit">{unit}</span>
+        {target !== null && <span className="ml-1 text-[13px] text-muted-foreground">of</span>}
+        <span
+          data-testid={testId}
+          className={target === null ? 'ml-1 text-[13px] text-muted-foreground' : 'text-[13px] font-medium text-muted-foreground'}
+        >
+          {target === null ? unknown : `${target} ${unit}`}
+        </span>
+      </p>
+      {target === null ? (
+        <div className="h-1.5" aria-hidden />
+      ) : (
+        <Meter value={logged} target={target} />
+      )}
+    </div>
   )
 }
 
@@ -89,14 +117,18 @@ function CalorieTargetForm({ today, onSaved }: { today: string; onSaved: () => P
 
   if (!open) {
     return (
-      <button type="button" className="self-start text-[12px] text-plan hover:underline" onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        className="self-start rounded-md border border-border-strong bg-card px-2.5 py-1 text-[13px] font-medium hover:bg-sunken"
+        onClick={() => setOpen(true)}
+      >
         Set calorie target…
       </button>
     )
   }
   return (
     <form
-      className="flex flex-col gap-2 rounded-md border border-dashed border-plan-rule bg-plan-surface p-3 text-[12px]"
+      className="flex animate-in flex-col gap-3 rounded-lg border border-plan-rule/70 bg-plan-surface p-4 text-[13px] fade-in slide-in-from-top-1 duration-150"
       onSubmit={(event) => {
         event.preventDefault()
         if (!valid) {
@@ -134,16 +166,16 @@ function CalorieTargetForm({ today, onSaved }: { today: string; onSaved: () => P
         </label>
         <label className="flex flex-col gap-0.5 text-muted-foreground">
           From
-          <input type="date" aria-label="Target effective from" className={inputClass} value={from} onChange={(event) => setFrom(event.target.value)} />
+          <DateField aria-label="Target effective from" className="w-[9.5rem]" value={from} onChange={(event) => setFrom(event.target.value)} />
         </label>
         <label className="flex min-w-40 flex-1 flex-col gap-0.5 text-muted-foreground">
           Reason (optional)
           <input aria-label="Target reason" className={inputClass} value={notes} onChange={(event) => setNotes(event.target.value)} />
         </label>
-        <Button type="submit" size="sm" className="h-8">
+        <Button type="submit" className="h-9">
           Record target
         </Button>
-        <Button size="sm" variant="ghost" className="h-8" onPress={() => setOpen(false)}>
+        <Button variant="ghost" className="h-9" onPress={() => setOpen(false)}>
           Cancel
         </Button>
       </div>
@@ -252,179 +284,236 @@ export function NutritionScreen() {
 
   if (!data) {
     return error ? (
-      <p role="alert" className="text-destructive">
-        Could not load nutrition: {error}
-      </p>
+      <LoadError what="nutrition" detail={error} onRetry={() => void load(day)} />
     ) : (
-      <p className="text-muted-foreground">Loading nutrition…</p>
+      <Skeleton label="Loading nutrition…" blocks={['h-8 w-72', 'h-64', 'h-48']} />
     )
   }
 
   const { targets, recent } = data
   const logged = data.day
+  const isToday = day === today
 
   return (
-    <div className="flex max-w-5xl flex-col gap-4">
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h1 className="text-xl font-semibold tracking-tight">Nutrition</h1>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon-sm" aria-label="Previous day" onPress={() => goTo(addDays(day, -1))}>
-            ‹
-          </Button>
-          <input
-            type="date"
-            aria-label="Nutrition date"
-            className={inputClass}
-            value={day}
-            max={today}
-            onChange={(event) => event.target.value && goTo(event.target.value)}
-          />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Next day"
-            isDisabled={day >= today}
-            onPress={() => goTo(addDays(day, 1))}
-          >
-            ›
-          </Button>
-          {day !== today && (
-            <Button variant="ghost" size="sm" onPress={() => goTo(today)}>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Nutrition"
+        meta={
+          <>
+            {formatLongDate(day)}
+            {isToday ? ' · today' : ''}
+          </>
+        }
+        aside={
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" aria-label="Previous day" onPress={() => goTo(addDays(day, -1))}>
+              <ChevronLeft aria-hidden />
+            </Button>
+            <DateField
+              aria-label="Nutrition date"
+              className="w-[9.5rem]"
+              value={day}
+              max={today}
+              onChange={(event) => event.target.value && goTo(event.target.value)}
+            />
+            <Button variant="ghost" size="icon" aria-label="Next day" isDisabled={day >= today} onPress={() => goTo(addDays(day, 1))}>
+              <ChevronRight aria-hidden />
+            </Button>
+            <Button variant="outline" className="ml-1 h-9 border-border-strong bg-card" isDisabled={isToday} onPress={() => goTo(today)}>
               Today
             </Button>
-          )}
-        </div>
-      </header>
+          </div>
+        }
+      />
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <form onSubmit={(event) => void save(event)} className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3">
-          <h2 className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-            Log · {formatShortDate(day)}
-          </h2>
-          <div className="grid grid-cols-4 gap-2">
+      <div className="grid items-start gap-4 lg:grid-cols-12">
+        <section aria-label="Targets" className="flex flex-col gap-6 rounded-[10px] border border-border bg-card p-6 lg:col-span-7">
+          <div className="flex items-baseline justify-between">
+            <h2 className="t-section">Daily summary</h2>
+            <span className="t-micro">{logged ? `Logged ${formatShortDate(logged.logged_on)}` : 'Nothing logged for this day'}</span>
+          </div>
+          <div className="grid gap-x-10 gap-y-7 sm:grid-cols-2">
+            <MacroMeter
+              label="Calories"
+              logged={logged?.calories_kcal ?? null}
+              target={targets.calories_kcal}
+              unit="kcal"
+              testId="nut-target-calories"
+              unknown="Calorie target not calibrated yet."
+            />
+            <MacroMeter label="Protein" logged={logged?.protein_g ?? null} target={targets.protein_g} unit="g" testId="nut-target-protein" unknown="" />
+            <MacroMeter
+              label="Carbs"
+              logged={logged?.carbs_g ?? null}
+              target={targets.carbs_g}
+              unit="g"
+              testId="nut-target-carbs"
+              unknown="Follows the calorie target."
+            />
+            <MacroMeter label="Fat" logged={logged?.fat_g ?? null} target={targets.fat_g} unit="g" testId="nut-target-fat" unknown="" />
+          </div>
+          <div className="flex flex-col gap-3 border-t border-border pt-4">
+            <p className="t-meta">
+              {targets.calorie_target_effective_on ? (
+                <>
+                  Calorie target <span className="num font-medium text-foreground">{targets.calories_kcal} kcal</span> since{' '}
+                  {formatShortDate(targets.calorie_target_effective_on)}. Protein 145 g and fat 60 g are fixed; carbohydrate
+                  follows the calories.
+                </>
+              ) : (
+                <>
+                  Protein 145 g and fat 60 g are fixed. Calories stay open until you record a target; carbohydrate then
+                  follows as (calories − 1120) / 4.
+                </>
+              )}
+            </p>
+            <CalorieTargetForm today={today} onSaved={() => load(day)} />
+          </div>
+        </section>
+
+        <form
+          onSubmit={(event) => void save(event)}
+          aria-label="Log the day"
+          className="flex flex-col gap-4 rounded-[10px] border border-border bg-card p-6 lg:col-span-5"
+        >
+          <div className="flex items-baseline justify-between">
+            <h2 className="t-section">{logged ? 'Update the day' : 'Log the day'}</h2>
+            <span className="t-micro">{formatShortDate(day)}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             {FIELDS.map((field) => (
-              <label key={field.key} className="flex flex-col gap-0.5 text-[11px] text-muted-foreground">
-                {field.label} {field.unit}
-                <input
-                  aria-label={`${field.label} ${field.unit}`}
-                  inputMode="numeric"
-                  className={`${inputClass} w-full text-right`}
-                  value={draft[field.key]}
-                  onChange={(event) => {
-                    setDraft((current) => ({ ...current, [field.key]: event.target.value }))
-                    setProblem(null)
-                    setSaved(null)
-                  }}
-                />
+              <label key={field.key} className="flex flex-col gap-1 text-[12px] font-medium text-muted-foreground">
+                {field.label}
+                <span className="relative">
+                  <input
+                    aria-label={`${field.label} ${field.unit}`}
+                    inputMode="numeric"
+                    className={`${inputClass} w-full pr-11 text-right text-[15px] font-medium text-foreground`}
+                    value={draft[field.key]}
+                    onChange={(event) => {
+                      setDraft((current) => ({ ...current, [field.key]: event.target.value }))
+                      setProblem(null)
+                      setSaved(null)
+                    }}
+                  />
+                  <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-[12px] font-normal text-faint">
+                    {field.unit}
+                  </span>
+                </span>
               </label>
             ))}
           </div>
-          <label className="flex flex-col gap-0.5 text-[11px] text-muted-foreground">
-            Notes (optional)
+          <label className="flex flex-col gap-1 text-[12px] font-medium text-muted-foreground">
+            Note
             <input
               aria-label="Nutrition notes"
-              className={inputClass}
+              placeholder="Optional — e.g. restaurant, estimated"
+              className={`${inputClass} font-normal text-foreground placeholder:text-faint`}
               value={draft.notes}
               onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))}
             />
           </label>
           <div className="flex items-center gap-2">
-            <Button type="submit" size="sm" isDisabled={saving}>
+            <Button type="submit" isDisabled={saving} className="h-9 px-4">
               {logged ? 'Update day' : 'Save day'}
             </Button>
             {logged && (
-              <Button variant="ghost" size="sm" className="text-muted-foreground" onPress={() => void remove()}>
+              <Button variant="ghost" className="h-9 text-muted-foreground" onPress={() => void remove()}>
                 Remove day
               </Button>
             )}
             {saved && (
-              <span role="status" className="text-[12px] text-ok">
+              <span role="status" className="ml-auto inline-flex animate-in items-center gap-1 text-[13px] text-ok fade-in">
+                <Check className="size-3.5" strokeWidth={2.5} aria-hidden />
                 {saved}
               </span>
             )}
           </div>
           {problem && (
-            <p role="alert" className="text-[12px] text-destructive">
+            <p role="alert" className="text-[13px] text-destructive">
               {problem}
             </p>
           )}
         </form>
-
-        <section aria-label="Targets" className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
-          <h2 className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-            Against target
-          </h2>
-          <table className="w-full text-[13px]">
-            <thead className="text-left text-[11px] text-muted-foreground">
-              <tr>
-                <th className="pb-1 font-medium" />
-                <th className="pb-1 text-right font-medium">Logged</th>
-                <th className="pb-1 pl-6 font-medium">Target</th>
-                <th className="pb-1 text-right font-medium">Diff</th>
-              </tr>
-            </thead>
-            <tbody>
-              <TargetRow
-                label="Calories"
-                logged={logged?.calories_kcal ?? null}
-                target={targets.calories_kcal}
-                unit="kcal"
-                testId="nut-target-calories"
-                unknown="Calorie target not calibrated yet."
-              />
-              <TargetRow label="Protein" logged={logged?.protein_g ?? null} target={targets.protein_g} unit="g" testId="nut-target-protein" unknown="" />
-              <TargetRow
-                label="Carbs"
-                logged={logged?.carbs_g ?? null}
-                target={targets.carbs_g}
-                unit="g"
-                testId="nut-target-carbs"
-                unknown="Follows the calorie target."
-              />
-              <TargetRow label="Fat" logged={logged?.fat_g ?? null} target={targets.fat_g} unit="g" testId="nut-target-fat" unknown="" />
-            </tbody>
-          </table>
-          {targets.calorie_target_effective_on && (
-            <p className="text-[12px] text-muted-foreground">
-              Calorie target {targets.calories_kcal} kcal since {formatShortDate(targets.calorie_target_effective_on)}.
-            </p>
-          )}
-          <CalorieTargetForm today={today} onSaved={() => load(day)} />
-        </section>
       </div>
 
-      <section aria-label="Recent days" className="rounded-lg border border-border bg-card p-3">
-        <h2 className="mb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Last 14 days</h2>
+      <section aria-label="Recent days" className="flex flex-col gap-3">
+        <div className="flex items-baseline justify-between">
+          <h2 className="t-section">Last 14 days</h2>
+          {recent.length > 0 && (
+            <span className="t-micro">
+              Protein target met on{' '}
+              <span className="num font-medium text-foreground">
+                {recent.filter((row) => row.protein_g !== null && row.protein_g >= targets.protein_g).length} of {recent.length}
+              </span>{' '}
+              logged days
+            </span>
+          )}
+        </div>
         {recent.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">Nothing logged in the last 14 days.</p>
+          <div className="rounded-[10px] border border-dashed border-border-strong">
+            <EmptyState icon={Utensils} title="Nothing logged in the last 14 days." className="py-6">
+              Each saved day appears here with its calories and macros, so a fortnight reads at a glance.
+            </EmptyState>
+          </div>
         ) : (
-          <table className="num w-full text-[13px]">
-            <thead className="text-left text-[11px] text-muted-foreground">
-              <tr>
-                <th className="pb-1 font-medium">Date</th>
-                <th className="pb-1 text-right font-medium">kcal</th>
-                <th className="pb-1 text-right font-medium">Protein</th>
-                <th className="pb-1 text-right font-medium">Carbs</th>
-                <th className="pb-1 text-right font-medium">Fat</th>
-                <th className="pb-1 pl-4 font-medium">Notes</th>
+          <table className="num w-full text-[14px]">
+            <thead className="text-left text-[12px] text-muted-foreground">
+              <tr className="border-b border-border-strong">
+                <th className="py-2 pr-4 font-medium">Date</th>
+                <th className="py-2 pr-4 text-right font-medium">Calories</th>
+                {targets.calories_kcal !== null && <th className="py-2 pr-4 text-right font-medium">vs target</th>}
+                <th className="py-2 pr-4 text-right font-medium">Protein</th>
+                <th className="py-2 pr-4 text-right font-medium">Carbs</th>
+                <th className="py-2 pr-4 text-right font-medium">Fat</th>
+                <th className="py-2 pl-4 font-medium">Note</th>
               </tr>
             </thead>
             <tbody>
-              {recent.map((row) => (
-                <tr
-                  key={row.logged_on}
-                  data-testid="nut-day"
-                  className={`cursor-pointer border-t border-border/70 hover:bg-muted/60 ${row.logged_on === day ? 'bg-muted/60' : ''}`}
-                  onClick={() => goTo(row.logged_on)}
-                >
-                  <td className="py-1">{formatShortDate(row.logged_on)}</td>
-                  <td className="py-1 text-right">{row.calories_kcal ?? '—'}</td>
-                  <td className="py-1 text-right">{row.protein_g ?? '—'}</td>
-                  <td className="py-1 text-right">{row.carbs_g ?? '—'}</td>
-                  <td className="py-1 text-right">{row.fat_g ?? '—'}</td>
-                  <td className="py-1 pl-4 text-muted-foreground">{row.notes}</td>
-                </tr>
-              ))}
+              {recent.map((row) => {
+                const kcalDiff =
+                  targets.calories_kcal !== null && row.calories_kcal !== null ? row.calories_kcal - targets.calories_kcal : null
+                const proteinMet = row.protein_g !== null && row.protein_g >= targets.protein_g
+                return (
+                  <tr
+                    key={row.logged_on}
+                    data-testid="nut-day"
+                    className={`cursor-pointer border-b border-border hover:bg-card ${row.logged_on === day ? 'bg-card' : ''}`}
+                    onClick={() => goTo(row.logged_on)}
+                  >
+                    <td className="py-2 pr-4">
+                      <button
+                        type="button"
+                        className={`rounded text-left hover:underline ${row.logged_on === day ? 'font-semibold' : ''}`}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          goTo(row.logged_on)
+                        }}
+                      >
+                        {formatShortDate(row.logged_on)}
+                      </button>
+                    </td>
+                    <td className="py-2 pr-4 text-right font-medium">{row.calories_kcal ?? '—'}</td>
+                    {targets.calories_kcal !== null && (
+                      <td className="py-2 pr-4 text-right text-muted-foreground">
+                        {kcalDiff === null ? '' : `${kcalDiff > 0 ? '+' : kcalDiff < 0 ? '−' : ''}${Math.abs(kcalDiff)}`}
+                      </td>
+                    )}
+                    <td className="py-2 pr-4 text-right">
+                      <span className="inline-flex items-center gap-1.5">
+                        {row.protein_g ?? '—'}
+                        <span
+                          aria-label={proteinMet ? 'protein target met' : undefined}
+                          className={`size-1.5 rounded-full ${proteinMet ? 'bg-ok' : 'bg-border-strong'}`}
+                        />
+                      </span>
+                    </td>
+                    <td className="py-2 pr-4 text-right">{row.carbs_g ?? '—'}</td>
+                    <td className="py-2 pr-4 text-right">{row.fat_g ?? '—'}</td>
+                    <td className="max-w-64 truncate py-2 pl-4 text-muted-foreground">{row.notes}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}

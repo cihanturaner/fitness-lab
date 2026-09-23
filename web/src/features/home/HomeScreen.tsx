@@ -1,8 +1,20 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { CheckCircle2, ChevronRight, Dumbbell, Moon, Plus, Scale } from 'lucide-react'
 import { ApiError, api } from '@/api/client'
 import type { Bodyweight, Nutrition, RecentSession, Week, WeekDay, WeekSession } from '@/api/types'
 import { Button } from '@/components/ui/button'
-import { compactSet, exerciseLabel, formatShortDate, localDate, signed } from '@/lib/format'
+import { Sparkline } from '@/components/chart/Sparkline'
+import { EmptyState, LoadError, Meter, Skeleton } from '@/components/app/primitives'
+import {
+  compactSet,
+  daysBetween,
+  exerciseLabel,
+  formatLongDate,
+  formatRange,
+  formatShortDate,
+  localDate,
+  signed,
+} from '@/lib/format'
 import { historyHref, navigate, workoutHref } from '@/lib/route'
 
 type Loaded = { week: Week; bodyweight: Bodyweight; nutrition: Nutrition; recent: RecentSession[] }
@@ -11,7 +23,8 @@ function message(error: unknown): string {
   return error instanceof ApiError || error instanceof Error ? error.message : String(error)
 }
 
-export function Panel({
+/** A summary card: a unit with its own way in, so it earns a surface. */
+function Card({
   title,
   href,
   linkLabel,
@@ -19,24 +32,26 @@ export function Panel({
   testId,
 }: {
   title: string
-  href?: string
-  linkLabel?: string
+  href: string
+  linkLabel: string
   children: ReactNode
-  testId?: string
+  testId: string
 }) {
   return (
     <section
       data-testid={testId}
       aria-label={title}
-      className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3"
+      className="flex min-h-60 flex-col gap-4 rounded-[10px] border border-border bg-card p-5"
     >
-      <header className="flex items-baseline justify-between">
-        <h2 className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">{title}</h2>
-        {href && (
-          <a href={href} className="text-[12px] text-plan hover:underline">
-            {linkLabel ?? 'Open'} →
-          </a>
-        )}
+      <header className="flex items-baseline justify-between gap-3">
+        <h2 className="t-section">{title}</h2>
+        <a
+          href={href}
+          className="group/link -mr-1 inline-flex items-center gap-0.5 rounded px-1 text-[13px] font-medium text-muted-foreground hover:text-foreground"
+        >
+          {linkLabel}
+          <ChevronRight className="size-3.5 transition-transform group-hover/link:translate-x-0.5" aria-hidden />
+        </a>
       </header>
       {children}
     </section>
@@ -58,27 +73,39 @@ function SessionCell({
   busy: boolean
   onOpen: (session: WeekSession) => void
 }) {
-  const tone =
-    session.status === 'complete' ? 'text-ok' : session.status === 'draft' ? 'text-warn' : 'text-muted-foreground'
+  const done = session.status === 'complete'
+  const draft = session.status === 'draft'
   return (
-    <div data-testid={`planned-${session.workout_key}`} data-status={session.status} className="flex flex-col gap-1">
-      <p className="text-[14px] leading-tight font-semibold">{session.name}</p>
-      <p className="num text-[11px] text-muted-foreground">
+    <div data-testid={`planned-${session.workout_key}`} data-status={session.status} className="flex flex-1 flex-col gap-1">
+      <p className="flex items-center gap-1.5 text-[15px] leading-5 font-semibold tracking-[-0.01em]">
+        {session.name}
+        {done && <CheckCircle2 className="size-4 text-ok" strokeWidth={2.25} aria-hidden />}
+      </p>
+      <p className="num text-[12px] leading-4 text-muted-foreground">
         {session.slot_count} exercises · {session.set_count} sets
       </p>
-      <p className={`text-[12px] font-medium ${tone}`} data-testid="session-status">
-        {STATUS_LABEL[session.status]}
+      <p className="mt-1 flex items-center gap-1.5 text-[12px] leading-4">
+        <span
+          aria-hidden
+          className={`size-1.5 rounded-full ${done ? 'bg-ok' : draft ? 'bg-warn' : 'bg-border-strong'}`}
+        />
+        <span
+          data-testid="session-status"
+          className={`font-medium ${done ? 'text-ok' : draft ? 'text-warn' : 'text-muted-foreground'}`}
+        >
+          {STATUS_LABEL[session.status]}
+        </span>
         {session.workout_on && session.status !== 'not_started' && (
-          <span className="font-normal text-muted-foreground"> · {formatShortDate(session.workout_on)}</span>
+          <span className="num text-muted-foreground">{formatShortDate(session.workout_on)}</span>
         )}
       </p>
-      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-        {session.status === 'complete' && session.workout_id ? (
+      <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-3">
+        {done && session.workout_id ? (
           <>
             <a
               href={workoutHref(session.workout_id)}
               aria-label={`View ${session.name}`}
-              className="rounded-md border border-border px-2 py-0.5 text-[12px] font-medium hover:bg-muted"
+              className="inline-flex h-7 items-center rounded-md border border-border-strong bg-card px-2.5 text-[13px] font-medium hover:bg-sunken"
             >
               View
             </a>
@@ -86,7 +113,7 @@ function SessionCell({
               type="button"
               disabled={busy}
               aria-label={`Start ${session.name} again`}
-              className="text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+              className="rounded px-1 text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-45"
               onClick={() => onOpen(session)}
             >
               Log again
@@ -94,13 +121,14 @@ function SessionCell({
           </>
         ) : (
           <Button
-            size="xs"
-            variant={session.status === 'draft' ? 'default' : 'outline'}
+            size="sm"
+            variant={draft ? 'default' : 'outline'}
+            className={draft ? '' : 'border-border-strong bg-card hover:bg-sunken'}
             isDisabled={busy}
-            aria-label={`${session.status === 'draft' ? 'Resume draft of' : 'Start'} ${session.name}`}
+            aria-label={`${draft ? 'Resume draft of' : 'Start'} ${session.name}`}
             onPress={() => onOpen(session)}
           >
-            {session.status === 'draft' ? 'Resume' : 'Open'}
+            {draft ? 'Resume' : 'Start'}
           </Button>
         )}
       </div>
@@ -108,7 +136,11 @@ function SessionCell({
   )
 }
 
-function DayColumn({
+function hasTraining(day: WeekDay): boolean {
+  return day.sessions.length > 0 || day.unplanned.length > 0
+}
+
+function DayTile({
   day,
   today,
   busy,
@@ -120,24 +152,41 @@ function DayColumn({
   onOpen: (session: WeekSession) => void
 }) {
   const isToday = day.date === today
+  const training = hasTraining(day)
+  const past = day.date < today
   const dayOfMonth = Number(day.date.split('-')[2])
+  const draft = day.sessions.some((session) => session.status === 'draft')
+  const surface = !training
+    ? 'border-transparent bg-sunken/70'
+    : draft
+      ? 'border-warn/45 bg-card'
+      : 'border-border bg-card'
   return (
     <li
       data-testid={`day-${day.weekday.toLowerCase()}`}
       aria-current={isToday ? 'date' : undefined}
-      className={`flex min-h-32 flex-col gap-2 rounded-lg border p-2.5 ${
-        isToday ? 'border-plan bg-card shadow-[inset_0_2px_0_var(--plan)]' : 'border-border bg-card/60'
+      className={`relative flex min-h-40 flex-col gap-3 rounded-[10px] border p-3.5 ${surface} ${
+        isToday ? 'outline-2 outline-offset-[-1px] outline-foreground' : ''
       }`}
     >
-      <p className="flex items-baseline justify-between text-[11px] tracking-wider text-muted-foreground uppercase">
-        <span className={isToday ? 'font-semibold text-plan' : ''}>
+      <p className="flex items-center justify-between text-[12px] leading-4">
+        <span className={`font-medium ${isToday ? 'text-foreground' : past ? 'text-faint' : 'text-muted-foreground'}`}>
           {day.weekday.slice(0, 3)}
-          {isToday && <span className="ml-1 normal-case tracking-normal">· today</span>}
+          {isToday && <span className="ml-1.5 font-semibold">Today</span>}
         </span>
-        <span className="num">{dayOfMonth}</span>
+        <span
+          className={`num flex size-6 items-center justify-center rounded-full text-[12px] font-semibold ${
+            isToday ? 'bg-foreground text-background' : past ? 'text-faint' : 'text-muted-foreground'
+          }`}
+        >
+          {dayOfMonth}
+        </span>
       </p>
-      {day.sessions.length === 0 && day.unplanned.length === 0 && (
-        <p className="text-[12px] text-muted-foreground/70">Rest</p>
+      {!training && (
+        <p className="flex items-center gap-1.5 text-[13px] text-faint">
+          <Moon className="size-3.5" aria-hidden />
+          Rest
+        </p>
       )}
       {day.sessions.map((session) => (
         <SessionCell key={session.planned_workout_id} session={session} busy={busy} onOpen={onOpen} />
@@ -146,8 +195,9 @@ function DayColumn({
         <a
           key={item.workout_id}
           href={workoutHref(item.workout_id)}
-          className="text-[12px] text-muted-foreground hover:text-foreground hover:underline"
+          className="flex items-center gap-1.5 text-[13px] font-medium hover:underline"
         >
+          <span aria-hidden className={`size-1.5 rounded-full ${item.status === 'complete' ? 'bg-ok' : 'bg-warn'}`} />
           Unplanned · {item.status === 'complete' ? 'done' : 'draft'}
         </a>
       ))}
@@ -155,54 +205,221 @@ function DayColumn({
   )
 }
 
-function BlockLabel({ week }: { week: Week }) {
-  const { block, program } = week
-  if (!program) return <>No active program</>
-  if (!block) return <>This week</>
-  const weeks = block.weeks ?? program.duration_weeks
-  if (block.week < 1) return <>Block starts {formatShortDate(block.start_on)}</>
-  if (weeks !== null && block.week > weeks) return <>Block finished</>
+/** Twelve segments: finished weeks ink, this week plan-blue, the rest still to come. */
+function BlockRail({ week, weeks }: { week: number; weeks: number }) {
   return (
-    <span data-testid="block-week">
-      Week <span className="num">{block.week}</span>
-      {weeks !== null && <span className="num font-normal text-muted-foreground"> of {weeks}</span>}
+    <span className="flex gap-[3px]" aria-hidden>
+      {Array.from({ length: weeks }, (_, index) => (
+        <span
+          key={index}
+          className={`h-1.5 w-4 rounded-full ${
+            index + 1 < week ? 'bg-foreground/80' : index + 1 === week ? 'bg-plan' : 'bg-border-strong/70'
+          }`}
+        />
+      ))}
     </span>
   )
 }
 
-function BodyweightSummary({ data }: { data: Bodyweight }) {
-  const { summary } = data
-  if (!summary.latest) {
-    return <p className="text-[13px] text-muted-foreground">No weigh-ins yet.</p>
+function BlockStatus({ week }: { week: Week }) {
+  const { block, program } = week
+  if (!program || !block) return null
+  const weeks = block.weeks ?? program.duration_weeks ?? 12
+  if (block.week < 1) {
+    const days = daysBetween(week.date, block.start_on)
+    return (
+      <div className="flex flex-col items-end gap-1.5">
+        <BlockRail week={0} weeks={weeks} />
+        <p className="num text-[13px] text-muted-foreground">
+          Block starts <span className="font-medium text-foreground">{formatShortDate(block.start_on)}</span>
+          {days > 0 && ` · in ${days} ${days === 1 ? 'day' : 'days'}`}
+        </p>
+      </div>
+    )
+  }
+  if (block.week > weeks) {
+    return <p className="text-[13px] text-muted-foreground">Block finished</p>
   }
   return (
-    <dl className="num grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1 text-[13px]">
-      <dt className="text-muted-foreground">Latest</dt>
-      <dd data-testid="home-bw-latest">
-        <span className="text-[18px] font-semibold">{summary.latest.bodyweight_kg}</span> kg
-        <span className="text-muted-foreground"> · {formatShortDate(summary.latest.measured_on)}</span>
-      </dd>
-      <dt className="text-muted-foreground">7-day avg</dt>
-      <dd data-testid="home-bw-avg">
-        {summary.current_avg_kg ?? '—'} kg
-        <span className="text-muted-foreground"> ({summary.current_count}/7 days)</span>
-      </dd>
-      <dt className="text-muted-foreground">vs prior 7</dt>
-      <dd data-testid="home-bw-change">
-        {summary.change_kg === null ? (
-          <span className="text-muted-foreground">no prior week yet</span>
-        ) : (
-          <>
-            {signed(summary.change_kg)} kg
-            <span className="text-muted-foreground"> · {signed(summary.change_pct ?? '0')}%</span>
-          </>
-        )}
-      </dd>
-    </dl>
+    <div className="flex flex-col items-end gap-1.5">
+      <BlockRail week={block.week} weeks={weeks} />
+      <p data-testid="block-week" className="num text-[13px] font-medium">
+        Week {block.week}
+        <span className="font-normal text-muted-foreground"> of {weeks}</span>
+      </p>
+    </div>
   )
 }
 
-function Macro({
+/** The one thing to do now, chosen from the week: resume, start, or rest. */
+function TodayBand({
+  week,
+  busy,
+  onOpen,
+  onUnplanned,
+}: {
+  week: Week
+  busy: boolean
+  onOpen: (session: WeekSession) => void
+  onUnplanned: () => void
+}) {
+  const all = [...week.days.flatMap((day) => day.sessions.map((session) => ({ session, date: day.date }))), ...week.unscheduled.map((session) => ({ session, date: null }))]
+  const todayDay = week.days.find((day) => day.date === week.date)
+  const draft = all.find(({ session }) => session.status === 'draft')
+  const todays = todayDay?.sessions.find((session) => session.status !== 'complete') ?? todayDay?.sessions[0]
+  const next = all.find(({ session, date }) => session.status === 'not_started' && date !== null && date > week.date)
+
+  let kicker: ReactNode
+  let title: ReactNode
+  let meta: ReactNode = null
+  let action: ReactNode = null
+
+  const plan = (session: WeekSession) => (
+    <span className="num">
+      {session.slot_count} exercises · {session.set_count} sets
+    </span>
+  )
+
+  if (!week.program) {
+    kicker = <span className="text-muted-foreground">Program</span>
+    title = <h2>No active program</h2>
+    meta = 'Import and activate one from the command line to plan your weeks. Unplanned sessions can still be logged.'
+  } else if (draft) {
+    const { session } = draft
+    kicker = <span className="text-warn">In progress</span>
+    title = session.name
+    meta = (
+      <>
+        Draft from {session.workout_on ? formatShortDate(session.workout_on) : 'earlier'} · {plan(session)}
+      </>
+    )
+    action = (
+      <Button size="lg" className="h-10 px-5 text-[14px]" isDisabled={busy} aria-label={`Continue ${session.name}`} onPress={() => onOpen(session)}>
+        Continue workout
+      </Button>
+    )
+  } else if (todays && todays.status === 'not_started') {
+    kicker = <span className="text-plan">Today</span>
+    title = todays.name
+    meta = plan(todays)
+    action = (
+      <Button size="lg" className="h-10 px-5 text-[14px]" isDisabled={busy} aria-label={`Start today: ${todays.name}`} onPress={() => onOpen(todays)}>
+        Start workout
+      </Button>
+    )
+  } else if (todays && todays.status === 'complete') {
+    kicker = <span className="text-ok">Done today</span>
+    title = todays.name
+    meta = next ? (
+      <>
+        Next: {next.session.name}, {formatShortDate(next.date ?? '')}
+      </>
+    ) : (
+      'Nothing else planned this week.'
+    )
+    action = todays.workout_id ? (
+      <a
+        href={workoutHref(todays.workout_id)}
+        aria-label={`Open ${todays.name}`}
+        className="inline-flex h-10 items-center rounded-lg border border-border-strong bg-card px-4 text-[14px] font-medium hover:bg-sunken"
+      >
+        Review session
+      </a>
+    ) : null
+  } else {
+    kicker = <span className="text-muted-foreground">Today</span>
+    title = 'Rest day'
+    meta = next ? (
+      <>
+        Next: <span className="font-medium text-foreground">{next.session.name}</span>, {formatShortDate(next.date ?? '')} ·{' '}
+        {plan(next.session)}
+      </>
+    ) : (
+      'Nothing else planned this week.'
+    )
+  }
+
+  return (
+    <section
+      aria-label="Today"
+      className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4 rounded-[10px] border border-border bg-card px-6 py-5"
+    >
+      <div className="flex min-w-0 flex-col gap-1">
+        <p className="text-[12px] leading-4 font-semibold">{kicker}</p>
+        <div className="text-[24px] leading-8 font-semibold tracking-[-0.02em]">{title}</div>
+        {meta && <p className="t-meta">{meta}</p>}
+      </div>
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" className="h-10 gap-1.5 px-3 text-[13px] text-muted-foreground" isDisabled={busy} onPress={onUnplanned}>
+          <Plus aria-hidden />
+          Start unplanned session
+        </Button>
+        {action}
+      </div>
+    </section>
+  )
+}
+
+function Figure({ label, children, testId }: { label: string; children: ReactNode; testId: string }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <span className="t-micro">{label}</span>
+      <span data-testid={testId} className="num text-[14px] leading-5 font-medium whitespace-nowrap">
+        {children}
+      </span>
+    </div>
+  )
+}
+
+function BodyweightSummary({ data }: { data: Bodyweight }) {
+  const { summary, series } = data
+  if (!summary.latest) {
+    return (
+      <EmptyState icon={Scale} title="No weigh-ins yet." className="flex-1 py-4">
+        Weigh in tomorrow morning. The 7-day trend starts with the first entry.
+      </EmptyState>
+    )
+  }
+  return (
+    <div className="flex flex-1 flex-col gap-4">
+      <div className="flex items-start justify-between gap-4">
+        <p data-testid="home-bw-latest" className="flex shrink-0 flex-col">
+          <span className="t-metric">
+            {summary.latest.bodyweight_kg}
+            <span className="t-unit"> kg</span>
+          </span>
+          <span className="t-micro"> {formatShortDate(summary.latest.measured_on)}</span>
+        </p>
+        <div className="flex flex-col items-end gap-2 pt-1 text-right">
+          <Figure label="7-day average" testId="home-bw-avg">
+            {summary.current_avg_kg ?? '—'} kg <span className="font-normal text-muted-foreground">({summary.current_count}/7 days)</span>
+          </Figure>
+          <Figure label="vs previous 7 days" testId="home-bw-change">
+            {summary.change_kg === null ? (
+              <span className="font-normal text-muted-foreground">after a second week</span>
+            ) : (
+              <>
+                {signed(summary.change_kg)} kg
+                <span className="font-normal text-muted-foreground"> · {signed(summary.change_pct ?? '0')}%</span>
+              </>
+            )}
+          </Figure>
+        </div>
+      </div>
+      <div className="mt-auto flex flex-col gap-1 border-t border-border pt-3">
+        <Sparkline
+          label="Bodyweight, last four weeks"
+          height={56}
+          points={series.map((point) => (point.bodyweight_kg === null ? null : Number(point.bodyweight_kg)))}
+          line={series.map((point) => (point.avg7_kg === null ? null : Number(point.avg7_kg)))}
+        />
+        <p className="t-micro">Last 4 weeks · daily weigh-ins and the 7-day average</p>
+      </div>
+    </div>
+  )
+}
+
+function MacroRow({
   label,
   value,
   target,
@@ -216,15 +433,17 @@ function Macro({
   testId: string
 }) {
   return (
-    <div data-testid={testId} className="flex flex-col">
-      <span className="text-[11px] text-muted-foreground">{label}</span>
-      <span className="num text-[15px] leading-tight font-semibold whitespace-nowrap">
-        {value ?? '—'}
-        <span className="text-[11px] font-normal text-muted-foreground"> {unit}</span>
-      </span>
-      <span className="num text-[11px] whitespace-nowrap text-muted-foreground">
-        target {target === null ? '—' : `${target} ${unit}`}
-      </span>
+    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1">
+      <span className="text-[13px] text-muted-foreground">{label}</span>
+      <div data-testid={testId} className="num flex items-baseline justify-between gap-2 whitespace-nowrap">
+        <span className="text-[15px] leading-5 font-semibold">
+          {value ?? '—'}
+          <span className="text-[12px] font-normal text-muted-foreground"> {unit}</span>
+        </span>
+        <span className="text-[12px] text-muted-foreground">{target === null ? 'target not set' : `target ${target} ${unit}`}</span>
+      </div>
+      <span />
+      {target === null ? <span className="h-1.5" /> : <Meter value={value} target={target} height={4} />}
     </div>
   )
 }
@@ -232,54 +451,70 @@ function Macro({
 function NutritionSummary({ data }: { data: Nutrition }) {
   const { day, targets } = data
   return (
-    <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-4 gap-2">
-        <Macro label="Calories" value={day?.calories_kcal ?? null} target={targets.calories_kcal} unit="kcal" testId="home-nut-kcal" />
-        <Macro label="Protein" value={day?.protein_g ?? null} target={targets.protein_g} unit="g" testId="home-nut-protein" />
-        <Macro label="Carbs" value={day?.carbs_g ?? null} target={targets.carbs_g} unit="g" testId="home-nut-carbs" />
-        <Macro label="Fat" value={day?.fat_g ?? null} target={targets.fat_g} unit="g" testId="home-nut-fat" />
+    <div className="flex flex-1 flex-col gap-3">
+      <MacroRow label="Calories" value={day?.calories_kcal ?? null} target={targets.calories_kcal} unit="kcal" testId="home-nut-kcal" />
+      <MacroRow label="Protein" value={day?.protein_g ?? null} target={targets.protein_g} unit="g" testId="home-nut-protein" />
+      <MacroRow label="Carbs" value={day?.carbs_g ?? null} target={targets.carbs_g} unit="g" testId="home-nut-carbs" />
+      <MacroRow label="Fat" value={day?.fat_g ?? null} target={targets.fat_g} unit="g" testId="home-nut-fat" />
+      <div className="mt-auto flex flex-col gap-0.5 border-t border-border pt-3 text-[12px] leading-4 text-muted-foreground">
+        {!day && <p>Nothing logged today.</p>}
+        {targets.calories_kcal === null && <p>Calorie target not calibrated yet.</p>}
+        {day && targets.calories_kcal !== null && <p>Logged {formatShortDate(day.logged_on)}.</p>}
       </div>
-      {targets.calories_kcal === null && (
-        <p className="text-[12px] text-muted-foreground">Calorie target not calibrated yet.</p>
-      )}
-      {!day && <p className="text-[12px] text-muted-foreground">Nothing logged today.</p>}
     </div>
   )
 }
 
 function RecentTraining({ sessions }: { sessions: RecentSession[] }) {
-  if (sessions.length === 0) {
-    return <p className="text-[13px] text-muted-foreground">No completed sessions yet.</p>
+  const [latest, ...earlier] = sessions
+  if (!latest) {
+    return (
+      <EmptyState icon={Dumbbell} title="No completed sessions yet." className="flex-1 py-4">
+        Complete a workout and its working sets appear here.
+      </EmptyState>
+    )
   }
   return (
-    <div className="flex flex-col gap-2.5">
-      {sessions.map((session) => (
-        <div key={session.workout_id} data-testid="recent-session" className="flex flex-col gap-0.5">
-          <a href={workoutHref(session.workout_id)} className="text-[12px] font-medium hover:underline">
-            {formatShortDate(session.performed_on)} · {session.planned_workout_name ?? 'Unplanned'}
+    <div className="flex flex-1 flex-col gap-3">
+      <div data-testid="recent-session" className="flex flex-col gap-2">
+        <a href={workoutHref(latest.workout_id)} className="flex items-baseline justify-between gap-2 hover:underline">
+          <span className="text-[14px] font-semibold">{latest.planned_workout_name ?? 'Unplanned session'}</span>
+          <span className="num text-[12px] text-muted-foreground">{formatShortDate(latest.performed_on)}</span>
+        </a>
+        <ul className="num flex flex-col gap-1 text-[13px] leading-[18px]">
+          {latest.exercises.slice(0, 5).map((group) => (
+            <li key={group.exercise.id} className="flex items-baseline justify-between gap-3">
+              <a href={historyHref(group.exercise.id)} className="min-w-0 truncate text-muted-foreground hover:text-foreground">
+                {exerciseLabel(group.exercise)}
+              </a>
+              <span className="shrink-0 text-[12px] font-medium">
+                {group.sets
+                  .filter((performed) => performed.set_type !== 'warmup')
+                  .map(compactSet)
+                  .join(' · ')}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {latest.exercises.length > 5 && (
+          <a href={workoutHref(latest.workout_id)} className="text-[12px] text-muted-foreground hover:text-foreground">
+            +{latest.exercises.length - 5} more exercises
           </a>
-          <ul className="num flex flex-col text-[12px]">
-            {session.exercises.slice(0, 4).map((group) => (
-              <li key={group.exercise.id} className="flex gap-2">
-                <a
-                  href={historyHref(group.exercise.id)}
-                  className="w-40 shrink-0 truncate text-muted-foreground hover:text-foreground"
-                >
-                  {exerciseLabel(group.exercise)}
-                </a>
-                <span className="truncate">
-                  {group.sets
-                    .filter((performed) => performed.set_type !== 'warmup')
-                    .map(compactSet)
-                    .join(' · ')}
-                </span>
-              </li>
-            ))}
-            {session.exercises.length > 4 && (
-              <li className="text-muted-foreground">+{session.exercises.length - 4} more exercises</li>
-            )}
-          </ul>
-        </div>
+        )}
+      </div>
+      {earlier.map((session) => (
+        <a
+          key={session.workout_id}
+          data-testid="recent-session"
+          href={workoutHref(session.workout_id)}
+          className="mt-auto flex items-baseline justify-between gap-2 border-t border-border pt-3 text-[13px] hover:underline"
+        >
+          <span>
+            <span className="text-muted-foreground">Before that · </span>
+            {session.planned_workout_name ?? 'Unplanned session'}
+          </span>
+          <span className="num text-[12px] text-muted-foreground">{formatShortDate(session.performed_on)}</span>
+        </a>
       ))}
     </div>
   )
@@ -292,7 +527,7 @@ export function HomeScreen() {
   const today = localDate()
 
   const load = useCallback(() => {
-    Promise.all([api.week(today), api.bodyweight(today, 14), api.nutrition(today), api.recentTraining(2)]).then(
+    Promise.all([api.week(today), api.bodyweight(today, 28), api.nutrition(today), api.recentTraining(2)]).then(
       ([week, bodyweight, nutrition, recent]) => setLoaded({ week, bodyweight, nutrition, recent }),
       (failure: unknown) => setError(message(failure)),
     )
@@ -324,78 +559,69 @@ export function HomeScreen() {
 
   if (!loaded) {
     return error ? (
-      <p role="alert" className="text-destructive">
-        Could not load the week: {error}
-      </p>
+      <LoadError what="the week" detail={error} />
     ) : (
-      <p className="text-muted-foreground">Loading the week…</p>
+      <Skeleton label="Loading the week…" blocks={['h-8 w-80', 'h-24', 'h-40', 'h-60']} />
     )
   }
 
   const { week, bodyweight, nutrition, recent } = loaded
+  const columns = {
+    '--week-cols': week.days.map((day) => (hasTraining(day) ? 'minmax(0,1.35fr)' : 'minmax(0,0.8fr)')).join(' '),
+  } as CSSProperties
 
   return (
-    <div className="flex flex-col gap-4">
-      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="text-xl font-semibold tracking-tight">
-          <BlockLabel week={week} />
-        </h1>
-        <p className="num text-[13px] text-muted-foreground">
-          {formatShortDate(week.week_start)} – {formatShortDate(week.week_end)}
-          {week.program && (
-            <>
-              {' · '}
-              {week.program.name}
-              {week.program.version_label ? ` ${week.program.version_label}` : ''}
-            </>
-          )}
-        </p>
-        <Button variant="ghost" size="sm" className="ml-auto" isDisabled={busy} onPress={() => void startUnplanned()}>
-          Start unplanned session
-        </Button>
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="t-title">{formatLongDate(week.date)}</h1>
+          <p className="t-meta">
+            {week.program ? week.program.name : 'No program'}
+            <span className="num"> · {formatRange(week.week_start, week.week_end)}</span>
+          </p>
+        </div>
+        <BlockStatus week={week} />
       </header>
-      {!week.program && (
-        <p className="text-[13px] text-muted-foreground">
-          Import and activate a program with the fitness-lab command-line tool. Unplanned sessions can
-          still be recorded.
-        </p>
-      )}
       {week.program && !week.block && (
-        <p className="text-[12px] text-muted-foreground">
-          Block start not set: run <code>uv run fitness-lab set-block-start YYYY-MM-DD</code> to number
-          the 12 weeks.
-        </p>
+        <p className="t-micro">The block start date is not set yet, so weeks are not numbered.</p>
       )}
       {error && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-[13px] text-destructive">
           {error}
         </p>
       )}
 
-      <ol aria-label="This week" className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-        {week.days.map((day) => (
-          <DayColumn key={day.date} day={day} today={week.date} busy={busy} onOpen={(session) => void open(session)} />
-        ))}
-      </ol>
-      {week.unscheduled.length > 0 && (
-        <div className="flex flex-wrap gap-4 rounded-lg border border-dashed border-border p-2.5">
-          <p className="text-[11px] tracking-wider text-muted-foreground uppercase">No fixed day</p>
-          {week.unscheduled.map((session) => (
-            <SessionCell key={session.planned_workout_id} session={session} busy={busy} onOpen={(item) => void open(item)} />
-          ))}
-        </div>
-      )}
+      <TodayBand week={week} busy={busy} onOpen={(session) => void open(session)} onUnplanned={() => void startUnplanned()} />
 
-      <div className="grid gap-3 lg:grid-cols-3">
-        <Panel title="Bodyweight" href="#/bodyweight" linkLabel="Log" testId="home-bodyweight">
+      <section aria-labelledby="week-title" className="flex flex-col gap-3">
+        <h2 id="week-title" className="sr-only">
+          This week
+        </h2>
+        <ol aria-label="This week" style={columns} className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:[grid-template-columns:var(--week-cols)]">
+          {week.days.map((day) => (
+            <DayTile key={day.date} day={day} today={week.date} busy={busy} onOpen={(session) => void open(session)} />
+          ))}
+        </ol>
+        {week.unscheduled.length > 0 && (
+          <div className="flex flex-wrap items-start gap-6 rounded-[10px] border border-dashed border-border-strong p-3.5">
+            <p className="t-micro pt-0.5">No fixed day</p>
+            {week.unscheduled.map((session) => (
+              <SessionCell key={session.planned_workout_id} session={session} busy={busy} onOpen={(item) => void open(item)} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card title="Bodyweight" href="#/bodyweight" linkLabel="Log weight" testId="home-bodyweight">
           <BodyweightSummary data={bodyweight} />
-        </Panel>
-        <Panel title="Nutrition today" href="#/nutrition" linkLabel="Log" testId="home-nutrition">
+        </Card>
+        <Card title="Nutrition today" href="#/nutrition" linkLabel="Log food" testId="home-nutrition">
           <NutritionSummary data={nutrition} />
-        </Panel>
-        <Panel title="Recent training" href="#/history" linkLabel="History" testId="home-recent">
+        </Card>
+        <Card title="Recent training" href="#/history" linkLabel="History" testId="home-recent">
           <RecentTraining sessions={recent} />
-        </Panel>
+        </Card>
       </div>
     </div>
   )
