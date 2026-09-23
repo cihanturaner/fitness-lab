@@ -1,0 +1,206 @@
+-- 0003_planned_program.sql
+-- The planned side of training (M2). Purely additive: CREATE TABLE, CREATE INDEX and
+-- CREATE TRIGGER only. workout and performed_set are not altered (M1 §17): a workout's
+-- planned origin lives in its own link table, and there is deliberately no link from a
+-- performed set to a planned set. Nothing is backfilled — every existing workout stays
+-- unplanned.
+--
+-- Imported program content (program_version, planned_workout, planned_exercise_slot,
+-- planned_set) is append-only, enforced by triggers: a new program edit is a new version.
+-- Which version is active is state, not content, and lives in a singleton table.
+
+CREATE TABLE program_version (
+    id                  TEXT    PRIMARY KEY,
+    program_key         TEXT    NOT NULL CHECK (length(trim(program_key)) > 0),
+    name                TEXT    NOT NULL CHECK (length(trim(name)) > 0),
+    version_label       TEXT    CHECK (version_label IS NULL OR length(trim(version_label)) > 0),
+    duration_weeks      INTEGER CHECK (duration_weeks IS NULL OR duration_weeks >= 1),
+    package_format      INTEGER NOT NULL CHECK (package_format = 1),
+    package_sha256      TEXT    NOT NULL UNIQUE
+        CHECK (length(package_sha256) = 64 AND package_sha256 NOT GLOB '*[^0-9a-f]*'),
+    program_json_sha256 TEXT    NOT NULL
+        CHECK (length(program_json_sha256) = 64 AND program_json_sha256 NOT GLOB '*[^0-9a-f]*'),
+    program_json_text   TEXT    NOT NULL,
+    notes_sha256        TEXT
+        CHECK (notes_sha256 IS NULL
+               OR (length(notes_sha256) = 64 AND notes_sha256 NOT GLOB '*[^0-9a-f]*')),
+    notes_text          TEXT,
+    imported_at_utc     TEXT    NOT NULL,
+    CHECK ((notes_sha256 IS NULL) = (notes_text IS NULL))
+) STRICT;
+
+CREATE TABLE planned_workout (
+    id                 TEXT    PRIMARY KEY,
+    program_version_id TEXT    NOT NULL REFERENCES program_version(id) ON DELETE RESTRICT,
+    workout_key        TEXT    NOT NULL CHECK (length(trim(workout_key)) > 0),
+    sequence           INTEGER NOT NULL CHECK (sequence >= 1),
+    name               TEXT    NOT NULL CHECK (length(trim(name)) > 0),
+    day_label          TEXT    CHECK (day_label IS NULL OR length(trim(day_label)) > 0),
+    notes              TEXT,
+    UNIQUE (program_version_id, workout_key),
+    UNIQUE (program_version_id, sequence)
+) STRICT;
+
+-- The slot, not the exercise, is the identity of a planned occurrence: an A/B/A session
+-- is three slots even when two of them reference the same exercise.
+CREATE TABLE planned_exercise_slot (
+    id                 TEXT    PRIMARY KEY,
+    planned_workout_id TEXT    NOT NULL REFERENCES planned_workout(id) ON DELETE RESTRICT,
+    slot_key           TEXT    NOT NULL CHECK (length(trim(slot_key)) > 0),
+    position           INTEGER NOT NULL CHECK (position >= 1),
+    exercise_id        TEXT    NOT NULL REFERENCES exercise(id) ON DELETE RESTRICT,
+    notes              TEXT,
+    UNIQUE (planned_workout_id, slot_key),
+    UNIQUE (planned_workout_id, position),
+    -- Composite foreign-key target: lets workout_slot_substitution prove that a slot
+    -- belongs to the same planned workout as the workout's origin.
+    UNIQUE (id, planned_workout_id)
+) STRICT;
+
+CREATE INDEX ix_planned_exercise_slot_exercise ON planned_exercise_slot (exercise_id);
+
+-- Rep-based prescriptions only. reps_max NULL = open-ended (AMRAP); equal = exact;
+-- greater = range. Target RIR is both-or-neither. Target load is integer grams (M1 §16).
+CREATE TABLE planned_set (
+    id             TEXT    PRIMARY KEY,
+    slot_id        TEXT    NOT NULL REFERENCES planned_exercise_slot(id) ON DELETE RESTRICT,
+    position       INTEGER NOT NULL CHECK (position >= 1),
+    set_type       TEXT    NOT NULL REFERENCES set_type(code) ON DELETE RESTRICT,
+    reps_min       INTEGER NOT NULL CHECK (reps_min >= 1),
+    reps_max       INTEGER CHECK (reps_max IS NULL OR reps_max >= reps_min),
+    target_rir_min INTEGER,
+    target_rir_max INTEGER,
+    target_load_g  INTEGER CHECK (target_load_g IS NULL OR target_load_g >= 0),
+    notes          TEXT,
+    CHECK ((target_rir_min IS NULL) = (target_rir_max IS NULL)),
+    CHECK (target_rir_min IS NULL OR target_rir_min <= target_rir_max),
+    UNIQUE (slot_id, position)
+) STRICT;
+
+-- Zero rows = no active program. One row at most, by construction.
+CREATE TABLE active_program_version (
+    singleton          INTEGER PRIMARY KEY CHECK (singleton = 1),
+    program_version_id TEXT    NOT NULL REFERENCES program_version(id) ON DELETE RESTRICT,
+    activated_at_utc   TEXT    NOT NULL
+) STRICT;
+
+-- A workout's planned origin: set once at creation, never rebound, never cleared. No row
+-- means the workout was not planned — the natural default, not missing data.
+CREATE TABLE workout_plan_origin (
+    workout_id         TEXT PRIMARY KEY REFERENCES workout(id) ON DELETE CASCADE,
+    planned_workout_id TEXT NOT NULL REFERENCES planned_workout(id) ON DELETE RESTRICT,
+    created_at_utc     TEXT NOT NULL,
+    UNIQUE (workout_id, planned_workout_id)
+) STRICT;
+
+CREATE INDEX ix_workout_plan_origin_planned ON workout_plan_origin (planned_workout_id);
+
+-- Whole-slot substitution for one workout. The two composite foreign keys force the
+-- slot's planned workout to equal the workout's origin, so attaching a slot of another
+-- session (or any slot to an unplanned workout) fails structurally.
+CREATE TABLE workout_slot_substitution (
+    workout_id         TEXT NOT NULL,
+    planned_workout_id TEXT NOT NULL,
+    slot_id            TEXT NOT NULL,
+    exercise_id        TEXT NOT NULL REFERENCES exercise(id) ON DELETE RESTRICT,
+    created_at_utc     TEXT NOT NULL,
+    updated_at_utc     TEXT NOT NULL,
+    PRIMARY KEY (workout_id, slot_id),
+    FOREIGN KEY (workout_id, planned_workout_id)
+        REFERENCES workout_plan_origin (workout_id, planned_workout_id) ON DELETE CASCADE,
+    FOREIGN KEY (slot_id, planned_workout_id)
+        REFERENCES planned_exercise_slot (id, planned_workout_id) ON DELETE RESTRICT
+) STRICT;
+
+CREATE INDEX ix_workout_slot_substitution_slot
+    ON workout_slot_substitution (slot_id, planned_workout_id);
+CREATE INDEX ix_workout_slot_substitution_exercise ON workout_slot_substitution (exercise_id);
+
+-- Append-only program content.
+
+CREATE TRIGGER trg_program_version_no_update BEFORE UPDATE ON program_version
+BEGIN
+    SELECT RAISE(ABORT, 'program_version is append-only; import a new version instead');
+END;
+
+CREATE TRIGGER trg_program_version_no_delete BEFORE DELETE ON program_version
+BEGIN
+    SELECT RAISE(ABORT, 'program_version is append-only; it is never deleted');
+END;
+
+CREATE TRIGGER trg_planned_workout_no_update BEFORE UPDATE ON planned_workout
+BEGIN
+    SELECT RAISE(ABORT, 'planned_workout is append-only; import a new version instead');
+END;
+
+CREATE TRIGGER trg_planned_workout_no_delete BEFORE DELETE ON planned_workout
+BEGIN
+    SELECT RAISE(ABORT, 'planned_workout is append-only; it is never deleted');
+END;
+
+CREATE TRIGGER trg_planned_exercise_slot_no_update BEFORE UPDATE ON planned_exercise_slot
+BEGIN
+    SELECT RAISE(ABORT, 'planned_exercise_slot is append-only; import a new version instead');
+END;
+
+CREATE TRIGGER trg_planned_exercise_slot_no_delete BEFORE DELETE ON planned_exercise_slot
+BEGIN
+    SELECT RAISE(ABORT, 'planned_exercise_slot is append-only; it is never deleted');
+END;
+
+CREATE TRIGGER trg_planned_set_no_update BEFORE UPDATE ON planned_set
+BEGIN
+    SELECT RAISE(ABORT, 'planned_set is append-only; import a new version instead');
+END;
+
+CREATE TRIGGER trg_planned_set_no_delete BEFORE DELETE ON planned_set
+BEGIN
+    SELECT RAISE(ABORT, 'planned_set is append-only; it is never deleted');
+END;
+
+-- Immutable provenance. A DELETE is legal only as the cascade of the workout's own
+-- deletion: by then the workout row is already gone (verified against SQLite 3.53).
+
+CREATE TRIGGER trg_workout_plan_origin_no_update BEFORE UPDATE ON workout_plan_origin
+BEGIN
+    SELECT RAISE(ABORT, 'workout_plan_origin is immutable; a workout is never rebound');
+END;
+
+CREATE TRIGGER trg_workout_plan_origin_no_delete BEFORE DELETE ON workout_plan_origin
+WHEN EXISTS (SELECT 1 FROM workout WHERE id = OLD.workout_id)
+BEGIN
+    SELECT RAISE(ABORT, 'workout_plan_origin is immutable; it is removed only with its workout');
+END;
+
+-- Substitution rules.
+
+CREATE TRIGGER trg_substitution_not_original_insert BEFORE INSERT ON workout_slot_substitution
+WHEN NEW.exercise_id = (SELECT exercise_id FROM planned_exercise_slot WHERE id = NEW.slot_id)
+BEGIN
+    SELECT RAISE(ABORT, 'a substitution must differ from the planned exercise; clear it instead');
+END;
+
+CREATE TRIGGER trg_substitution_not_original_update BEFORE UPDATE ON workout_slot_substitution
+WHEN NEW.exercise_id = (SELECT exercise_id FROM planned_exercise_slot WHERE id = NEW.slot_id)
+BEGIN
+    SELECT RAISE(ABORT, 'a substitution must differ from the planned exercise; clear it instead');
+END;
+
+CREATE TRIGGER trg_substitution_complete_insert BEFORE INSERT ON workout_slot_substitution
+WHEN EXISTS (SELECT 1 FROM workout WHERE id = NEW.workout_id AND status = 'complete')
+BEGIN
+    SELECT RAISE(ABORT, 'workout is complete; reopen it before changing substitutions');
+END;
+
+CREATE TRIGGER trg_substitution_complete_update BEFORE UPDATE ON workout_slot_substitution
+WHEN EXISTS (SELECT 1 FROM workout
+             WHERE id IN (OLD.workout_id, NEW.workout_id) AND status = 'complete')
+BEGIN
+    SELECT RAISE(ABORT, 'workout is complete; reopen it before changing substitutions');
+END;
+
+CREATE TRIGGER trg_substitution_complete_delete BEFORE DELETE ON workout_slot_substitution
+WHEN EXISTS (SELECT 1 FROM workout WHERE id = OLD.workout_id AND status = 'complete')
+BEGIN
+    SELECT RAISE(ABORT, 'workout is complete; reopen it before changing substitutions');
+END;
