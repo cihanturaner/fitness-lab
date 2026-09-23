@@ -15,7 +15,7 @@ CREATE TABLE program_version (
     name                TEXT    NOT NULL CHECK (length(trim(name)) > 0),
     version_label       TEXT    CHECK (version_label IS NULL OR length(trim(version_label)) > 0),
     duration_weeks      INTEGER CHECK (duration_weeks IS NULL OR duration_weeks >= 1),
-    package_format      INTEGER NOT NULL CHECK (package_format = 1),
+    package_format      INTEGER NOT NULL CHECK (package_format >= 1),
     package_sha256      TEXT    NOT NULL UNIQUE
         CHECK (length(package_sha256) = 64 AND package_sha256 NOT GLOB '*[^0-9a-f]*'),
     program_json_sha256 TEXT    NOT NULL
@@ -156,6 +156,67 @@ END;
 CREATE TRIGGER trg_planned_set_no_delete BEFORE DELETE ON planned_set
 BEGIN
     SELECT RAISE(ABORT, 'planned_set is append-only; it is never deleted');
+END;
+
+-- REPLACE / INSERT OR REPLACE resolves a conflict by deleting the existing row WITHOUT
+-- firing delete triggers (recursive_triggers is off). These guards refuse any insert that
+-- would collide with an existing row on any of the table's unique keys, so a conflict can
+-- only ever abort — never silently rewrite content, rebind an origin or recreate a workout.
+
+CREATE TRIGGER trg_program_version_no_replace BEFORE INSERT ON program_version
+WHEN EXISTS (SELECT 1 FROM program_version
+             WHERE id = NEW.id OR package_sha256 = NEW.package_sha256)
+BEGIN
+    SELECT RAISE(ABORT, 'program_version is append-only; this version already exists');
+END;
+
+CREATE TRIGGER trg_planned_workout_no_replace BEFORE INSERT ON planned_workout
+WHEN EXISTS (SELECT 1 FROM planned_workout
+             WHERE id = NEW.id
+                OR (program_version_id = NEW.program_version_id
+                    AND (workout_key = NEW.workout_key OR sequence = NEW.sequence)))
+BEGIN
+    SELECT RAISE(ABORT, 'planned_workout is append-only; this row already exists');
+END;
+
+CREATE TRIGGER trg_planned_exercise_slot_no_replace BEFORE INSERT ON planned_exercise_slot
+WHEN EXISTS (SELECT 1 FROM planned_exercise_slot
+             WHERE id = NEW.id
+                OR (planned_workout_id = NEW.planned_workout_id
+                    AND (slot_key = NEW.slot_key OR position = NEW.position)))
+BEGIN
+    SELECT RAISE(ABORT, 'planned_exercise_slot is append-only; this row already exists');
+END;
+
+CREATE TRIGGER trg_planned_set_no_replace BEFORE INSERT ON planned_set
+WHEN EXISTS (SELECT 1 FROM planned_set
+             WHERE id = NEW.id OR (slot_id = NEW.slot_id AND position = NEW.position))
+BEGIN
+    SELECT RAISE(ABORT, 'planned_set is append-only; this row already exists');
+END;
+
+CREATE TRIGGER trg_workout_plan_origin_no_replace BEFORE INSERT ON workout_plan_origin
+WHEN EXISTS (SELECT 1 FROM workout_plan_origin WHERE workout_id = NEW.workout_id)
+BEGIN
+    SELECT RAISE(ABORT, 'workout_plan_origin is immutable; a workout is never rebound');
+END;
+
+-- An origin is recorded only at the workout's creation: a draft with no performed sets.
+-- An unplanned or completed history row can never be relabelled as planned afterwards.
+CREATE TRIGGER trg_workout_plan_origin_only_at_creation BEFORE INSERT ON workout_plan_origin
+WHEN NOT EXISTS (SELECT 1 FROM workout WHERE id = NEW.workout_id AND status = 'draft')
+  OR EXISTS (SELECT 1 FROM performed_set WHERE workout_id = NEW.workout_id)
+BEGIN
+    SELECT RAISE(ABORT, 'a planned origin is recorded only at creation, on an empty draft');
+END;
+
+-- Additive guard on the M1 table (a trigger does not alter workout): INSERT OR REPLACE on
+-- an existing workout id would otherwise delete and recreate it, cascading away its sets,
+-- origin and substitutions without any delete trigger firing.
+CREATE TRIGGER trg_workout_no_replace BEFORE INSERT ON workout
+WHEN EXISTS (SELECT 1 FROM workout WHERE id = NEW.id)
+BEGIN
+    SELECT RAISE(ABORT, 'workout already exists; it is updated in place, never replaced');
 END;
 
 -- Immutable provenance. A DELETE is legal only as the cascade of the workout's own

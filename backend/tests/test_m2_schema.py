@@ -163,7 +163,7 @@ def test_program_content_refuses_delete(plan: sqlite3.Connection, table: str, ke
 
 
 def test_package_hash_is_unique(plan: sqlite3.Connection) -> None:
-    with pytest.raises(sqlite3.IntegrityError, match="UNIQUE"):
+    with pytest.raises(sqlite3.IntegrityError, match="already exists"):
         insert_version(plan, "v2", HASH_A)
 
 
@@ -183,7 +183,7 @@ def test_notes_hash_and_text_travel_together(plan: sqlite3.Connection) -> None:
 
 
 def test_slot_positions_are_unique_within_a_planned_workout(plan: sqlite3.Connection) -> None:
-    with pytest.raises(sqlite3.IntegrityError, match="UNIQUE"):
+    with pytest.raises(sqlite3.IntegrityError, match="already exists"):
         insert_slot(plan, "s9", "p1", 1, "e3")
 
 
@@ -265,7 +265,7 @@ def test_origin_cannot_be_cleared_while_the_workout_exists(plan: sqlite3.Connect
 
 
 def test_a_workout_has_at_most_one_origin(plan: sqlite3.Connection) -> None:
-    with pytest.raises(sqlite3.IntegrityError, match="UNIQUE"):
+    with pytest.raises(sqlite3.IntegrityError, match="immutable"):
         insert_origin(plan, "w1", "p2")
 
 
@@ -400,3 +400,100 @@ def test_m1_database_is_migrated_additively(tmp_path: Path) -> None:
     assert second.applied == ()
     assert second.snapshot is None
     assert sorted(snapshot_directory(db_path).iterdir()) == snapshots_before
+
+
+# --- review findings: REPLACE bypass, late attachment, M1 deletion paths -------------------
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "INSERT OR REPLACE INTO planned_set (id, slot_id, position, set_type, reps_min, "
+        "reps_max) VALUES ('ps1', 's1', 1, 'working', 99, NULL)",
+        "REPLACE INTO planned_set (id, slot_id, position, set_type, reps_min, reps_max) "
+        "VALUES ('new', 's1', 1, 'working', 99, NULL)",
+        "INSERT OR REPLACE INTO planned_exercise_slot (id, planned_workout_id, slot_key, "
+        "position, exercise_id) VALUES ('s2', 'p1', 's2', 2, 'e3')",
+        "REPLACE INTO planned_exercise_slot (id, planned_workout_id, slot_key, position, "
+        "exercise_id) VALUES ('new', 'p1', 'other', 2, 'e3')",
+        "INSERT OR REPLACE INTO planned_workout (id, program_version_id, workout_key, sequence, "
+        "name) VALUES ('p2', 'v1', 'w2', 2, 'Renamed')",
+        "INSERT OR REPLACE INTO program_version (id, program_key, name, package_format, "
+        "package_sha256, program_json_sha256, program_json_text, imported_at_utc) "
+        f"VALUES ('v9', 'prog', 'P', 1, '{HASH_A}', '{HASH_A}', '{{}}', 'x')",
+    ],
+)
+def test_replace_cannot_rewrite_program_content(plan: sqlite3.Connection, statement: str) -> None:
+    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+        plan.execute(statement)
+
+
+def test_upsert_cannot_rewrite_program_content(plan: sqlite3.Connection) -> None:
+    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+        plan.execute(
+            "INSERT INTO planned_set (id, slot_id, position, set_type, reps_min, reps_max) "
+            "VALUES ('ps1', 's1', 1, 'working', 99, NULL) "
+            "ON CONFLICT (id) DO UPDATE SET reps_min = excluded.reps_min"
+        )
+
+
+def test_replace_cannot_rebind_an_origin(plan: sqlite3.Connection) -> None:
+    with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+        plan.execute(
+            "INSERT OR REPLACE INTO workout_plan_origin (workout_id, planned_workout_id, "
+            "created_at_utc) VALUES ('w1', 'p2', 'x')"
+        )
+
+
+def test_replace_cannot_recreate_a_workout(plan: sqlite3.Connection) -> None:
+    with pytest.raises(sqlite3.IntegrityError, match="already exists"):
+        plan.execute(
+            "INSERT OR REPLACE INTO workout (id, performed_on, status, entered_at_utc, "
+            "updated_at_utc) VALUES ('w1', '2026-10-02', 'draft', 'x', 'x')"
+        )
+    assert plan.execute("SELECT count(*) FROM workout_plan_origin").fetchone()[0] == 1
+
+
+def test_an_origin_cannot_be_attached_to_a_complete_workout(plan: sqlite3.Connection) -> None:
+    insert_workout(plan, "w2", status="complete")
+    with pytest.raises(sqlite3.IntegrityError, match="creation"):
+        insert_origin(plan, "w2", "p1")
+
+
+def test_an_origin_cannot_be_attached_to_a_workout_with_sets(plan: sqlite3.Connection) -> None:
+    insert_workout(plan, "w2")
+    plan.execute(
+        "INSERT INTO performed_set (id, workout_id, exercise_id, set_order, entered_at_utc, "
+        "updated_at_utc) VALUES ('x', 'w2', 'e1', 1, 'x', 'x')"
+    )
+    with pytest.raises(sqlite3.IntegrityError, match="creation"):
+        insert_origin(plan, "w2", "p1")
+
+
+def test_m1_deletion_paths_still_work_for_planned_workouts(
+    plan: sqlite3.Connection, db_path: Path
+) -> None:
+    from fitness_lab.storage.workouts import delete_complete_workout, delete_draft_workout
+
+    insert_substitution(plan, "w1", "p1", "s1", "e3")
+    delete_draft_workout(plan, "w1")
+
+    insert_workout(plan, "w2")
+    insert_origin(plan, "w2", "p1")
+    insert_substitution(plan, "w2", "p1", "s1", "e3")
+    plan.execute("UPDATE workout SET status = 'complete' WHERE id = 'w2'")
+    snapshot = delete_complete_workout(
+        plan, "w2", db_path=db_path, i_understand_this_deletes_evidence=True
+    )
+
+    assert snapshot.exists()
+    assert plan.execute("SELECT count(*) FROM workout_plan_origin").fetchone()[0] == 0
+    assert plan.execute("SELECT count(*) FROM workout_slot_substitution").fetchone()[0] == 0
+    assert plan.execute("PRAGMA foreign_key_check").fetchall() == []
+
+
+def test_an_exercise_used_by_a_plan_cannot_be_deleted(plan: sqlite3.Connection) -> None:
+    from fitness_lab.storage.exercises import delete_exercise
+
+    with pytest.raises(sqlite3.IntegrityError, match="FOREIGN KEY"):
+        delete_exercise(plan, "e2")
