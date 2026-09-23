@@ -14,6 +14,7 @@ import sqlite3
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from decimal import Decimal
+from pathlib import Path
 
 from fitness_lab.domain.completion import (
     CompletionReport,
@@ -40,6 +41,7 @@ from fitness_lab.storage.programs import (
     get_slot,
     list_slots,
 )
+from fitness_lab.storage.snapshots import create_snapshot
 from fitness_lab.storage.workouts import (
     _write_renumbering,
     get_workout,
@@ -327,7 +329,7 @@ def add_set(
         )
         try:
             insert_performed_set(connection, performed)
-        except (sqlite3.IntegrityError, ValueError, TypeError) as exc:
+        except (sqlite3.IntegrityError, ValueError, TypeError, OverflowError) as exc:
             raise ValueError(f"invalid set: {exc}") from exc
     return performed
 
@@ -387,7 +389,7 @@ def edit_set(
         updated = replace(updated, updated_at_utc=now if now is not None else utc_now_iso())
         try:
             update_performed_set(connection, updated)
-        except (sqlite3.IntegrityError, ValueError, TypeError) as exc:
+        except (sqlite3.IntegrityError, ValueError, TypeError, OverflowError) as exc:
             raise ValueError(f"invalid set: {exc}") from exc
     return updated
 
@@ -495,13 +497,26 @@ def edit_workout(
     return updated
 
 
-def discard_draft(connection: sqlite3.Connection, workout_id: str) -> None:
-    """A draft is not evidence; discarding it loses nothing (M1 §14).
+def discard_draft(connection: sqlite3.Connection, workout_id: str, *, db_path: Path) -> Path | None:
+    """Delete a draft. Returns the safety snapshot taken first, if any.
 
-    The DELETE itself is conditional on ``status = 'draft'`` inside one BEGIN IMMEDIATE
-    transaction: a workout completed by another request in the meantime is never removed
-    through this unguarded path (complete workouts go through the snapshotted M1 delete).
+    An empty draft holds nothing and is deleted outright. A draft with sets may be a
+    completed workout reopened for correction — the schema keeps no record that it was
+    once evidence — so a ``VACUUM INTO`` snapshot is taken before it is deleted, exactly
+    as M1's guarded path does for complete workouts; a failed snapshot raises before
+    anything is deleted. The DELETE itself stays conditional on ``status = 'draft'``
+    inside one BEGIN IMMEDIATE transaction, so a workout completed by another request in
+    the meantime is never removed through this path.
     """
+    _require_draft(connection, workout_id)
+    has_sets = connection.execute(
+        "SELECT EXISTS (SELECT 1 FROM performed_set WHERE workout_id = ?)", (workout_id,)
+    ).fetchone()[0]
+    snapshot = (
+        create_snapshot(connection, db_path, f"pre-discard-workout-{workout_id}")
+        if has_sets
+        else None
+    )
     with db.immediate_transaction(connection):
         _require_draft(connection, workout_id)
         deleted = connection.execute(
@@ -509,6 +524,7 @@ def discard_draft(connection: sqlite3.Connection, workout_id: str) -> None:
         ).rowcount
         if deleted != 1:
             raise Conflict(REOPEN_FIRST)
+    return snapshot
 
 
 # --- substitution --------------------------------------------------------------------------

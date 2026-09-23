@@ -233,6 +233,14 @@ def test_set_lifecycle_over_http(client: TestClient, seeded: dict[str, Any]) -> 
         {"rir": 1.5},
         {"set_type": "amrap"},
         {"extra": 1},
+        {"reps": 10**20},
+        {"rir": 10**20},
+        {"rir": -(10**20)},
+        {"load_kg": "1e30"},
+        {"load_kg": "1e2"},
+        {"load_kg": "1_0"},
+        {"load_kg": " 80 "},
+        {"load_kg": "99999999999999999999"},
     ],
 )
 def test_invalid_set_input_is_422(
@@ -376,3 +384,30 @@ def test_exercise_catalogue(client: TestClient, seeded: dict[str, Any]) -> None:
     )
     assert duplicate.status_code == 409
     assert client.post("/api/exercises", json={"name": "  "}).status_code == 422
+
+
+@pytest.mark.parametrize("fields", [{"reps": 10**20}, {"load_kg": "1e30"}, {"rir": 10**20}])
+def test_huge_values_on_edit_are_422(
+    client: TestClient, seeded: dict[str, Any], fields: dict[str, Any]
+) -> None:
+    workout_id = open_upper(client, seeded)
+    row = add(client, workout_id, seeded["exercises"]["Bench Press"])
+    assert client.patch(f"/api/sets/{row['id']}", json=fields).status_code == 422
+
+
+def test_dates_are_strict(client: TestClient, seeded: dict[str, Any]) -> None:
+    assert client.post("/api/workouts", json={"performed_on": 0}).status_code == 422
+    opened = client.post(f"/api/planned-workouts/{seeded['upper']}/open", json={"performed_on": 0})
+    assert opened.status_code == 422
+
+
+def test_discarding_a_draft_with_sets_keeps_a_snapshot(
+    client: TestClient, seeded: dict[str, Any], db_file: Path
+) -> None:
+    workout_id = open_upper(client, seeded)
+    add(client, workout_id, seeded["exercises"]["Bench Press"])
+    assert client.post(f"/api/workouts/{workout_id}/complete").status_code == 200
+    assert client.post(f"/api/workouts/{workout_id}/reopen").status_code == 200
+    assert client.delete(f"/api/workouts/{workout_id}").status_code == 204
+    snapshots = list((db_file.parent / "snapshots").glob(f"*-pre-discard-workout-{workout_id}.db"))
+    assert len(snapshots) == 1

@@ -43,6 +43,7 @@ from fitness_lab.storage.programs import (
     list_planned_workouts,
     list_slots,
 )
+from fitness_lab.storage.snapshots import snapshot_directory
 from fitness_lab.storage.workouts import get_workout, list_sets_for_workout
 from program_fixtures import package, seed_exercises
 
@@ -330,18 +331,46 @@ def test_edit_workout_corrects_metadata(
 
 
 def test_discard_draft_removes_it_and_refuses_complete(
-    migrated_db: sqlite3.Connection, exercises: dict[str, Exercise]
+    migrated_db: sqlite3.Connection, exercises: dict[str, Exercise], db_path: Path
 ) -> None:
     workout_id = open_upper(migrated_db)
     working(migrated_db, workout_id, exercises["Bench Press"])
-    discard_draft(migrated_db, workout_id)
+    discard_draft(migrated_db, workout_id, db_path=db_path)
     assert get_workout(migrated_db, workout_id) is None
 
     kept = open_upper(migrated_db)
     working(migrated_db, kept, exercises["Bench Press"])
     complete(migrated_db, kept)
     with pytest.raises(Conflict):
-        discard_draft(migrated_db, kept)
+        discard_draft(migrated_db, kept, db_path=db_path)
+
+
+def test_discarding_an_empty_draft_takes_no_snapshot(
+    migrated_db: sqlite3.Connection, exercises: dict[str, Exercise], db_path: Path
+) -> None:
+    workout_id = open_upper(migrated_db)
+    before = sorted(snapshot_directory(db_path).glob("*discard*"))
+    assert discard_draft(migrated_db, workout_id, db_path=db_path) is None
+    assert sorted(snapshot_directory(db_path).glob("*discard*")) == before
+
+
+def test_discarding_a_reopened_workout_keeps_a_snapshot_of_its_sets(
+    migrated_db: sqlite3.Connection, exercises: dict[str, Exercise], db_path: Path
+) -> None:
+    workout_id = open_upper(migrated_db)
+    working(migrated_db, workout_id, exercises["Bench Press"], load="100")
+    complete(migrated_db, workout_id)
+    reopen(migrated_db, workout_id)
+
+    snapshot = discard_draft(migrated_db, workout_id, db_path=db_path)
+
+    assert get_workout(migrated_db, workout_id) is None
+    assert snapshot is not None and snapshot.name.endswith(f"pre-discard-workout-{workout_id}.db")
+    with db.connection_scope(snapshot) as saved:
+        rows = saved.execute(
+            "SELECT load_g FROM performed_set WHERE workout_id = ?", (workout_id,)
+        ).fetchall()
+        assert [row[0] for row in rows] == [100000]
 
 
 # --- substitution --------------------------------------------------------------------------
@@ -583,7 +612,9 @@ def test_discard_cannot_delete_a_workout_completed_meanwhile(db_path: Path) -> N
     workout_id, _, _ = _seeded_file(db_path)
 
     error = _race_against_completion(
-        db_path, workout_id, lambda connection: discard_draft(connection, workout_id)
+        db_path,
+        workout_id,
+        lambda connection: discard_draft(connection, workout_id, db_path=db_path),
     )
 
     assert isinstance(error, Conflict)

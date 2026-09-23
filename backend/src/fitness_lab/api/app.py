@@ -239,7 +239,7 @@ def create_app() -> FastAPI:
     @app.delete("/api/workouts/{workout_id}", status_code=204)
     def discard_workout(workout_id: str) -> Response:
         with _connection() as connection:
-            entry.discard_draft(connection, workout_id)
+            entry.discard_draft(connection, workout_id, db_path=db.database_path())
         return Response(status_code=204)
 
     @app.post("/api/workouts/{workout_id}/complete")

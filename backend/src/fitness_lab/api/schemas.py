@@ -13,7 +13,14 @@ from datetime import date
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+)
 
 from fitness_lab.domain.completion import CompletionIssue, CompletionReport
 from fitness_lab.domain.models import Exercise, PerformedSet, SetTypeCode, Workout
@@ -34,8 +41,22 @@ from fitness_lab.storage.programs import (
 )
 
 TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
-StrictInt = Annotated[int, Field(strict=True)]
-NonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
+LOAD_PATTERN = re.compile(r"^\d+(\.\d{1,3})?$")
+# SQLite INTEGER is a signed 64-bit value. These are storage limits, not fitness policy.
+INT64_MAX = 2**63 - 1
+StrictInt = Annotated[int, Field(strict=True, ge=-INT64_MAX, le=INT64_MAX)]
+NonNegativeInt = Annotated[int, Field(strict=True, ge=0, le=INT64_MAX)]
+DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _iso_date_only(value: object) -> object:
+    """Dates cross the boundary as YYYY-MM-DD text; 0 is not 1970-01-01."""
+    if value is not None and not (isinstance(value, str) and DATE_PATTERN.match(value)):
+        raise ValueError("performed_on must be a YYYY-MM-DD date")
+    return value
+
+
+StrictDate = Annotated[date, BeforeValidator(_iso_date_only)]
 NonBlank = Annotated[str, StringConstraints(min_length=1, pattern=r"\S")]
 
 
@@ -44,10 +65,18 @@ class RequestModel(BaseModel):
 
 
 def parse_load(value: str | None) -> Decimal | None:
-    """Validate a decimal-string load exactly as storage will convert it."""
+    """Validate a decimal-string load exactly as storage will convert it.
+
+    Plain digits with at most gram precision only: Decimal() alone would also accept
+    exponents ("1e2"), underscores ("1_0") and surrounding spaces.
+    """
     if value is None:
         return None
-    kg_to_g(value)
+    if not LOAD_PATTERN.match(value):
+        raise ValueError(f"load_kg must be a plain decimal like 82.5: {value!r}")
+    grams = kg_to_g(value)
+    if grams is not None and grams > INT64_MAX:
+        raise ValueError(f"load_kg is out of range: {value!r}")
     return Decimal(value)
 
 
@@ -61,11 +90,11 @@ def _check_time(value: str | None) -> str | None:
 
 
 class OpenPlannedIn(RequestModel):
-    performed_on: date | None = None
+    performed_on: StrictDate | None = None
 
 
 class CreateWorkoutIn(RequestModel):
-    performed_on: date | None = None
+    performed_on: StrictDate | None = None
     performed_time_local: str | None = None
     notes: str | None = None
 
@@ -76,7 +105,7 @@ class CreateWorkoutIn(RequestModel):
 
 
 class WorkoutPatchIn(RequestModel):
-    performed_on: date | None = None
+    performed_on: StrictDate | None = None
     performed_time_local: str | None = None
     notes: str | None = None
 
