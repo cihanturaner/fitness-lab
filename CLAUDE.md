@@ -42,13 +42,25 @@ Dependency direction is one-way:
 - `planned` is not `performed`. They are distinct concepts and must stay separately modelled.
 - `performed_at` is not `entered_at`. Both are recorded; neither substitutes for the other.
 - SQLite database files are never committed to git.
+- Opening a planned workout creates one empty draft with an immutable origin — never a
+  performed set. Actual sets carry no link to prescriptions.
+- Imported program content is append-only (trigger-enforced); at most one version is active.
+- Development, tests and E2E never use `data/fitness_lab.db`; always a scratch
+  `FITNESS_LAB_DB`.
+
+Current design: `docs/superpowers/specs/2026-09-23-m2-planned-program-workflow-design.md`
+(M2, builds on the M1 spec in the same directory).
 
 ## Repository layout
 
-    backend/            uv project; src/fitness_lab/{domain,storage,api}, tests/
+    backend/            uv project (Python pinned to 3.13 by .python-version);
+                        src/fitness_lab/{domain,storage,api}, cli.py, tests/
     backend/migrations/ forward-only, numbered SQL migration files (NNNN_description.sql)
     web/                React SPA; src/components/ui holds generated shadcn components
-    e2e/                Playwright end-to-end tests
+    e2e/                Playwright end-to-end tests; scripts/serve-scratch.sh seeds a
+                        scratch database and runs the real launcher against it
+    programs/           program artifacts: <name>/artifact/ holds the source exactly as
+                        received, <name>/package/ the generated program package
     scripts/            start.sh (normal use), dev.sh (hot reload)
     data/               SQLite database (gitignored, created on first run); also holds
                         fitness_lab.db.migrate.lock (cross-process migration lock) and
@@ -64,6 +76,24 @@ http://127.0.0.1:8000, opens the browser:
 Development with hot reload (Vite on :5173 proxying `/api` to FastAPI on :8000):
 
     ./scripts/dev.sh
+
+Stopping the launcher (Ctrl-C or SIGTERM) waits for the server's graceful shutdown.
+
+## Program administration
+
+Programs are imported and activated only from the command line (from `backend/`); the UI
+never switches programs. Every command migrates first, honours `FITNESS_LAB_DB`, and prints
+one JSON result:
+
+    uv run fitness-lab adapt-locked-program ../programs/advanced-natural-12w/artifact/locked_workout_program.json ../programs/advanced-natural-12w/package
+    uv run fitness-lab ensure-exercises ../programs/advanced-natural-12w/package/exercises.json
+    uv run fitness-lab import-program ../programs/advanced-natural-12w/package
+    uv run fitness-lab activate-program <version_id>
+    uv run fitness-lab list-programs | show-program | deactivate-program
+
+Import is idempotent (an identical package returns the existing version and writes
+nothing) and never creates exercises; `ensure-exercises` creates missing identities
+through the M1 exercise authority and refuses to revive retired ones.
 
 ## Snapshots and restore
 
@@ -92,8 +122,11 @@ Frontend (from `web/`):
     npm run typecheck
     npm run lint
     npm test
+    npm run build
 
-End-to-end (from `e2e/`) — starts the real launcher itself, so the app need not be running:
+End-to-end (from `e2e/`) — seeds a fresh scratch database with the locked program and
+starts the real launcher on port 8710 (8711 for the restart test); it ignores
+`FITNESS_LAB_DB` and never reuses a running server:
 
     npx playwright test
 

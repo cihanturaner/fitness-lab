@@ -25,7 +25,9 @@ adherence scoring, nutrition, bodyweight, calendar, notifications, auth, cloud, 
 1. **Planned is never performed.** Opening a plan creates exactly one `workout` row and
    zero `performed_set` rows. No code path copies a planned set into actual evidence.
 2. **Imported program content is append-only.** `program_version`, `planned_workout`,
-   `planned_exercise_slot` and `planned_set` reject every `UPDATE` and `DELETE` by trigger.
+   `planned_exercise_slot` and `planned_set` reject every `UPDATE` and `DELETE` by trigger,
+   and every insert that collides with an existing row on any unique key (so `REPLACE`,
+   which deletes without firing delete triggers, can only abort).
 3. **At most one active program version, zero allowed.** Activation is state kept apart
    from content, in a singleton table.
 4. **Provenance is immutable.** A workout's planned origin is set once, at creation, and
@@ -68,7 +70,7 @@ workout ──(1:0..1)── workout_plan_origin ────┘ (planned_workou
 | `name` | non-blank |
 | `version_label` | nullable, non-blank when present |
 | `duration_weeks` | nullable integer ≥ 1 |
-| `package_format` | integer, `1` |
+| `package_format` | integer ≥ 1 (the domain accepts format 1; a later format needs no rebuild) |
 | `package_sha256` | UNIQUE, 64 lowercase hex — identity of the exact package |
 | `program_json_sha256` | 64 lowercase hex over the exact original bytes |
 | `program_json_text` | exact decoded text (re-encodes to the original bytes) |
@@ -117,7 +119,16 @@ replace of the single row; deactivation deletes it.
 `planned_workout` RESTRICT; `created_at_utc`; UNIQUE `(workout_id, planned_workout_id)`.
 Triggers: any `UPDATE` aborts; a `DELETE` aborts while the workout row still exists
 (so only the workout's own deletion — draft discard or M1's guarded complete delete —
-removes it; verified: the parent row is already gone when the cascade fires).
+removes it; verified: the parent row is already gone when the cascade fires); an insert
+colliding with an existing origin aborts; an insert aborts unless the workout is a draft
+with zero performed sets — an origin is recorded only at creation, never attached later
+to unplanned or completed history.
+
+### 4.8 Guard on `workout` (additive trigger, table unchanged)
+
+`INSERT OR REPLACE` on an existing workout id would delete and recreate it, cascading away
+its sets, origin and substitutions without any delete trigger firing. A `BEFORE INSERT`
+trigger refuses any insert whose id already exists.
 
 ### 4.7 `workout_slot_substitution` (actual-side decision)
 
@@ -218,8 +229,11 @@ correction goes through reopen, exactly as M1 §6.
 Complete: M1 `complete_workout` (C1–C4) and, in the same transaction, persistence of C3's
 renumbering and the status. Blockers return 409 with the report. Reopen: M1
 `reopen_workout`. Workout metadata (`performed_on`, `performed_time_local`, `notes`) is
-editable via M1 `update_workout`. A draft may be discarded (M1 `delete_draft_workout`);
-deleting a complete workout stays storage-only (M1 guarded path), not exposed over HTTP.
+editable via M1 `update_workout`. A draft may be discarded: the status check and a
+`DELETE … WHERE status = 'draft'` share one `BEGIN IMMEDIATE` transaction, so a workout
+completed meanwhile is never removed through this unguarded path; deleting a complete
+workout stays storage-only (M1 guarded, snapshotted path), not exposed over HTTP. Set
+removal likewise checks, deletes and renumbers in one immediate transaction.
 
 ### 6.5 Whole-slot substitution
 
@@ -269,8 +283,9 @@ returned is always read back from `workout_plan_origin`, never echoed from the r
 
 ## 8. Command-line tool (`uv run fitness-lab …`)
 
-`adapt-locked-program SRC OUT_DIR`, `ensure-exercises MANIFEST`, `import-program DIR`,
-`activate-program VERSION_ID`, `deactivate-program`, `list-programs`. Every command runs
+`migrate`, `adapt-locked-program SRC OUT_DIR`, `ensure-exercises MANIFEST`,
+`import-program DIR`, `activate-program VERSION_ID`, `deactivate-program`, `list-programs`,
+`show-program [VERSION_ID]`. Every command runs
 `migrate_to_head` first and honours `FITNESS_LAB_DB`.
 
 ## 9. Locked 12-week program adapter
@@ -320,4 +335,8 @@ database; then the controlled canonical migration and a non-destructive smoke.
   resumes the most recently started.
 - Week numbering and schedule adherence are not modelled; the 12-week template is
   performed repeatedly. Deload/week-12 rules remain guidance in program notes.
+- Last exact performance is the most recent complete workout with the exercise, even when
+  a retrospective draft is dated earlier; the UI always shows the date it came from.
+- Retired exercises cannot be chosen for new sets or substitutions; an exercise referenced
+  by a program can never be deleted (append-only content keeps the RESTRICT reference).
 - Nutrition is the next milestone after V1.
