@@ -276,7 +276,7 @@ returned is always read back from `workout_plan_origin`, never echoed from the r
 ## 9. Locked 12-week program adapter
 
 Source: `locked_workout_program.json` (sha256 `81a7d4bc…d7b24e`), preserved unchanged and
-copied byte-identically into `programs/advanced-natural-12w/source/`. The adapter is pure
+copied byte-identically into `programs/advanced-natural-12w/artifact/`; the generated package lives in `programs/advanced-natural-12w/package/`. The adapter is pure
 and deterministic:
 - 4 sessions → 4 planned workouts in weekly order; `day_label` from the schedule.
 - Each exercise row → one slot; `sets` × one planned `working` set; `rep_range` → reps

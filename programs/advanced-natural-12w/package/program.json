@@ -1,0 +1,1064 @@
+{
+  "format": "fitness-lab.program",
+  "format_version": 1,
+  "program": {
+    "key": "advanced-natural-12w",
+    "name": "12-Week Advanced Natural Hypertrophy + Strength Program",
+    "version_label": "1.0.0",
+    "duration_weeks": 12,
+    "notes": "FINAL_PATCHED_LOCKED · DECISION_GRADE_PASS_WITH_CAVEAT"
+  },
+  "workouts": [
+    {
+      "key": "upper_a",
+      "name": "Upper A",
+      "day_label": "Monday",
+      "notes": "23 work sets · estimated 85–105 min",
+      "slots": [
+        {
+          "key": "upper_a.01",
+          "exercise": {
+            "name": "Smith Flat Bench Press",
+            "equipment_label": null
+          },
+          "notes": "Marker lift (week-12 benchmark).\nFailure: prohibited.\nRest: 180–240 s.\nApproved substitutes: Barbell Bench Press, Stable Chest Press.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 5,
+              "reps_max": 8,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 5,
+              "reps_max": 8,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 5,
+              "reps_max": 8,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_a.02",
+          "exercise": {
+            "name": "Chest-Supported Row",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 150–180 s.\nApproved substitutes: Supported Machine Row, Supported Cable Row.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 6,
+              "reps_max": 10,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 6,
+              "reps_max": 10,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 6,
+              "reps_max": 10,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_a.03",
+          "exercise": {
+            "name": "Neutral-Grip Lat Pulldown",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 150 s.\nApproved substitutes: Fixed Pulldown, Assisted Pull-Up, Weighted Pull-Up.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_a.04",
+          "exercise": {
+            "name": "Incline Converging Machine Press",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 120 s.\nBench angle: 20–30°.\nApproved substitutes: Incline Smith Press, Incline Machine Press, Incline Dumbbell Press 15-35°.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_a.05",
+          "exercise": {
+            "name": "Stable Machine Shoulder Press",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 120 s.\nApproved substitutes: Stable Smith Shoulder Press, Dumbbell Shoulder Press.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_a.06",
+          "exercise": {
+            "name": "Cable Lateral Raise",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 90 s.\nProgram slot: Cable/Machine Lateral Raise. Planned as its first variant; if performed as Machine Lateral Raise, substitute that exercise for this slot.\nApproved substitutes: Cable Lateral Raise, Machine Lateral Raise, Dumbbell Lateral Raise.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 12,
+              "reps_max": 20,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 12,
+              "reps_max": 20,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 12,
+              "reps_max": 20,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 12,
+              "reps_max": 20,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_a.07",
+          "exercise": {
+            "name": "Reverse Pec Deck",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 90 s.\nApproved substitutes: Cable Rear-Delt Fly.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 12,
+              "reps_max": 20,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 12,
+              "reps_max": 20,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_a.08",
+          "exercise": {
+            "name": "Overhead Cable Triceps Extension",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 90 s.\nApproved substitutes: Another Stable Overhead Triceps Extension.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_a.09",
+          "exercise": {
+            "name": "Preacher Curl",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 90 s.\nApproved substitutes: Cable Curl, Preacher Curl Variant, Bayesian Cable Curl.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "lower_a",
+      "name": "Lower A",
+      "day_label": "Tuesday",
+      "notes": "18 work sets · estimated 75–90 min",
+      "slots": [
+        {
+          "key": "lower_a.01",
+          "exercise": {
+            "name": "Smith High-Bar Squat",
+            "equipment_label": null
+          },
+          "notes": "Marker lift (week-12 benchmark).\nFailure: prohibited.\nRest: 180–240 s.\nApproved substitutes: Hack Squat, Pendulum Squat, Barbell High-Bar Squat.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 5,
+              "reps_max": 8,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 5,
+              "reps_max": 8,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 5,
+              "reps_max": 8,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "lower_a.02",
+          "exercise": {
+            "name": "Romanian Deadlift",
+            "equipment_label": null
+          },
+          "notes": "Failure: prohibited.\nRest: 180 s.\nApproved substitutes: Smith Romanian Deadlift, Dumbbell Romanian Deadlift.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 6,
+              "reps_max": 10,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 6,
+              "reps_max": 10,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 6,
+              "reps_max": 10,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "lower_a.03",
+          "exercise": {
+            "name": "45° Leg Press",
+            "equipment_label": null
+          },
+          "notes": "Failure: prohibited.\nRest: 150 s.\nApproved substitutes: Hack Squat, Pendulum Squat, Belt Squat.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "lower_a.04",
+          "exercise": {
+            "name": "Seated Leg Curl",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 120 s.\nApproved substitutes: Another Seated/Hip-Flexed Leg Curl, Lying Leg Curl if unavailable/intolerant.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "lower_a.05",
+          "exercise": {
+            "name": "Standing Calf Raise",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 120 s.\nApproved substitutes: Smith Straight-Knee Calf Raise, Leg-Press Straight-Knee Calf Raise.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "lower_a.06",
+          "exercise": {
+            "name": "Cable Crunch",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 90 s.\nApproved substitutes: Machine Abdominal Crunch.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "upper_b",
+      "name": "Upper B",
+      "day_label": "Thursday",
+      "notes": "21 work sets · estimated 80–95 min",
+      "slots": [
+        {
+          "key": "upper_b.01",
+          "exercise": {
+            "name": "Neutral-Grip Lat Pulldown",
+            "equipment_label": null
+          },
+          "notes": "Marker lift (week-12 benchmark).\nFailure: prohibited.\nRest: 180 s.\nApproved substitutes: Fixed Pulldown, Assisted Pull-Up, Weighted Pull-Up.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 6,
+              "reps_max": 10,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 6,
+              "reps_max": 10,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 6,
+              "reps_max": 10,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_b.02",
+          "exercise": {
+            "name": "Incline Smith Press",
+            "equipment_label": null
+          },
+          "notes": "Failure: prohibited.\nRest: 180 s.\nBench angle: 20–30°.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 6,
+              "reps_max": 10,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 6,
+              "reps_max": 10,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 6,
+              "reps_max": 10,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_b.03",
+          "exercise": {
+            "name": "Chest-Supported Upper-Back Row",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 120–150 s.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_b.04",
+          "exercise": {
+            "name": "Flat Converging Machine Press",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 120 s.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_b.05",
+          "exercise": {
+            "name": "Cable Lateral Raise",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 90 s.\nProgram slot: Cable/Machine Lateral Raise. Planned as its first variant; if performed as Machine Lateral Raise, substitute that exercise for this slot.\nApproved substitutes: Cable Lateral Raise, Machine Lateral Raise, Dumbbell Lateral Raise.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 12,
+              "reps_max": 20,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 12,
+              "reps_max": 20,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 12,
+              "reps_max": 20,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 12,
+              "reps_max": 20,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_b.06",
+          "exercise": {
+            "name": "Reverse Pec Deck",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 90 s.\nApproved substitutes: Cable Rear-Delt Fly.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 12,
+              "reps_max": 20,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 12,
+              "reps_max": 20,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_b.07",
+          "exercise": {
+            "name": "Cable Pressdown",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 90 s.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "upper_b.08",
+          "exercise": {
+            "name": "Bayesian Cable Curl",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 90 s.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "lower_b",
+      "name": "Lower B",
+      "day_label": "Friday",
+      "notes": "19 work sets · estimated 75–90 min",
+      "slots": [
+        {
+          "key": "lower_b.01",
+          "exercise": {
+            "name": "Hack Squat",
+            "equipment_label": null
+          },
+          "notes": "Failure: prohibited.\nRest: 180 s.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "lower_b.02",
+          "exercise": {
+            "name": "Smith Hip Thrust",
+            "equipment_label": null
+          },
+          "notes": "Failure: prohibited.\nRest: 150 s.\nProgram slot: Smith/Machine Hip Thrust. Planned as its first variant; if performed as Machine Hip Thrust, substitute that exercise for this slot.\nApproved substitutes: Glute Drive, Smith Glute Bridge.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 2,
+              "target_rir_max": 2,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 12,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "lower_b.03",
+          "exercise": {
+            "name": "Leg Extension",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 120 s.\nApproved substitutes: Another Leg Extension Machine.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "lower_b.04",
+          "exercise": {
+            "name": "Seated Leg Curl",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 120 s.\nApproved substitutes: Another Seated/Hip-Flexed Leg Curl, Lying Leg Curl if unavailable/intolerant.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "lower_b.05",
+          "exercise": {
+            "name": "Standing Calf Raise",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 120 s.\nApproved substitutes: Smith Straight-Knee Calf Raise, Leg-Press Straight-Knee Calf Raise.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 10,
+              "reps_max": 15,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        },
+        {
+          "key": "lower_b.06",
+          "exercise": {
+            "name": "Machine Abdominal Crunch",
+            "equipment_label": null
+          },
+          "notes": "Failure: permitted on the final set only.\nRest: 90 s.",
+          "sets": [
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 15,
+              "target_rir_min": 1,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            },
+            {
+              "set_type": "working",
+              "reps_min": 8,
+              "reps_max": 15,
+              "target_rir_min": 0,
+              "target_rir_max": 1,
+              "target_load_kg": null,
+              "notes": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

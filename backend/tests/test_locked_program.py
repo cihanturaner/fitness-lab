@@ -134,3 +134,11 @@ def test_unreadable_rir_is_refused(source: bytes) -> None:
     document["sessions"]["upper_a"]["exercises"][0]["rir_by_set"][0] = "2+"
     with pytest.raises(AdapterError, match="RIR"):
         adapt_locked_program(reencode(document), "tampered.json")
+
+
+def test_the_committed_package_is_exactly_the_adapter_output(source: bytes) -> None:
+    adapted = adapt_locked_program(source, "locked_workout_program.json")
+    package_dir = ARTIFACT.parents[1] / "package"
+    assert (package_dir / "program.json").read_bytes() == adapted.program_json
+    assert (package_dir / "program-notes.md").read_bytes() == adapted.notes_md
+    assert (package_dir / "exercises.json").read_bytes() == adapted.exercises_json

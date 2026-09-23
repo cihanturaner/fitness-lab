@@ -1,0 +1,136 @@
+{
+  "format": "fitness-lab.exercise-manifest",
+  "format_version": 1,
+  "exercises": [
+    {
+      "name": "Smith Flat Bench Press",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Chest-Supported Row",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Neutral-Grip Lat Pulldown",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Incline Converging Machine Press",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Stable Machine Shoulder Press",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Cable Lateral Raise",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Machine Lateral Raise",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Reverse Pec Deck",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Overhead Cable Triceps Extension",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Preacher Curl",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Smith High-Bar Squat",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Romanian Deadlift",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "45° Leg Press",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Seated Leg Curl",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Standing Calf Raise",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Cable Crunch",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Incline Smith Press",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Chest-Supported Upper-Back Row",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Flat Converging Machine Press",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Cable Pressdown",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Bayesian Cable Curl",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Hack Squat",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Smith Hip Thrust",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Machine Hip Thrust",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Leg Extension",
+      "equipment_label": null,
+      "notes": null
+    },
+    {
+      "name": "Machine Abdominal Crunch",
+      "equipment_label": null,
+      "notes": null
+    }
+  ]
+}
