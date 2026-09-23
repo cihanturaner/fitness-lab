@@ -40,18 +40,19 @@ from fitness_lab.storage.programs import (
     SlotRow,
 )
 
-TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
-LOAD_PATTERN = re.compile(r"^\d+(\.\d{1,3})?$")
+TIME_PATTERN = re.compile(r"([01][0-9]|2[0-3]):[0-5][0-9]")
+# ASCII digits only, matched against the whole string (fullmatch): "80\n" and "８０" fail.
+LOAD_PATTERN = re.compile(r"[0-9]+(\.[0-9]{1,3})?")
 # SQLite INTEGER is a signed 64-bit value. These are storage limits, not fitness policy.
 INT64_MAX = 2**63 - 1
 StrictInt = Annotated[int, Field(strict=True, ge=-INT64_MAX, le=INT64_MAX)]
 NonNegativeInt = Annotated[int, Field(strict=True, ge=0, le=INT64_MAX)]
-DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+DATE_PATTERN = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 
 
 def _iso_date_only(value: object) -> object:
     """Dates cross the boundary as YYYY-MM-DD text; 0 is not 1970-01-01."""
-    if value is not None and not (isinstance(value, str) and DATE_PATTERN.match(value)):
+    if value is not None and not (isinstance(value, str) and DATE_PATTERN.fullmatch(value)):
         raise ValueError("performed_on must be a YYYY-MM-DD date")
     return value
 
@@ -72,7 +73,7 @@ def parse_load(value: str | None) -> Decimal | None:
     """
     if value is None:
         return None
-    if not LOAD_PATTERN.match(value):
+    if not LOAD_PATTERN.fullmatch(value):
         raise ValueError(f"load_kg must be a plain decimal like 82.5: {value!r}")
     grams = kg_to_g(value)
     if grams is not None and grams > INT64_MAX:
@@ -81,7 +82,7 @@ def parse_load(value: str | None) -> Decimal | None:
 
 
 def _check_time(value: str | None) -> str | None:
-    if value is not None and not TIME_PATTERN.match(value):
+    if value is not None and not TIME_PATTERN.fullmatch(value):
         raise ValueError("performed_time_local must be HH:MM")
     return value
 

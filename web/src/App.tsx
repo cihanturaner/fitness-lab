@@ -3,11 +3,6 @@ import { fetchHealth, fetchPingDb, type HealthResponse, type PingDbResponse } fr
 import { EntryScreen } from '@/features/entry/EntryScreen'
 import { HomeScreen } from '@/features/home/HomeScreen'
 import { useRoute } from '@/lib/route'
-import { confirmLeave } from '@/lib/unsaved'
-
-const guardLeave = (event: { preventDefault: () => void }) => {
-  if (!confirmLeave()) event.preventDefault()
-}
 
 type SystemState =
   | { state: 'checking' }
@@ -51,11 +46,11 @@ export default function App() {
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex h-12 max-w-[1440px] items-center gap-6 px-6">
-          <a href="#/" className="text-[15px] font-semibold tracking-tight" onClick={guardLeave}>
+          <a href="#/" className="text-[15px] font-semibold tracking-tight">
             fitness-lab
           </a>
           <nav className="text-sm text-muted-foreground">
-            <a href="#/" className="hover:text-foreground" onClick={guardLeave}>
+            <a href="#/" className="hover:text-foreground">
               Program
             </a>
           </nav>

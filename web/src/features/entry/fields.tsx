@@ -51,13 +51,17 @@ export function CommitInput({
   const focused = useRef(false)
   // The text currently being sent, so Enter followed by blur (or Tab) never sends it twice.
   const sending = useRef<string | null>(null)
+  // The text last stored by the server; until the lifter types again, the field follows
+  // the stored value even while focused ("82,5" becomes "82.5" and is not sent again).
+  const saved = useRef<string | null>(null)
   const key = useUnsavedKey()
   const description = context ? `${context}, ${label}` : label
 
   const track = (text: string) => markUnsaved(key, text === value ? null : description)
 
   useEffect(() => {
-    if (focused.current) return
+    if (focused.current && (saved.current === null || latest.current !== saved.current)) return
+    saved.current = null
     latest.current = value
     setDraftState(value)
     setProblem(null)
@@ -67,16 +71,17 @@ export function CommitInput({
   const invalid = isValid ? !isValid(draft) : false
 
   const commit = () => {
-    if (draft === value || draft === sending.current) return
+    if (draft === value || draft === sending.current || draft === saved.current) return
     if (invalid) {
       setProblem(`Not saved: ${invalidHint ?? 'invalid value'}. Esc restores the saved value.`)
       return
     }
     const text = draft
     sending.current = text
-    void onCommit(text).then((saved) => {
+    void onCommit(text).then((stored) => {
       sending.current = null
-      if (saved) {
+      if (stored) {
+        saved.current = text
         setProblem(null)
         // Saved; still unsaved only if the lifter typed on while it was on its way.
         markUnsaved(key, latest.current === text ? null : description)

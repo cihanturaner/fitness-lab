@@ -500,12 +500,11 @@ def edit_workout(
     return updated
 
 
-def _has_sets(connection: sqlite3.Connection, workout_id: str) -> bool:
-    return bool(
-        connection.execute(
-            "SELECT EXISTS (SELECT 1 FROM performed_set WHERE workout_id = ?)", (workout_id,)
-        ).fetchone()[0]
-    )
+def _set_ids(connection: sqlite3.Connection, workout_id: str) -> frozenset[str]:
+    rows = connection.execute(
+        "SELECT id FROM performed_set WHERE workout_id = ?", (workout_id,)
+    ).fetchall()
+    return frozenset(str(row[0]) for row in rows)
 
 
 def discard_draft(connection: sqlite3.Connection, workout_id: str, *, db_path: Path) -> Path | None:
@@ -520,16 +519,17 @@ def discard_draft(connection: sqlite3.Connection, workout_id: str, *, db_path: P
     the meantime is never removed through this path.
     """
     _require_draft(connection, workout_id)
+    before = _set_ids(connection, workout_id)
     snapshot = (
         create_snapshot(connection, db_path, f"pre-discard-workout-{workout_id}")
-        if _has_sets(connection, workout_id)
+        if before
         else None
     )
     with db.immediate_transaction(connection):
         _require_draft(connection, workout_id)
-        # The snapshot decision was taken before the write lock; a set recorded in between
-        # must never be deleted without one.
-        if snapshot is None and _has_sets(connection, workout_id):
+        # The snapshot (or the decision to take none) predates the write lock: a set
+        # recorded in between would be deleted without being in any snapshot.
+        if _set_ids(connection, workout_id) != before:
             raise Conflict("the draft changed while it was being discarded; try again")
         deleted = connection.execute(
             "DELETE FROM workout WHERE id = ? AND status = 'draft'", (workout_id,)

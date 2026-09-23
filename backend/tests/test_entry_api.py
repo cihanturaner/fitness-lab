@@ -458,3 +458,28 @@ def test_new_exercise_names_and_labels_are_trimmed(client: TestClient) -> None:
         "/api/exercises", json={"name": " Cable Fly ", "equipment_label": "  Low pulley "}
     ).json()
     assert (created["name"], created["equipment_label"]) == ("Cable Fly", "Low pulley")
+
+
+@pytest.mark.parametrize("load", ["80\n", "８０", "٨٠"])
+def test_load_is_ascii_digits_only(client: TestClient, seeded: dict[str, Any], load: str) -> None:
+    workout_id = open_upper(client, seeded)
+    body = {"exercise_id": seeded["exercises"]["Bench Press"], "set_type": "working", "reps": 5}
+    response = client.post(f"/api/workouts/{workout_id}/sets", json=body | {"load_kg": load})
+    assert response.status_code == 422
+
+
+def test_a_failed_safety_snapshot_refuses_the_discard_plainly(
+    client: TestClient, seeded: dict[str, Any], db_file: Path
+) -> None:
+    workout_id = open_upper(client, seeded)
+    add(client, workout_id, seeded["exercises"]["Bench Press"])
+    snapshots = db_file.parent / "snapshots"
+    snapshots.mkdir(exist_ok=True)
+    snapshots.chmod(0o500)
+    try:
+        response = client.delete(f"/api/workouts/{workout_id}")
+    finally:
+        snapshots.chmod(0o700)
+    assert response.status_code == 503
+    assert "nothing was deleted" in response.json()["detail"]
+    assert count(db_file, "workout") == 1

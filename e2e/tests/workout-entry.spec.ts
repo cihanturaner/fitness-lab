@@ -192,6 +192,18 @@ test('completion locks the record, reopening allows a correction', async ({ page
   const row = slot(page, 'upper_a.02')
   await row.getByRole('button', { name: 'Add set' }).click()
   await row.getByTestId('new-set-row').getByRole('textbox', { name: /^Reps/ }).fill('9')
+
+  // Browser Back (or a trackpad swipe) asks first; declining keeps the lifter and the input.
+  let asked = ''
+  page.once('dialog', (dialog) => {
+    asked = dialog.message()
+    void dialog.dismiss()
+  })
+  await page.goBack()
+  await expect.poll(() => asked).toContain('Unsaved input')
+  await expect(page).toHaveURL(new RegExp(`#/workouts/${workoutId}$`))
+  await expect(row.getByTestId('new-set-row').getByRole('textbox', { name: /^Reps/ })).toHaveValue('9')
+
   await page.getByRole('button', { name: 'Complete workout' }).click()
   await expect(page.getByRole('alert').filter({ hasText: 'Not completed' })).toContainText('unsaved')
   expect(sql(`SELECT status FROM workout WHERE id = '${workoutId}'`)).toBe('draft')
@@ -302,7 +314,11 @@ async function stop(
 ): Promise<number | null> {
   const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)))
   if (how === 'SIGTERM') child.kill('SIGTERM')
-  else process.kill(-(child.pid ?? 0), 'SIGINT') // a terminal's Ctrl-C reaches the whole group
+  else {
+    // A terminal's Ctrl-C reaches the whole group. Never signal group 0: that is our own.
+    if (!child.pid) throw new Error('launcher has no pid')
+    process.kill(-child.pid, 'SIGINT')
+  }
   const code = await exited
   await expect.poll(() => healthy(port), { timeout: 15_000 }).toBe(false)
   await expect.poll(() => listening(port), { timeout: 15_000 }).toBe(false)

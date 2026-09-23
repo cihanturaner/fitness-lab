@@ -714,19 +714,17 @@ def test_discard_refuses_when_sets_appear_after_the_snapshot_decision(
     import fitness_lab.storage.entry as entry_module
 
     workout_id = open_upper(migrated_db)
-    real = entry_module._has_sets
-    calls: list[bool] = []
+    real = entry_module._set_ids
+    calls: list[int] = []
 
-    def racing(connection: sqlite3.Connection, target: str) -> bool:
-        if not calls:
-            calls.append(False)
-            decided = real(connection, target)  # the decision is taken on an empty draft,
-            working(migrated_db, workout_id, exercises["Bench Press"])  # then a set lands
-            return decided
-        calls.append(True)
-        return real(connection, target)
+    def racing(connection: sqlite3.Connection, target: str) -> frozenset[str]:
+        decided = real(connection, target)
+        if not calls:  # the decision is taken on an empty draft, then a set lands
+            working(migrated_db, workout_id, exercises["Bench Press"])
+        calls.append(1)
+        return decided if len(calls) == 1 else real(connection, target)
 
-    monkeypatch.setattr(entry_module, "_has_sets", racing)
+    monkeypatch.setattr(entry_module, "_set_ids", racing)
     with pytest.raises(Conflict, match="changed"):
         discard_draft(migrated_db, workout_id, db_path=db_path)
     assert get_workout(migrated_db, workout_id) is not None
@@ -741,3 +739,26 @@ def test_last_performance_carries_its_session_name(
     complete(migrated_db, workout_id)
     result = last_performance(migrated_db, exercises["Bench Press"].id)
     assert result is not None and result.planned_workout_name == "Upper A"
+
+
+def test_discard_refuses_when_a_set_arrives_after_the_snapshot(
+    migrated_db: sqlite3.Connection,
+    exercises: dict[str, Exercise],
+    db_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A set recorded after the snapshot was taken would be deleted without being in it."""
+    from fitness_lab.storage.snapshots import create_snapshot as real
+
+    workout_id = open_upper(migrated_db)
+    working(migrated_db, workout_id, exercises["Bench Press"])
+
+    def racing(connection: sqlite3.Connection, path: Path, label: str) -> Path:
+        taken = real(connection, path, label)
+        working(migrated_db, workout_id, exercises["Bench Press"])  # lands after the snapshot
+        return taken
+
+    monkeypatch.setattr("fitness_lab.storage.entry.create_snapshot", racing)
+    with pytest.raises(Conflict, match="changed"):
+        discard_draft(migrated_db, workout_id, db_path=db_path)
+    assert len(list_sets_for_workout(migrated_db, workout_id)) == 2

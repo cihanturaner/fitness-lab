@@ -229,6 +229,9 @@ function NewSetRow({
         setSubmitting(false)
       })
     if (saved) {
+      // Saved: nothing here is unsaved any more, even before React re-renders (Complete may
+      // be reading the registry right now).
+      markUnsaved(unsavedKey, null)
       // The next set usually repeats the load: keep it, selected, so typing replaces it.
       setLoad(parsedLoad.value ?? '')
       setKeptLoad(parsedLoad.value ?? '')

@@ -82,7 +82,9 @@ because every reload re-runs migrations:
 Stopping the launcher (Ctrl-C or SIGTERM) waits for the server's graceful shutdown. Both
 scripts refuse to start when their port is already in use, and `start.sh` only reports
 "ready" once `/api/health` echoes its own per-launch `launch_id`, so the browser can never
-be opened on some other server (or database) holding the port.
+be opened on some other server (or database) holding the port. The API answers only
+requests addressed to `127.0.0.1` or `localhost` (DNS-rebinding guard), so
+`FITNESS_LAB_HOST` must stay a loopback name.
 
 ## Program administration
 

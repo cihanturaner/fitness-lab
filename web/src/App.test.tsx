@@ -66,4 +66,27 @@ describe('home', () => {
     expect(open?.body).toEqual({ performed_on: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) })
     expect(await screen.findByRole('heading', { name: 'Upper A', level: 1 })).toBeInTheDocument()
   })
+
+  it('keeps the lifter on the workout when Back would drop unsaved input', async () => {
+    fakeApi({
+      ...SYSTEM_ROUTES,
+      'GET /api/workouts/w1/entry': () => ({ body: entryFixture() }),
+      'GET /api/exercises': () => ({ body: [] }),
+      'GET /api/program/active': () => ({ body: PROGRAM }),
+      'GET /api/workouts': () => ({ body: [] }),
+    })
+    const confirm = vi.fn(() => false)
+    vi.stubGlobal('confirm', confirm)
+    window.location.hash = '#/workouts/w1'
+    const user = userEvent.setup()
+    render(<App />)
+    const slot = await screen.findByTestId('slot-upper_a.01')
+    await user.click(within(slot).getByRole('button', { name: 'Add set' }))
+    await user.type(within(slot).getByRole('textbox', { name: 'Reps, new set 1' }), '6')
+
+    window.location.hash = '#/' // what Back or a trackpad swipe does
+    await waitFor(() => expect(confirm).toHaveBeenCalled())
+    expect(window.location.hash).toBe('#/workouts/w1')
+    expect(within(slot).getByRole('textbox', { name: 'Reps, new set 1' })).toHaveValue('6')
+  })
 })

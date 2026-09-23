@@ -19,7 +19,7 @@ import {
   setTypeLabel,
 } from '@/lib/format'
 import { navigate } from '@/lib/route'
-import { confirmLeave, installUnloadGuard, unsavedDescriptions } from '@/lib/unsaved'
+import { installUnloadGuard, unsavedDescriptions } from '@/lib/unsaved'
 import { ActualSets, type SetActions } from './ActualSets'
 import { CommitInput } from './fields'
 import { buildEntryView, type SlotView } from './model'
@@ -516,13 +516,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-4 border-b border-border pb-5">
-        <a
-          href="#/"
-          className="text-sm text-muted-foreground hover:text-foreground"
-          onClick={(event) => {
-            if (!confirmLeave()) event.preventDefault()
-          }}
-        >
+        <a href="#/" className="text-sm text-muted-foreground hover:text-foreground">
           Program
         </a>
         <div className="flex flex-wrap items-start justify-between gap-4">

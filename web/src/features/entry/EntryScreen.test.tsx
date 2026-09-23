@@ -381,4 +381,47 @@ describe('EntryScreen', () => {
     // Planned set 1 targets RIR 2; set 2 targets 0-1.
     expect(within(slot).getByRole('textbox', { name: 'RIR, new set 2' })).toHaveAttribute('placeholder', '2')
   })
+
+  it('completes right after a set is saved without calling it unsaved', async () => {
+    let release: () => void = () => undefined
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const server = serve(entryFixture({ sets: [performed(1)] }), {
+      'POST /api/workouts/w1/sets': async () => {
+        await held
+        return { status: 201, body: performed(2) }
+      },
+      'POST /api/workouts/w1/complete': () => ({
+        body: { workout: entryFixture().workout, advisories: [], renumbered: false },
+      }),
+    })
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const slot = await screen.findByTestId('slot-upper_a.01')
+    await user.click(within(slot).getByRole('button', { name: 'Add set' }))
+    await user.type(within(slot).getByRole('textbox', { name: 'Reps, new set 2' }), '5{Enter}')
+    const completing = user.click(screen.getByRole('button', { name: 'Complete workout' }))
+    release()
+    await completing
+    await waitFor(() =>
+      expect(server.calls.some((call) => call.url.endsWith('/complete'))).toBe(true),
+    )
+    expect(screen.queryByText(/not completed/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the stored spelling after a save and never sends it twice', async () => {
+    const server = serve(entryFixture({ sets: [performed(1, { load_kg: '80' })] }), {
+      'PATCH /api/sets/set-1': () => ({ body: performed(1, { load_kg: '82.5' }) }),
+    })
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const load = await screen.findByRole('textbox', { name: 'Load in kg, set 1' })
+    server.set(entryFixture({ sets: [performed(1, { load_kg: '82.5' })] }))
+    await user.clear(load)
+    await user.type(load, '82,5{Enter}')
+    await waitFor(() => expect(load).toHaveValue('82.5'))
+    await user.tab()
+    expect(server.calls.filter((call) => call.method === 'PATCH')).toHaveLength(1)
+  })
 })

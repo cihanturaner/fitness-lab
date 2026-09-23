@@ -18,6 +18,9 @@ case "$resolved" in
     ;;
 esac
 mkdir -p "$(dirname "$resolved")"
+# Hand the backend exactly the path that was checked (it runs from backend/, where a
+# relative path would resolve differently).
+export FITNESS_LAB_DB="$resolved"
 
 if python3 -c 'import socket; socket.create_connection(("127.0.0.1", 8000), 0.5)' 2>/dev/null; then
   echo "port 8000 is already in use (the app or another dev server?); stop it first" >&2

@@ -55,6 +55,7 @@ from fitness_lab.api.schemas import (
 from fitness_lab.domain.models import create_exercise
 from fitness_lab.storage import db, entry, migrations, programs
 from fitness_lab.storage.exercises import get_exercise, insert_exercise, list_exercises
+from fitness_lab.storage.snapshots import SnapshotError
 from fitness_lab.storage.workouts import get_workout
 
 WEB_DIST = db.REPO_ROOT / "web" / "dist"
@@ -126,6 +127,14 @@ def create_app() -> FastAPI:
     @app.exception_handler(entry.Conflict)
     async def _conflict(_request: Request, exc: entry.Conflict) -> JSONResponse:
         return JSONResponse(status_code=409, content=completion_body(str(exc), exc.report))
+
+    @app.exception_handler(SnapshotError)
+    async def _no_snapshot(_request: Request, exc: SnapshotError) -> JSONResponse:
+        # Only destructive paths take snapshots, and they refuse before touching anything.
+        return JSONResponse(
+            status_code=503,
+            content={"detail": f"the safety snapshot failed, so nothing was deleted: {exc}"},
+        )
 
     @app.exception_handler(ValueError)
     async def _invalid(_request: Request, exc: ValueError) -> JSONResponse:
