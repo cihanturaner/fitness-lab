@@ -36,9 +36,9 @@ describe('home: the week', () => {
     expect(within(bodyweight).getByTestId('home-bw-avg')).toHaveTextContent('72.30 kg (7/7 days)')
     expect(within(bodyweight).getByTestId('home-bw-change')).toHaveTextContent('+0.70 kg · +0.98%')
     const nutrition = screen.getByTestId('home-nutrition')
-    expect(within(nutrition).getByTestId('home-nut-protein')).toHaveTextContent('150 / 145 g')
-    expect(within(nutrition).getByTestId('home-nut-fat')).toHaveTextContent('62 / 60 g')
-    expect(within(nutrition).getByTestId('home-nut-kcal')).toHaveTextContent('2410 / ? kcal')
+    expect(within(nutrition).getByTestId('home-nut-protein')).toHaveTextContent('150 gtarget 145 g')
+    expect(within(nutrition).getByTestId('home-nut-fat')).toHaveTextContent('62 gtarget 60 g')
+    expect(within(nutrition).getByTestId('home-nut-kcal')).toHaveTextContent('2410 kcaltarget —')
     expect(nutrition).toHaveTextContent('Calorie target not calibrated yet.')
   })
 

@@ -294,8 +294,17 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
         ? 'Discard this empty draft?'
         : `Delete this workout and its ${entry.sets.length} recorded sets? A safety snapshot of the database is kept.`
     if (!window.confirm(question)) return
-    const ok = await run(() => api.discardWorkout(workout.id))
-    if (ok) navigate('#/')
+    setSaving(true)
+    try {
+      await api.discardWorkout(workout.id)
+    } catch (error) {
+      setFeedback(errorFeedback(error))
+      await reload()
+      setSaving(false)
+      return
+    }
+    // Gone: leave without re-reading it (that would only answer 404).
+    navigate('#/')
   }
 
   const setCount = entry.sets.length

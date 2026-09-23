@@ -218,12 +218,12 @@ function Macro({
   return (
     <div data-testid={testId} className="flex flex-col">
       <span className="text-[11px] text-muted-foreground">{label}</span>
-      <span className="num text-[15px] font-semibold">
+      <span className="num text-[15px] leading-tight font-semibold whitespace-nowrap">
         {value ?? '—'}
-        <span className="text-[11px] font-normal text-muted-foreground">
-          {' '}
-          / {target ?? '?'} {unit}
-        </span>
+        <span className="text-[11px] font-normal text-muted-foreground"> {unit}</span>
+      </span>
+      <span className="num text-[11px] whitespace-nowrap text-muted-foreground">
+        target {target === null ? '—' : `${target} ${unit}`}
       </span>
     </div>
   )

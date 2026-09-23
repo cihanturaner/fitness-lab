@@ -21,18 +21,19 @@ function slot(page: Page, key: string): Locator {
   return page.getByTestId(`slot-${key}`)
 }
 
+/** Fill the exercise's next empty row and save it with Enter (adding a row if none is left). */
 async function addSet(card: Locator, load: string, reps: string, rir: string) {
-  const next = card.getByTestId('new-set-row')
-  if (!(await next.isVisible())) await card.getByRole('button', { name: 'Add set' }).click()
-  const row = card.getByTestId('new-set-row')
+  if ((await card.getByTestId('new-set-row').count()) === 0) {
+    await card.getByRole('button', { name: /^Add set/ }).click()
+  }
+  const row = card.getByTestId('new-set-row').first()
   const type = row.getByRole('combobox', { name: /^Set type/ })
   if ((await type.inputValue()) === '') await type.selectOption('working')
-  const loadInput = row.getByRole('textbox', { name: /^Load in kg/ })
-  await loadInput.fill(load)
+  await row.getByRole('textbox', { name: /^Load in kg/ }).fill(load)
   await row.getByRole('textbox', { name: /^Reps/ }).fill(reps)
   await row.getByRole('textbox', { name: /^RIR/ }).fill(rir)
   const before = await card.getByTestId('set-row').count()
-  await row.getByRole('button', { name: 'Save set' }).click()
+  await row.getByRole('textbox', { name: /^RIR/ }).press('Enter')
   await expect(card.getByTestId('set-row')).toHaveCount(before + 1)
 }
 
@@ -65,15 +66,14 @@ function currentWorkoutId(page: Page): string {
 
 test('the active 12-week program and its four planned sessions are visible', async ({ page }) => {
   await page.goto('/')
-  await expect(
-    page.getByRole('heading', { name: '12-Week Advanced Natural Hypertrophy + Strength Program' }),
-  ).toBeVisible()
-  const sessions = page.getByRole('list', { name: 'Planned sessions' })
-  await expect(sessions.getByRole('listitem')).toHaveCount(4)
-  await expect(page.getByTestId('planned-upper_a')).toContainText('9 exercises, 23 planned sets')
-  await expect(page.getByTestId('planned-lower_a')).toContainText('6 exercises, 18 planned sets')
-  await expect(page.getByTestId('planned-upper_b')).toContainText('8 exercises, 21 planned sets')
-  await expect(page.getByTestId('planned-lower_b')).toContainText('6 exercises, 19 planned sets')
+  await expect(page.getByText('12-Week Advanced Natural Hypertrophy + Strength Program')).toBeVisible()
+  const week = page.getByRole('list', { name: 'This week' })
+  await expect(week.getByRole('listitem')).toHaveCount(7)
+  await expect(week.getByTestId(/^planned-/)).toHaveCount(4)
+  await expect(page.getByTestId('planned-upper_a')).toContainText('9 exercises · 23 sets')
+  await expect(page.getByTestId('planned-lower_a')).toContainText('6 exercises · 18 sets')
+  await expect(page.getByTestId('planned-upper_b')).toContainText('8 exercises · 21 sets')
+  await expect(page.getByTestId('planned-lower_b')).toContainText('6 exercises · 19 sets')
   expect(count('workout')).toBe(0)
 })
 
@@ -88,18 +88,21 @@ test('opening a planned session creates one empty draft and shows the prescripti
   expect(sql(`SELECT pw.workout_key FROM workout_plan_origin o JOIN planned_workout pw ON pw.id = o.planned_workout_id WHERE o.workout_id = '${workoutId}'`)).toBe('upper_a')
 
   const bench = slot(page, 'upper_a.01')
-  const planned = bench.getByRole('region', { name: /^Planned/ })
-  await expect(planned).toContainText('Smith Flat Bench Press')
-  await expect(planned.getByRole('table', { name: 'Planned sets' }).getByRole('row')).toHaveCount(4)
-  await expect(planned).toContainText('5–8')
-  await expect(planned).toContainText('Marker lift')
-  await expect(bench.getByRole('region', { name: /^Actual/ })).toContainText('No sets recorded')
+  await expect(bench.getByRole('heading', { name: 'Smith Flat Bench Press' })).toBeVisible()
+  await expect(bench.getByTestId('target')).toHaveText('Target 3 × 5–8 · RIR 2 / 2 / 1')
+  // One empty row per planned set, and none of them is a recorded set.
+  await expect(bench.getByTestId('new-set-row')).toHaveCount(3)
+  await expect(bench.getByTestId('set-row')).toHaveCount(0)
+  await expect(bench).not.toContainText('Marker lift')
+  await bench.getByRole('button', { name: 'Notes, Smith Flat Bench Press' }).click()
+  await expect(bench).toContainText('Marker lift')
   await expect(page.getByTestId('workout-status')).toHaveText('Draft')
+  expect(count('performed_set')).toBe(0)
 
   // Opening again resumes the same draft rather than creating another, and the home screen
   // says which record that is.
   await page.goto('/')
-  await expect(page.getByTestId('planned-upper_a')).toContainText('Open draft dated')
+  await expect(page.getByTestId('planned-upper_a')).toHaveAttribute('data-status', 'draft')
   await resumeUpperA(page)
   await expect(page).toHaveURL(new RegExp(`#/workouts/${workoutId}$`))
   expect(count('workout')).toBe(1)
@@ -159,25 +162,24 @@ test('a whole slot is substituted and extra work is recorded', async ({ page }) 
   const workoutId = currentWorkoutId(page)
 
   const lateral = slot(page, 'upper_a.06')
+  await lateral.getByRole('button', { name: 'Substitute, slot 6' }).click()
   await lateral.getByRole('combobox', { name: 'Exercise performed for slot 6' }).selectOption({ label: 'Machine Lateral Raise' })
-  await expect(lateral.getByRole('region', { name: /^Actual/ })).toContainText('substituted for the whole slot')
-  await expect(lateral.getByRole('region', { name: /^Planned/ })).toContainText('Cable Lateral Raise')
+  await expect(lateral).toHaveAttribute('aria-label', 'Machine Lateral Raise')
+  await expect(lateral).toContainText('replaces Cable Lateral Raise')
   expect(sql(`SELECT e.name FROM workout_slot_substitution s JOIN exercise e ON e.id = s.exercise_id WHERE s.workout_id = '${workoutId}'`)).toBe('Machine Lateral Raise')
   await addSet(lateral, '15', '15', '1')
 
   await page.getByRole('combobox', { name: 'Add an exercise' }).selectOption({ label: 'Leg Extension' })
-  const extras = page.getByRole('region', { name: 'Extra exercises' })
-  const legExtension = extras.getByRole('article').filter({ hasText: 'Leg Extension' })
+  const legExtension = page.getByTestId(/^extra-/).filter({ hasText: 'Leg Extension' })
   await addSet(legExtension, '40', '12', '1')
 
   await page.reload()
-  await expect(
-    slot(page, 'upper_a.06').getByRole('region', { name: 'Actual, Machine Lateral Raise' }),
-  ).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Extra exercises' })).toContainText('Leg Extension')
+  await expect(slot(page, 'upper_a.06')).toHaveAttribute('aria-label', 'Machine Lateral Raise')
+  await expect(page.getByTestId(/^extra-/).filter({ hasText: 'Leg Extension' })).toBeVisible()
   expect(count('performed_set')).toBe(4)
 
   // Choosing the planned exercise again clears the substitution.
+  await slot(page, 'upper_a.06').getByRole('button', { name: 'Substitute, slot 6' }).click()
   await slot(page, 'upper_a.06').getByRole('combobox', { name: 'Exercise performed for slot 6' }).selectOption({ label: 'Cable Lateral Raise (as planned)' })
   await expect.poll(() => count('workout_slot_substitution')).toBe(0)
   await slot(page, 'upper_a.06').getByRole('combobox', { name: 'Exercise performed for slot 6' }).selectOption({ label: 'Machine Lateral Raise' })
@@ -189,9 +191,9 @@ test('completion locks the record, reopening allows a correction', async ({ page
   const workoutId = currentWorkoutId(page)
 
   // A set typed but not saved blocks completion instead of being silently dropped.
+  // No set type chosen, so the row cannot be saved: it stays typed-but-unsaved input.
   const row = slot(page, 'upper_a.02')
-  await row.getByRole('button', { name: 'Add set' }).click()
-  await row.getByTestId('new-set-row').getByRole('textbox', { name: /^Reps/ }).fill('9')
+  await row.getByTestId('new-set-row').first().getByRole('textbox', { name: /^Reps/ }).fill('9')
 
   // Browser Back (or a trackpad swipe) asks first; declining keeps the lifter and the input.
   let asked = ''
@@ -202,20 +204,21 @@ test('completion locks the record, reopening allows a correction', async ({ page
   await page.goBack()
   await expect.poll(() => asked).toContain('Unsaved input')
   await expect(page).toHaveURL(new RegExp(`#/workouts/${workoutId}$`))
-  await expect(row.getByTestId('new-set-row').getByRole('textbox', { name: /^Reps/ })).toHaveValue('9')
+  await expect(row.getByTestId('new-set-row').first().getByRole('textbox', { name: /^Reps/ })).toHaveValue('9')
 
   await page.getByRole('button', { name: 'Complete workout' }).click()
   await expect(page.getByRole('alert').filter({ hasText: 'Not completed' })).toContainText('unsaved')
   expect(sql(`SELECT status FROM workout WHERE id = '${workoutId}'`)).toBe('draft')
-  page.once('dialog', (dialog) => void dialog.accept())
-  await row.getByRole('button', { name: 'Done' }).click()
-  await expect(row.getByTestId('new-set-row')).toHaveCount(0)
+  // Escape drops what was typed in the row (an explicit choice, never a silent one).
+  await row.getByTestId('new-set-row').first().getByRole('textbox', { name: /^Reps/ }).press('Escape')
+  await expect(row.getByTestId('new-set-row').first().getByRole('textbox', { name: /^Reps/ })).toHaveValue('')
 
   await page.getByRole('button', { name: 'Complete workout' }).click()
   await expect(page.getByTestId('workout-status')).toHaveText('Complete')
   expect(sql(`SELECT status FROM workout WHERE id = '${workoutId}'`)).toBe('complete')
   await expect(slot(page, 'upper_a.01').getByRole('textbox', { name: 'Reps, set 1' })).toBeDisabled()
-  await expect(page.getByRole('button', { name: 'Add set' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Add set/ })).toHaveCount(0)
+  await expect(page.getByTestId('new-set-row')).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Reopen to correct' }).click()
   await expect(page.getByTestId('workout-status')).toHaveText('Draft')
@@ -230,8 +233,8 @@ test('completion locks the record, reopening allows a correction', async ({ page
 
 test('the next occurrence starts empty and shows the last exact performance', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByTestId('planned-upper_a')).toContainText('Performed 1×')
-  await page.getByRole('button', { name: 'Start Upper A' }).click()
+  await expect(page.getByTestId('planned-upper_a')).toHaveAttribute('data-status', 'complete')
+  await page.getByRole('button', { name: 'Start Upper A again' }).click()
   await expect(page.getByRole('heading', { name: 'Upper A', level: 1 })).toBeVisible()
   const secondId = currentWorkoutId(page)
 
@@ -239,12 +242,9 @@ test('the next occurrence starts empty and shows the last exact performance', as
   expect(count('performed_set', `workout_id = '${secondId}'`)).toBe(0)
   const last = slot(page, 'upper_a.01').getByTestId('last-performance')
   await expect(last).toContainText('Upper A')
-  await expect(last).toContainText('82.5 kg × 6 @ RIR 2')
-  await expect(last).toContainText('82.5 kg × 5 @ RIR 2')
+  await expect(last).toContainText('Last 82.5×6@2 · 82.5×5@2')
   // The previous occurrence's substitution does not carry over.
-  await expect(
-    slot(page, 'upper_a.06').getByRole('region', { name: 'Actual, Cable Lateral Raise' }),
-  ).toBeVisible()
+  await expect(slot(page, 'upper_a.06')).toHaveAttribute('aria-label', 'Cable Lateral Raise')
   await expect(slot(page, 'upper_a.06').getByTestId('last-performance')).toHaveCount(0)
 })
 
@@ -256,14 +256,16 @@ test('an unplanned session is first-class', async ({ page }) => {
   expect(count('workout_plan_origin', `workout_id = '${workoutId}'`)).toBe(0)
 
   await page.getByRole('combobox', { name: 'Add an exercise' }).selectOption({ label: 'Hack Squat' })
-  const card = page.getByRole('region', { name: 'Extra exercises' }).getByRole('article').filter({ hasText: 'Hack Squat' })
+  const card = page.getByTestId(/^extra-/).filter({ hasText: 'Hack Squat' })
   await addSet(card, '100', '10', '2')
   await page.getByRole('button', { name: 'Complete workout' }).click()
   await expect(page.getByTestId('workout-status')).toHaveText('Complete')
 
-  await page.goto('/')
+  await page.goto('/#/sessions')
   await expect(page.getByTestId('recent-workout')).toHaveCount(3)
-  await page.screenshot({ path: '../artifacts/m2-home-after-journey.png', fullPage: true })
+  await page.goto('/')
+  await expect(page.getByTestId('planned-upper_a')).toHaveAttribute('data-status', 'draft')
+  await page.screenshot({ path: '../artifacts/v2-home-after-v1-journey.png', fullPage: true })
 })
 
 // --- restart and clean shutdown --------------------------------------------------------
@@ -334,7 +336,7 @@ test('data persists across an application restart and the app shuts down cleanly
   for (const how of ['SIGTERM', 'Ctrl-C'] as const) {
     const child = launch(port)
     await expect.poll(() => healthy(port), { timeout: 60_000 }).toBe(true)
-    await page.goto(`http://127.0.0.1:${port}/`)
+    await page.goto(`http://127.0.0.1:${port}/#/sessions`)
     await expect(page.getByTestId('recent-workout')).toHaveCount(3)
     await page.getByTestId('recent-workout').filter({ hasText: 'Upper A' }).filter({ hasText: 'Complete' }).getByRole('link').click()
     await expect.poll(() => actualRows(slot(page, 'upper_a.01'))).toEqual([

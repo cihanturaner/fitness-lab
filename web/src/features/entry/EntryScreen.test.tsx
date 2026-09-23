@@ -524,4 +524,20 @@ describe('EntryScreen — one compact block per exercise', () => {
     await user.click(screen.getByRole('button', { name: 'Details' }))
     expect(screen.getByRole('textbox', { name: 'Session notes' })).toBeInTheDocument()
   })
+
+  it('discards an empty draft and leaves without asking for it again', async () => {
+    const server = serve(entryFixture(), {
+      'DELETE /api/workouts/w1': () => ({ status: 204 }),
+    })
+    vi.stubGlobal('confirm', vi.fn(() => true))
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    await screen.findByTestId('slot-upper_a.01')
+    await user.click(screen.getByRole('button', { name: 'Details' }))
+    await user.click(screen.getByRole('button', { name: 'Discard draft' }))
+    await waitFor(() => expect(window.location.hash).toBe('#/'))
+    const deleted = server.calls.findIndex((call) => call.method === 'DELETE')
+    expect(deleted).toBeGreaterThan(-1)
+    expect(server.calls.slice(deleted + 1).some((call) => call.url.includes('/entry'))).toBe(false)
+  })
 })

@@ -40,12 +40,15 @@ function TypeSelect({
   value,
   disabled,
   invalid,
+  quiet = false,
   onChange,
 }: {
   label: string
   value: SetType | null | ''
   disabled?: boolean
   invalid?: boolean
+  /** Unset but not yet asked for: rows after the first take the previous row's type. */
+  quiet?: boolean
   onChange: (value: SetType) => void
 }) {
   const unset = value === null || value === ''
@@ -61,7 +64,7 @@ function TypeSelect({
       tabIndex={unset ? 0 : -1}
       onChange={(event) => event.target.value && onChange(event.target.value as SetType)}
     >
-      {unset && <option value="">Type…</option>}
+      {unset && <option value="">{quiet ? '–' : 'Type…'}</option>}
       {TYPE_OPTIONS.map((option) => (
         <option key={option.code} value={option.code}>
           {option.label}
@@ -242,10 +245,12 @@ function PendingRow({
   planned,
   carry,
   autoFocus,
+  first,
   actions,
   onSubmitting,
   onSaved,
 }: {
+  first: boolean
   number: number
   exerciseId: string
   exerciseName: string
@@ -402,6 +407,7 @@ function PendingRow({
             value={type}
             disabled={saving}
             invalid={problem !== null && type === ''}
+            quiet={!first && problem === null}
             onChange={(code) => {
               setType(code)
               setProblem(null)
@@ -502,6 +508,7 @@ export function SetGrid({
                 planned={planned[worked + index]}
                 carry={row.carry}
                 autoFocus={row.focus}
+                first={index === 0}
                 actions={actions}
                 onSubmitting={(carry) =>
                   setPending((rows) => {

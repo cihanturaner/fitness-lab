@@ -12,10 +12,28 @@ process.env.FITNESS_LAB_E2E_DB ??= path.join(
   'fitness_lab.db',
 )
 process.env.FITNESS_LAB_E2E_PORT ??= '8710'
+// The V2 daily-use journey runs against its own fresh scratch database and server, so it
+// neither depends on nor disturbs the V1 journey's step-by-step database assertions.
+process.env.FITNESS_LAB_E2E_DB_V2 ??= path.join(
+  mkdtempSync(path.join(os.tmpdir(), 'fitness-lab-e2e-v2-')),
+  'fitness_lab.db',
+)
+process.env.FITNESS_LAB_E2E_PORT_V2 ??= '8712'
+
+/** Monday of the local week two weeks ago: today then falls in week 3 of the block. */
+function blockStart(): string {
+  const now = new Date()
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7) - 14)
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${monday.getFullYear()}-${pad(monday.getMonth() + 1)}-${pad(monday.getDate())}`
+}
+process.env.FITNESS_LAB_E2E_BLOCK_START ??= blockStart()
 
 export const E2E_DB = process.env.FITNESS_LAB_E2E_DB
 export const E2E_PORT = Number(process.env.FITNESS_LAB_E2E_PORT)
 const BASE_URL = `http://127.0.0.1:${E2E_PORT}`
+const E2E_DB_V2 = process.env.FITNESS_LAB_E2E_DB_V2
+const BASE_URL_V2 = `http://127.0.0.1:${process.env.FITNESS_LAB_E2E_PORT_V2}`
 
 export default defineConfig({
   testDir: './tests',
@@ -31,20 +49,44 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: /v2-.*\.spec\.ts/,
       // Viewport must come after the device spread - project `use` overrides the
       // top-level one, and Desktop Chrome would otherwise force 1280x720.
       use: { ...devices['Desktop Chrome'], viewport: { width: 1920, height: 1080 } },
     },
+    {
+      name: 'v2-daily-use',
+      testMatch: /v2-.*\.spec\.ts/,
+      // A common Mac laptop viewport: the compact layout must work here, not only at 1920.
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, baseURL: BASE_URL_V2 },
+    },
   ],
-  webServer: {
-    // Seeds the scratch database with the locked program, then runs the real production
-    // launcher: build if stale, serve the build through FastAPI.
-    command: 'bash scripts/serve-scratch.sh',
-    env: { FITNESS_LAB_DB: E2E_DB, FITNESS_LAB_PORT: String(E2E_PORT) },
-    url: `${BASE_URL}/api/health`,
-    reuseExistingServer: false,
-    timeout: 180_000,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  },
+  webServer: [
+    {
+      // Seeds the scratch database with the locked program, then runs the real production
+      // launcher: build if stale, serve the build through FastAPI.
+      command: 'bash scripts/serve-scratch.sh',
+      env: { FITNESS_LAB_DB: E2E_DB, FITNESS_LAB_PORT: String(E2E_PORT) },
+      url: `${BASE_URL}/api/health`,
+      reuseExistingServer: false,
+      timeout: 180_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      // Waits for the first server (which builds the frontend if stale) so two launchers
+      // never build web/dist at the same time.
+      command: `until curl -sf ${BASE_URL}/api/health >/dev/null; do sleep 1; done; bash scripts/serve-scratch.sh`,
+      env: {
+        FITNESS_LAB_DB: E2E_DB_V2,
+        FITNESS_LAB_PORT: String(process.env.FITNESS_LAB_E2E_PORT_V2),
+        FITNESS_LAB_SEED_BLOCK_START: process.env.FITNESS_LAB_E2E_BLOCK_START,
+      },
+      url: `${BASE_URL_V2}/api/health`,
+      reuseExistingServer: false,
+      timeout: 240_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  ],
 })
