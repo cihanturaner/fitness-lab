@@ -7,7 +7,8 @@ export interface Call {
   body: unknown
 }
 
-type Handler = (call: Call) => { status?: number; body?: unknown } | undefined
+type Reply = { status?: number; body?: unknown } | undefined
+type Handler = (call: Call) => Reply | Promise<Reply>
 
 /** Routes fetch() by "METHOD /path" and records every call for assertions. */
 export function fakeApi(routes: Record<string, Handler>) {
@@ -20,7 +21,7 @@ export function fakeApi(routes: Record<string, Handler>) {
     calls.push(call)
     const handler = routes[`${method} ${url.split('?')[0]}`]
     if (!handler) throw new Error(`unexpected ${method} ${url}`)
-    const result = handler(call) ?? {}
+    const result = (await handler(call)) ?? {}
     const status = result.status ?? 200
     if (status === 204) return new Response(null, { status })
     return new Response(JSON.stringify(result.body ?? null), { status })

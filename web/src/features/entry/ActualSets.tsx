@@ -146,16 +146,22 @@ function NewSetRow({
   exerciseId,
   nextIndex,
   planned,
+  previousType,
   actions,
   onClose,
 }: {
   exerciseId: string
   nextIndex: number
   planned: PlannedSet | undefined
+  previousType: SetType | null
   actions: SetActions
   onClose: () => void
 }) {
-  const [setType, setSetType] = useState<SetType>(planned?.set_type ?? 'working')
+  // Never taken from the plan: the first set of an exercise needs an explicit choice, later
+  // sets offer the type the lifter chose for the previous one.
+  const [setType, setSetType] = useState<SetType | ''>(previousType ?? '')
+  const [submitting, setSubmitting] = useState(false)
+  const inFlight = useRef(false)
   const [load, setLoad] = useState('')
   const [reps, setReps] = useState('')
   const [rir, setRir] = useState('')
@@ -166,20 +172,29 @@ function NewSetRow({
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault()
+    if (inFlight.current) return
     const parsedLoad = parseLoad(load)
     const parsedReps = parseCount(reps, { allowNegative: false })
     const parsedRir = parseCount(rir, { allowNegative: true })
-    if (!parsedLoad.ok) return setProblem('Load must be a number of kilograms, e.g. 82.5.')
+    if (!parsedLoad.ok) return setProblem('Load must be kilograms with up to 3 decimals, e.g. 82.5.')
     if (!parsedReps.ok || parsedReps.value === null) return setProblem('Enter reps to save the set.')
     if (!parsedRir.ok) return setProblem('RIR must be a whole number.')
+    if (setType === '') return setProblem('Choose a set type.')
     setProblem(null)
-    const saved = await actions.add(exerciseId, {
-      set_type: setType,
-      load_kg: parsedLoad.value,
-      reps: parsedReps.value,
-      rir: parsedRir.value,
-      notes: notes.trim() === '' ? null : notes,
-    })
+    inFlight.current = true
+    setSubmitting(true)
+    const saved = await actions
+      .add(exerciseId, {
+        set_type: setType,
+        load_kg: parsedLoad.value,
+        reps: parsedReps.value,
+        rir: parsedRir.value,
+        notes: notes.trim() === '' ? null : notes,
+      })
+      .finally(() => {
+        inFlight.current = false
+        setSubmitting(false)
+      })
     if (saved) {
       // The next set usually repeats the load: keep it, selected, so typing replaces it.
       setLoad(parsedLoad.value ?? '')
@@ -200,8 +215,10 @@ function NewSetRow({
           aria-label={`Set type, ${label}`}
           className={textInputClass}
           value={setType}
-          onChange={(event) => setSetType(event.target.value as SetType)}
+          autoFocus={setType === ''}
+          onChange={(event) => setSetType(event.target.value as SetType | '')}
         >
+          {setType === '' && <option value="">Choose type…</option>}
           {SET_TYPES.map((code) => (
             <option key={code} value={code}>
               {setTypeLabel(code)}
@@ -217,7 +234,7 @@ function NewSetRow({
           inputMode="decimal"
           placeholder={planned?.target_load_kg ?? 'kg'}
           value={load}
-          autoFocus
+          autoFocus={setType !== ''}
           onChange={(event) => setLoad(event.target.value)}
           onKeyDown={(event) => event.key === 'Enter' && void submit()}
         />
@@ -259,7 +276,7 @@ function NewSetRow({
         )}
       </td>
       <td className="py-1.5 text-right whitespace-nowrap">
-        <Button size="sm" onPress={() => void submit()}>
+        <Button size="sm" isDisabled={submitting} onPress={() => void submit()}>
           Save set
         </Button>
         <Button size="sm" variant="ghost" onPress={onClose}>
@@ -325,6 +342,7 @@ export function ActualSets({
                 exerciseId={exerciseId}
                 nextIndex={sets.length}
                 planned={planned[sets.length]}
+                previousType={sets.at(-1)?.set_type ?? null}
                 actions={actions}
                 onClose={() => setAdding(false)}
               />

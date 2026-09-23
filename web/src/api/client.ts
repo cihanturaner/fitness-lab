@@ -83,7 +83,7 @@ export const api = {
     request<Entry>('PUT', `/api/workouts/${workoutId}/slots/${slotId}/exercise`, {
       exercise_id: exerciseId,
     }),
-  exercises: () => request<Exercise[]>('GET', '/api/exercises'),
+  exercises: () => request<Exercise[]>('GET', '/api/exercises?include_inactive=true'),
   createExercise: (name: string, equipmentLabel: string | null) =>
     request<Exercise>('POST', '/api/exercises', { name, equipment_label: equipmentLabel }),
   lastPerformance: (exerciseId: string) =>

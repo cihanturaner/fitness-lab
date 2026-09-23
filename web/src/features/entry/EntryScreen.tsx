@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, api } from '@/api/client'
 import type {
   CompletionIssue,
@@ -197,7 +197,14 @@ function SlotCard({
   const planned = entry.exercises[slot.exercise_id]
   const effective = entry.exercises[slot.effective_exercise_id]
   const substituted = slot.substitute_exercise_id !== null
-  const selectable = exercises.filter((exercise) => exercise.is_active || exercise.id === slot.effective_exercise_id)
+  // Retired exercises are never offered, but the slot's own planned and current exercise
+  // always are, so a retired one can still be displayed truthfully and cleared.
+  const selectable = exercises.filter(
+    (exercise) =>
+      exercise.is_active ||
+      exercise.id === slot.effective_exercise_id ||
+      exercise.id === slot.exercise_id,
+  )
 
   return (
     <article
@@ -337,6 +344,8 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
   const [feedback, setFeedback] = useState<Feedback>(null)
   const [saving, setSaving] = useState(false)
   const [pendingExtras, setPendingExtras] = useState<string[]>([])
+  const inFlight = useRef(new Set<Promise<unknown>>())
+  const completing = useRef(false)
 
   const reload = useCallback(async () => {
     try {
@@ -370,14 +379,17 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
   const run = useCallback(
     async (change: () => Promise<unknown>): Promise<boolean> => {
       setSaving(true)
+      const pending = change()
+      inFlight.current.add(pending)
       try {
-        await change()
+        await pending
         setFeedback((current) => (current?.kind === 'error' ? null : current))
         return true
       } catch (error) {
         setFeedback(errorFeedback(error))
         return false
       } finally {
+        inFlight.current.delete(pending)
         await reload()
         setSaving(false)
       }
@@ -415,7 +427,12 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
   }
 
   const complete = async () => {
+    if (completing.current) return
+    completing.current = true
     setSaving(true)
+    // A field edited just before the click is saved on blur; finish those saves first so
+    // the completion judges exactly what the lifter entered.
+    await Promise.allSettled([...inFlight.current])
     try {
       const result = await api.complete(workout.id)
       setFeedback({ kind: 'completed', advisories: result.advisories })
@@ -424,11 +441,16 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
     } finally {
       await reload()
       setSaving(false)
+      completing.current = false
     }
   }
 
   const discard = async () => {
-    if (!window.confirm('Discard this draft? Its recorded sets are deleted.')) return
+    const question =
+      entry.sets.length === 0
+        ? 'Discard this empty draft?'
+        : `Delete this workout and its ${entry.sets.length} recorded sets? A safety snapshot of the database is kept.`
+    if (!window.confirm(question)) return
     const ok = await run(() => api.discardWorkout(workout.id))
     if (ok) navigate('#/')
   }
@@ -465,9 +487,9 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
             ) : (
               <>
                 <Button variant="ghost" className="text-destructive" isDisabled={saving} onPress={() => void discard()}>
-                  Discard draft
+                  {entry.sets.length === 0 ? 'Discard draft' : 'Delete workout…'}
                 </Button>
-                <Button isDisabled={saving} onPress={() => void complete()}>
+                <Button onPress={() => void complete()}>
                   Complete workout
                 </Button>
               </>

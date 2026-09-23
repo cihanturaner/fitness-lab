@@ -24,6 +24,8 @@ async function addSet(card: Locator, load: string, reps: string, rir: string) {
   const next = card.getByTestId('new-set-row')
   if (!(await next.isVisible())) await card.getByRole('button', { name: 'Add set' }).click()
   const row = card.getByTestId('new-set-row')
+  const type = row.getByRole('combobox', { name: /^Set type/ })
+  if ((await type.inputValue()) === '') await type.selectOption('working')
   const loadInput = row.getByRole('textbox', { name: /^Load in kg/ })
   await loadInput.fill(load)
   await row.getByRole('textbox', { name: /^Reps/ }).fill(reps)

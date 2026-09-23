@@ -229,7 +229,9 @@ correction goes through reopen, exactly as M1 §6.
 Complete: M1 `complete_workout` (C1–C4) and, in the same transaction, persistence of C3's
 renumbering and the status. Blockers return 409 with the report. Reopen: M1
 `reopen_workout`. Workout metadata (`performed_on`, `performed_time_local`, `notes`) is
-editable via M1 `update_workout`. A draft may be discarded: the status check and a
+editable via M1 `update_workout`. A draft may be discarded; one that holds sets may be a
+reopened, formerly complete workout, so a `VACUUM INTO` snapshot is taken first (no
+snapshot, no delete). The status check and a
 `DELETE … WHERE status = 'draft'` share one `BEGIN IMMEDIATE` transaction, so a workout
 completed meanwhile is never removed through this unguarded path; deleting a complete
 workout stays storage-only (M1 guarded, snapshotted path), not exposed over HTTP. Set
@@ -316,6 +318,9 @@ PLANNED (exercise, prescribed sets with reps/RIR/load, notes, last exact perform
 substitution control) beside ACTUAL (set rows with load, reps, RIR, set type; add, edit,
 delete, move up/down). Extra exercises can be added from the catalogue or created.
 Complete shows blockers/advisories; complete workouts are read-only until reopened.
+A new set is saved only when the lifter saves it: its set type is never taken from the
+plan (the first set of an exercise requires an explicit choice; later ones offer the
+lifter's previous choice), and a second Enter while saving cannot record it twice.
 Visual language: restrained laboratory instrument — neutral surfaces, tabular numerals,
 one accent, no gamification.
 

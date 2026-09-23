@@ -1,8 +1,11 @@
+// Entry sanity only, not fitness policy: at most four integer digits catches a slipped key
+// (10000 reps, 55555 kg) before it becomes evidence. The server enforces storage limits.
+
 /** Accepts "82.5" or "82,5"; at most gram precision, never negative. '' means not recorded. */
 export function parseLoad(text: string): { ok: true; value: string | null } | { ok: false } {
   const trimmed = text.trim().replace(',', '.')
   if (trimmed === '') return { ok: true, value: null }
-  return /^\d+(\.\d{1,3})?$/.test(trimmed) ? { ok: true, value: trimmed } : { ok: false }
+  return /^\d{1,4}(\.\d{1,3})?$/.test(trimmed) ? { ok: true, value: trimmed } : { ok: false }
 }
 
 export function parseCount(
@@ -11,7 +14,7 @@ export function parseCount(
 ): { ok: true; value: number | null } | { ok: false } {
   const trimmed = text.trim()
   if (trimmed === '') return { ok: true, value: null }
-  const pattern = allowNegative ? /^-?\d+$/ : /^\d+$/
+  const pattern = allowNegative ? /^-?\d{1,4}$/ : /^\d{1,4}$/
   return pattern.test(trimmed) ? { ok: true, value: Number(trimmed) } : { ok: false }
 }
 

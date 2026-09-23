@@ -71,6 +71,10 @@ describe('EntryScreen', () => {
     )
     expect(server.calls.some((call) => call.method === 'POST')).toBe(false)
 
+    await user.selectOptions(
+      within(slot).getByRole('combobox', { name: 'Set type, new set 1' }),
+      'working',
+    )
     await user.type(load, '82,5')
     await user.type(within(slot).getByRole('textbox', { name: 'Reps, new set 1' }), '6')
     await user.type(within(slot).getByRole('textbox', { name: 'RIR, new set 1' }), '2{Enter}')
@@ -85,6 +89,63 @@ describe('EntryScreen', () => {
         notes: null,
       }),
     )
+  })
+
+  it('never takes the set type from the plan: the lifter chooses it', async () => {
+    const server = serve(entryFixture())
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const slot = await screen.findByTestId('slot-upper_a.01')
+    await user.click(within(slot).getByRole('button', { name: 'Add set' }))
+    expect(within(slot).getByRole('combobox', { name: 'Set type, new set 1' })).toHaveValue('')
+    await user.type(within(slot).getByRole('textbox', { name: 'Reps, new set 1' }), '6{Enter}')
+    expect(await within(slot).findByRole('alert')).toHaveTextContent('Choose a set type')
+    expect(server.calls.some((call) => call.method === 'POST')).toBe(false)
+  })
+
+  it('offers the type of the previous recorded set of the exercise, not the plan', async () => {
+    serve(entryFixture({ sets: [performed(1, { set_type: 'warmup' })] }))
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const slot = await screen.findByTestId('slot-upper_a.01')
+    await user.click(within(slot).getByRole('button', { name: 'Add set' }))
+    expect(within(slot).getByRole('combobox', { name: 'Set type, new set 2' })).toHaveValue('warmup')
+  })
+
+  it('saves a set once even when Enter is pressed twice', async () => {
+    let release: () => void = () => undefined
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const server = serve(entryFixture({ sets: [performed(1)] }), {
+      'POST /api/workouts/w1/sets': async () => {
+        await held
+        return { status: 201, body: performed(2) }
+      },
+    })
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const slot = await screen.findByTestId('slot-upper_a.01')
+    await user.click(within(slot).getByRole('button', { name: 'Add set' }))
+    const reps = within(slot).getByRole('textbox', { name: 'Reps, new set 2' })
+    await user.type(reps, '5{Enter}{Enter}')
+    expect(within(slot).getByRole('button', { name: 'Save set' })).toBeDisabled()
+    release()
+    await waitFor(() =>
+      expect(within(slot).getByRole('button', { name: 'Save set' })).toBeEnabled(),
+    )
+    expect(server.calls.filter((call) => call.method === 'POST')).toHaveLength(1)
+  })
+
+  it('refuses numbers too large to be a real entry', async () => {
+    const server = serve(entryFixture({ sets: [performed(1)] }))
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const reps = await screen.findByRole('textbox', { name: 'Reps, set 1' })
+    await user.clear(reps)
+    await user.type(reps, '100000000000000000000{Enter}')
+    expect(reps).toHaveAttribute('aria-invalid', 'true')
+    expect(server.calls.some((call) => call.method === 'PATCH')).toBe(false)
   })
 
   it('refuses to save a new set without reps', async () => {

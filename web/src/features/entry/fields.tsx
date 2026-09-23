@@ -31,15 +31,20 @@ export function CommitInput({
 }) {
   const [draft, setDraft] = useState(value)
   const focused = useRef(false)
+  // The last text sent, so Enter followed by blur (or Tab) never sends it twice while the
+  // server's refreshed value is still on its way.
+  const lastCommitted = useRef<string | null>(null)
 
   useEffect(() => {
+    lastCommitted.current = null
     if (!focused.current) setDraft(value)
   }, [value])
 
   const invalid = isValid ? !isValid(draft) : false
 
   const commit = () => {
-    if (invalid || draft === value) return
+    if (invalid || draft === value || draft === lastCommitted.current) return
+    lastCommitted.current = draft
     onCommit(draft)
   }
 
