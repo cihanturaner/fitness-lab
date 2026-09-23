@@ -1,5 +1,15 @@
 import type {
   ActiveProgram,
+  Bodyweight,
+  BodyweightEntry,
+  CalorieTarget,
+  ExerciseHistory,
+  HistoryExercise,
+  Nutrition,
+  NutritionDay,
+  NutritionFields,
+  RecentSession,
+  Week,
   CompleteResult,
   CompletionIssue,
   Entry,
@@ -107,4 +117,24 @@ export const api = {
     request<Exercise>('POST', '/api/exercises', { name, equipment_label: equipmentLabel }),
   lastPerformance: (exerciseId: string) =>
     request<LastPerformance | null>('GET', `/api/exercises/${exerciseId}/last-performance`),
+  week: (date: string) => request<Week>('GET', `/api/week?date=${date}`),
+  bodyweight: (date: string, days = 90) =>
+    request<Bodyweight>('GET', `/api/bodyweight?date=${date}&days=${days}`),
+  putBodyweight: (date: string, bodyweightKg: string, notes: string | null) =>
+    request<BodyweightEntry>('PUT', `/api/bodyweight/${date}`, { bodyweight_kg: bodyweightKg, notes }),
+  deleteBodyweight: (date: string) => request<void>('DELETE', `/api/bodyweight/${date}`),
+  nutrition: (date: string) => request<Nutrition>('GET', `/api/nutrition?date=${date}`),
+  putNutrition: (date: string, fields: NutritionFields) =>
+    request<NutritionDay>('PUT', `/api/nutrition/${date}`, fields),
+  deleteNutrition: (date: string) => request<void>('DELETE', `/api/nutrition/${date}`),
+  addCalorieTarget: (effectiveOn: string, caloriesKcal: number, notes: string | null) =>
+    request<CalorieTarget>('POST', '/api/nutrition/calorie-targets', {
+      effective_on: effectiveOn,
+      calories_kcal: caloriesKcal,
+      notes,
+    }),
+  historyExercises: () => request<HistoryExercise[]>('GET', '/api/history/exercises'),
+  exerciseHistory: (exerciseId: string) =>
+    request<ExerciseHistory>('GET', `/api/exercises/${exerciseId}/history`),
+  recentTraining: (limit = 3) => request<RecentSession[]>('GET', `/api/history/recent?limit=${limit}`),
 }

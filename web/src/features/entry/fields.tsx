@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { markUnsaved, useUnsavedKey } from '@/lib/unsaved'
-import { numberInputClass, textInputClass } from './parse'
+import { gridInputClass, gridTextInputClass, numberInputClass, textInputClass } from './parse'
 
 /**
  * A text input that keeps its own draft and commits once, on blur or Enter, only when the
@@ -25,6 +25,7 @@ export function CommitInput({
   inputMode,
   align = 'right',
   type = 'text',
+  dense = false,
 }: {
   value: string
   /** Resolves true once the server has stored the text. */
@@ -40,6 +41,8 @@ export function CommitInput({
   inputMode?: 'decimal' | 'numeric' | 'text'
   align?: 'left' | 'right'
   type?: 'text' | 'date' | 'time'
+  /** The compact workout-grid size. */
+  dense?: boolean
 }) {
   const [draft, setDraftState] = useState(value)
   const latest = useRef(value)
@@ -110,7 +113,15 @@ export function CommitInput({
         disabled={disabled}
         placeholder={placeholder}
         inputMode={inputMode}
-        className={`${align === 'left' ? textInputClass : numberInputClass} ${className ?? ''}`}
+        className={`${
+          dense
+            ? align === 'left'
+              ? gridTextInputClass
+              : gridInputClass
+            : align === 'left'
+              ? textInputClass
+              : numberInputClass
+        } ${className ?? ''}`}
         onFocus={() => {
           focused.current = true
         }}

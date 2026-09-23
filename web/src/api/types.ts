@@ -153,3 +153,135 @@ export interface SetFields {
   notes?: string | null
   exercise_id?: string
 }
+
+// --- V2: week, bodyweight, nutrition, history ------------------------------------------
+
+export type SessionStatus = 'complete' | 'draft' | 'not_started'
+
+export interface WeekSession {
+  planned_workout_id: string
+  workout_key: string
+  name: string
+  day_label: string | null
+  slot_count: number
+  set_count: number
+  status: SessionStatus
+  workout_id: string | null
+  workout_on: string | null
+}
+
+export interface WeekDay {
+  date: string
+  weekday: string
+  sessions: WeekSession[]
+  unplanned: { workout_id: string; status: WorkoutStatus }[]
+}
+
+export interface Week {
+  date: string
+  week_start: string
+  week_end: string
+  program: { id: string; name: string; version_label: string | null; duration_weeks: number | null } | null
+  block: { start_on: string; week: number; weeks: number | null } | null
+  days: WeekDay[]
+  unscheduled: WeekSession[]
+}
+
+export interface BodyweightEntry {
+  measured_on: string
+  bodyweight_kg: string
+  notes: string | null
+}
+
+export interface BodyweightSummary {
+  reference_on: string
+  latest: { measured_on: string; bodyweight_kg: string } | null
+  current_avg_kg: string | null
+  current_count: number
+  previous_avg_kg: string | null
+  previous_count: number
+  change_kg: string | null
+  change_pct: string | null
+}
+
+export interface SeriesPoint {
+  date: string
+  bodyweight_kg: string | null
+  avg7_kg: string | null
+}
+
+export interface Bodyweight {
+  entries: BodyweightEntry[]
+  summary: BodyweightSummary
+  series: SeriesPoint[]
+}
+
+export interface NutritionDay {
+  logged_on: string
+  calories_kcal: number | null
+  protein_g: number | null
+  carbs_g: number | null
+  fat_g: number | null
+  notes: string | null
+}
+
+export interface NutritionTargets {
+  protein_g: number
+  fat_g: number
+  calories_kcal: number | null
+  carbs_g: number | null
+  calorie_target_effective_on: string | null
+}
+
+export interface CalorieTarget {
+  id: string
+  effective_on: string
+  calories_kcal: number
+  notes: string | null
+  set_at_utc: string
+}
+
+export interface Nutrition {
+  date: string
+  day: NutritionDay | null
+  targets: NutritionTargets
+  recent: NutritionDay[]
+  target_history: CalorieTarget[]
+}
+
+export interface NutritionFields {
+  calories_kcal: number | null
+  protein_g: number | null
+  carbs_g: number | null
+  fat_g: number | null
+  notes: string | null
+}
+
+export interface HistoryExercise {
+  exercise: Exercise
+  exposures: number
+  last_performed_on: string
+}
+
+export interface Exposure {
+  workout_id: string
+  performed_on: string
+  performed_time_local: string | null
+  planned_workout_name: string | null
+  block_week: number | null
+  sets: PerformedSet[]
+}
+
+export interface ExerciseHistory {
+  exercise: Exercise
+  block_start_on: string | null
+  exposures: Exposure[]
+}
+
+export interface RecentSession {
+  workout_id: string
+  performed_on: string
+  performed_time_local: string | null
+  planned_workout_name: string | null
+  exercises: { exercise: Exercise; sets: PerformedSet[] }[]
+}

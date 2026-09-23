@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import type { ActiveProgram, Entry, Exercise } from '@/api/types'
+import type { ActiveProgram, Bodyweight, Entry, Exercise, Nutrition, Week, WeekSession } from '@/api/types'
 
 export interface Call {
   method: string
@@ -192,4 +192,114 @@ export function entryFixture(overrides: Partial<Entry> = {}): Entry {
     },
     ...overrides,
   }
+}
+
+function session(overrides: Partial<WeekSession>): WeekSession {
+  return {
+    planned_workout_id: 'pw-upper',
+    workout_key: 'upper_a',
+    name: 'Upper A',
+    day_label: 'Monday',
+    slot_count: 9,
+    set_count: 23,
+    status: 'not_started',
+    workout_id: null,
+    workout_on: null,
+    ...overrides,
+  }
+}
+
+/** Week of Mon 5 – Sun 11 Oct 2026, block week 2: Upper A done, Lower A a draft. */
+export const WEEK: Week = {
+  date: '2026-10-07',
+  week_start: '2026-10-05',
+  week_end: '2026-10-11',
+  program: {
+    id: 'v1',
+    name: '12-Week Advanced Natural Hypertrophy + Strength Program',
+    version_label: '1.0.0',
+    duration_weeks: 12,
+  },
+  block: { start_on: '2026-10-01', week: 2, weeks: 12 },
+  days: [
+    {
+      date: '2026-10-05',
+      weekday: 'Monday',
+      sessions: [session({ status: 'complete', workout_id: 'w-done', workout_on: '2026-10-05' })],
+      unplanned: [],
+    },
+    {
+      date: '2026-10-06',
+      weekday: 'Tuesday',
+      sessions: [
+        session({
+          planned_workout_id: 'pw-lower',
+          workout_key: 'lower_a',
+          name: 'Lower A',
+          day_label: 'Tuesday',
+          status: 'draft',
+          workout_id: 'draft-1',
+          workout_on: '2026-10-06',
+        }),
+      ],
+      unplanned: [],
+    },
+    { date: '2026-10-07', weekday: 'Wednesday', sessions: [], unplanned: [] },
+    {
+      date: '2026-10-08',
+      weekday: 'Thursday',
+      sessions: [
+        session({ planned_workout_id: 'pw-upper-b', workout_key: 'upper_b', name: 'Upper B', day_label: 'Thursday' }),
+      ],
+      unplanned: [],
+    },
+    {
+      date: '2026-10-09',
+      weekday: 'Friday',
+      sessions: [
+        session({ planned_workout_id: 'pw-lower-b', workout_key: 'lower_b', name: 'Lower B', day_label: 'Friday' }),
+      ],
+      unplanned: [],
+    },
+    { date: '2026-10-10', weekday: 'Saturday', sessions: [], unplanned: [] },
+    { date: '2026-10-11', weekday: 'Sunday', sessions: [], unplanned: [] },
+  ],
+  unscheduled: [],
+}
+
+export const BODYWEIGHT: Bodyweight = {
+  entries: [
+    { measured_on: '2026-10-07', bodyweight_kg: '72.6', notes: null },
+    { measured_on: '2026-10-06', bodyweight_kg: '72.4', notes: 'late dinner' },
+  ],
+  summary: {
+    reference_on: '2026-10-07',
+    latest: { measured_on: '2026-10-07', bodyweight_kg: '72.6' },
+    current_avg_kg: '72.30',
+    current_count: 7,
+    previous_avg_kg: '71.60',
+    previous_count: 6,
+    change_kg: '0.70',
+    change_pct: '0.98',
+  },
+  series: [
+    { date: '2026-10-06', bodyweight_kg: '72.4', avg7_kg: '72.25' },
+    { date: '2026-10-07', bodyweight_kg: '72.6', avg7_kg: '72.30' },
+  ],
+}
+
+export const NUTRITION: Nutrition = {
+  date: '2026-10-07',
+  day: { logged_on: '2026-10-07', calories_kcal: 2410, protein_g: 150, carbs_g: 290, fat_g: 62, notes: null },
+  targets: { protein_g: 145, fat_g: 60, calories_kcal: null, carbs_g: null, calorie_target_effective_on: null },
+  recent: [{ logged_on: '2026-10-07', calories_kcal: 2410, protein_g: 150, carbs_g: 290, fat_g: 62, notes: null }],
+  target_history: [],
+}
+
+/** Routes the home screen reads, answering every date with the fixtures above. */
+export const HOME_ROUTES: Record<string, Handler> = {
+  'GET /api/week': () => ({ body: WEEK }),
+  'GET /api/bodyweight': () => ({ body: BODYWEIGHT }),
+  'GET /api/nutrition': () => ({ body: NUTRITION }),
+  'GET /api/history/recent': () => ({ body: [] }),
 }

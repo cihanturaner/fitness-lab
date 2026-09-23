@@ -27,3 +27,12 @@ export const inputClass =
 /** Numbers read right-aligned in a column; words read left-aligned. */
 export const numberInputClass = `${inputClass} text-right`
 export const textInputClass = `${inputClass} text-left`
+
+/** The workout grid: one row per set, so every pixel of height counts. */
+const denseInputClass =
+  'num h-7 w-full rounded-md border border-input bg-card px-1.5 text-[13px] outline-none ' +
+  'placeholder:text-muted-foreground/45 focus-visible:border-ring focus-visible:ring-2 ' +
+  'focus-visible:ring-ring/30 disabled:border-transparent disabled:bg-transparent ' +
+  'disabled:text-foreground aria-invalid:border-destructive aria-invalid:ring-destructive/20'
+export const gridInputClass = `${denseInputClass} text-right`
+export const gridTextInputClass = `${denseInputClass} text-left`

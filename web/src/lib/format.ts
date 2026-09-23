@@ -1,4 +1,4 @@
-import type { Exercise, PerformedSet } from '@/api/types'
+import type { Exercise, PerformedSet, PlannedSet } from '@/api/types'
 
 export function formatReps(min: number, max: number | null): string {
   if (max === null) return `${min}+`
@@ -49,4 +49,57 @@ export function formatDate(isoDate: string): string {
     month: 'short',
     year: 'numeric',
   })
+}
+
+/** "80×7@2" — the notebook shorthand. Unrecorded load is "–", unrecorded RIR is left off. */
+export function compactSet(performed: Pick<PerformedSet, 'load_kg' | 'reps' | 'rir'>): string {
+  const load = performed.load_kg ?? '–'
+  const reps = performed.reps === null ? '?' : String(performed.reps)
+  return performed.rir === null ? `${load}×${reps}` : `${load}×${reps}@${performed.rir}`
+}
+
+/** "3 × 5–8 · RIR 2 / 2 / 1" — the whole prescription of one exercise on one line. */
+export function targetSummary(sets: PlannedSet[]): string {
+  if (sets.length === 0) return ''
+  const same = (values: string[]) => values.every((value) => value === values[0])
+  const reps = sets.map((planned) => formatReps(planned.reps_min, planned.reps_max))
+  const parts = [same(reps) ? `${sets.length} × ${reps[0]}` : `${sets.length} × ${reps.join(' / ')}`]
+  const rirs = sets.map((planned) => formatRir(planned.target_rir_min, planned.target_rir_max))
+  if (rirs.some((rir) => rir !== null)) {
+    const shown = rirs.map((rir) => rir ?? '–')
+    parts.push(`RIR ${same(shown) ? shown[0] : shown.join(' / ')}`)
+  }
+  const loads = sets.map((planned) => planned.target_load_kg ?? '–')
+  if (sets.some((planned) => planned.target_load_kg !== null)) {
+    parts.push(`${same(loads) ? loads[0] : loads.join(' / ')} kg`)
+  }
+  const types = sets.map((planned) => planned.set_type)
+  if (types.some((type) => type !== 'working')) {
+    parts.push(types.map((type) => setTypeLabel(type).toLowerCase()).join(' / '))
+  }
+  return parts.join(' · ')
+}
+
+/** "Mon 28 Sep" — dates inside the current year read without the year. */
+export function formatShortDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split('-').map(Number)
+  if (!year || !month || !day) return isoDate
+  const date = new Date(year, month - 1, day)
+  return date.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    ...(year === new Date().getFullYear() ? {} : { year: 'numeric' }),
+  })
+}
+
+/** "+0.70" / "-0.25" / "0.00": a change always says which way it went. */
+export function signed(value: string): string {
+  return value.startsWith('-') || /^0(\.0+)?$/.test(value) ? value : `+${value}`
+}
+
+/** YYYY-MM-DD shifted by whole days, in local civil time. */
+export function addDays(isoDate: string, days: number): string {
+  const [year, month, day] = isoDate.split('-').map(Number)
+  return localDate(new Date(year ?? 1970, (month ?? 1) - 1, (day ?? 1) + days))
 }

@@ -44,6 +44,8 @@
     --color-plan-rule: var(--plan-rule);
     --color-ok: var(--ok);
     --color-warn: var(--warn);
+    --color-series-trend: var(--series-trend);
+    --color-series-daily: var(--series-daily);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -79,6 +81,9 @@
     --plan-rule: #9fb2c4;
     --ok: #2f6b4f;
     --warn: #8a5a12;
+    /* Chart series, validated (lightness, chroma, CVD, contrast) on the card surface. */
+    --series-trend: #2b6aa3;
+    --series-daily: #b8792f;
     --chart-1: #35587a;
     --chart-2: #5f6a72;
     --chart-3: #9fb2c4;
