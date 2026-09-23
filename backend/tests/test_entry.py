@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
+from collections.abc import Callable
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -13,6 +16,7 @@ from fitness_lab.domain.models import (
     WorkoutStatus,
     create_exercise,
 )
+from fitness_lab.storage import db
 from fitness_lab.storage.entry import (
     Conflict,
     NotFound,
@@ -32,6 +36,7 @@ from fitness_lab.storage.entry import (
     set_slot_exercise,
 )
 from fitness_lab.storage.exercises import insert_exercise
+from fitness_lab.storage.migrations import migrate_to_head
 from fitness_lab.storage.programs import (
     activate_program_version,
     import_program_package,
@@ -534,3 +539,131 @@ def test_recent_workouts_lists_status_origin_and_set_count(
     assert recent[0].set_count == 1
     assert recent[1].origin_name is None
     assert recent[1].workout.status is WorkoutStatus.COMPLETE
+
+
+# --- review findings: races between a status check and the write -----------------------
+
+
+def _race_against_completion(
+    db_path: Path, workout_id: str, action: Callable[[sqlite3.Connection], object]
+) -> BaseException | None:
+    """Hold a completion open on connection B while ``action`` runs on connection A."""
+    outcome: list[BaseException | None] = []
+    with db.connection_scope(db_path) as holder:
+        holder.execute("BEGIN IMMEDIATE")
+        holder.execute("UPDATE workout SET status = 'complete' WHERE id = ?", (workout_id,))
+
+        def run() -> None:
+            with db.connection_scope(db_path) as connection:
+                try:
+                    action(connection)
+                    outcome.append(None)
+                except BaseException as exc:
+                    outcome.append(exc)
+
+        thread = threading.Thread(target=run)
+        thread.start()
+        thread.join(timeout=0.3)
+        holder.execute("COMMIT")
+        thread.join()
+    return outcome[0]
+
+
+def _seeded_file(db_path: Path) -> tuple[str, str, str]:
+    migrate_to_head(db_path)
+    with db.connection_scope(db_path) as connection:
+        exercises = seed_exercises(connection)
+        workout = create_unplanned_workout(connection, performed_on=DAY)
+        first = working(connection, workout.id, exercises["Bench Press"])
+        second = working(connection, workout.id, exercises["Bench Press"])
+    return workout.id, first, second
+
+
+def test_discard_cannot_delete_a_workout_completed_meanwhile(db_path: Path) -> None:
+    workout_id, _, _ = _seeded_file(db_path)
+
+    error = _race_against_completion(
+        db_path, workout_id, lambda connection: discard_draft(connection, workout_id)
+    )
+
+    assert isinstance(error, Conflict)
+    with db.connection_scope(db_path) as connection:
+        assert get_workout(connection, workout_id) is not None
+        assert len(list_sets_for_workout(connection, workout_id)) == 2
+
+
+def test_remove_cannot_delete_from_a_workout_completed_meanwhile(db_path: Path) -> None:
+    workout_id, first, _ = _seeded_file(db_path)
+
+    error = _race_against_completion(
+        db_path, workout_id, lambda connection: remove_set(connection, first)
+    )
+
+    assert isinstance(error, Conflict)
+    with db.connection_scope(db_path) as connection:
+        assert len(list_sets_for_workout(connection, workout_id)) == 2
+
+
+def test_a_float_load_is_a_value_error(
+    migrated_db: sqlite3.Connection, exercises: dict[str, Exercise]
+) -> None:
+    workout_id = open_upper(migrated_db)
+    with pytest.raises(ValueError):
+        add_set(
+            migrated_db,
+            workout_id,
+            exercise_id=exercises["Row"].id,
+            set_type=None,
+            load_kg=80.5,  # type: ignore[arg-type]
+            reps=None,
+            rir=None,
+            notes=None,
+        )
+    assert not migrated_db.in_transaction
+
+
+def test_open_resumes_the_most_recently_started_of_two_drafts(
+    migrated_db: sqlite3.Connection, exercises: dict[str, Exercise]
+) -> None:
+    older = open_upper(migrated_db, day="2026-10-05")
+    working(migrated_db, older, exercises["Bench Press"])
+    complete(migrated_db, older)
+    newer = open_planned_workout(
+        migrated_db,
+        upper_id(migrated_db),
+        performed_on="2026-10-12",
+        now="2026-10-12T18:00:00+00:00",
+    ).workout.id
+    reopen(migrated_db, older, now="2026-10-13T08:00:00+00:00")
+
+    resumed = open_planned_workout(migrated_db, upper_id(migrated_db), performed_on=DAY)
+
+    assert resumed.created is False
+    assert resumed.workout.id == newer
+
+
+def test_last_performance_returns_interleaved_sets_in_order(
+    migrated_db: sqlite3.Connection, exercises: dict[str, Exercise]
+) -> None:
+    workout = create_unplanned_workout(migrated_db, performed_on="2026-10-01")
+    working(migrated_db, workout.id, exercises["Bench Press"], load="60")
+    working(migrated_db, workout.id, exercises["Row"], load="50")
+    working(migrated_db, workout.id, exercises["Bench Press"], load="70")
+    complete(migrated_db, workout.id)
+
+    result = last_performance(migrated_db, exercises["Bench Press"].id)
+
+    assert result is not None
+    assert [(s.set_order, s.load_kg) for s in result.sets] == [
+        (1, Decimal("60")),
+        (3, Decimal("70")),
+    ]
+
+
+def test_last_performance_prefers_a_recorded_time_over_none_on_the_same_day(
+    migrated_db: sqlite3.Connection, exercises: dict[str, Exercise]
+) -> None:
+    timed = finished(migrated_db, exercises, "2026-10-03", ["90"], time_local="06:00")
+    finished(migrated_db, exercises, "2026-10-03", ["60"])
+    result = last_performance(migrated_db, exercises["Bench Press"].id)
+    assert result is not None and result.workout_id == timed

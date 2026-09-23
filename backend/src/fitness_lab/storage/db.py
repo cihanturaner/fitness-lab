@@ -90,10 +90,14 @@ def immediate_transaction(connection: sqlite3.Connection) -> Iterator[sqlite3.Co
     connection.execute("BEGIN IMMEDIATE")
     try:
         yield connection
+        connection.execute("COMMIT")
     except BaseException:
-        connection.execute("ROLLBACK")
+        # SQLite may already have rolled back on its own (SQLITE_FULL, interrupt); a bare
+        # ROLLBACK would then raise and hide the original error. A failed COMMIT leaves
+        # the transaction open, which would poison every later BEGIN on this connection.
+        if connection.in_transaction:
+            connection.execute("ROLLBACK")
         raise
-    connection.execute("COMMIT")
 
 
 def bootstrap_database(path: Path | None = None) -> None:

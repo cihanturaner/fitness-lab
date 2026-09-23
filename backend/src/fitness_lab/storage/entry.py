@@ -15,7 +15,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from decimal import Decimal
 
-from fitness_lab.domain.completion import CompletionReport, complete_workout, reopen_workout
+from fitness_lab.domain.completion import (
+    CompletionReport,
+    complete_workout,
+    renumber_sets,
+    reopen_workout,
+)
 from fitness_lab.domain.models import (
     Exercise,
     PerformedSet,
@@ -37,8 +42,6 @@ from fitness_lab.storage.programs import (
 )
 from fitness_lab.storage.workouts import (
     _write_renumbering,
-    delete_draft_workout,
-    delete_performed_set,
     get_workout,
     insert_performed_set,
     insert_workout,
@@ -324,7 +327,7 @@ def add_set(
         )
         try:
             insert_performed_set(connection, performed)
-        except sqlite3.IntegrityError as exc:
+        except (sqlite3.IntegrityError, ValueError, TypeError) as exc:
             raise ValueError(f"invalid set: {exc}") from exc
     return performed
 
@@ -390,10 +393,19 @@ def edit_set(
 
 
 def remove_set(connection: sqlite3.Connection, set_id: str) -> None:
-    """Hard delete (a draft's set is not yet evidence) via M1, which renumbers."""
-    current = _get_set(connection, set_id)
-    _require_draft(connection, current.workout_id)
-    delete_performed_set(connection, set_id)
+    """Hard delete (a draft's set is not yet evidence), then renumber — M1 §14.
+
+    The status check, the DELETE and the renumbering share one BEGIN IMMEDIATE
+    transaction, so a completion committed by another request cannot slip in between
+    the check and the delete. (M1's delete_performed_set opens its own transaction and
+    therefore cannot be called inside this one; its two steps are repeated here.)
+    """
+    with db.immediate_transaction(connection):
+        current = _get_set(connection, set_id)
+        _require_draft(connection, current.workout_id)
+        connection.execute("DELETE FROM performed_set WHERE id = ?", (set_id,))
+        remaining = renumber_sets(list_sets_for_workout(connection, current.workout_id))
+        _write_renumbering(connection, current.workout_id, remaining)
 
 
 def reorder_sets(
@@ -484,9 +496,19 @@ def edit_workout(
 
 
 def discard_draft(connection: sqlite3.Connection, workout_id: str) -> None:
-    """A draft is not evidence; discarding it loses nothing (M1 §14)."""
-    _require_draft(connection, workout_id)
-    delete_draft_workout(connection, workout_id)
+    """A draft is not evidence; discarding it loses nothing (M1 §14).
+
+    The DELETE itself is conditional on ``status = 'draft'`` inside one BEGIN IMMEDIATE
+    transaction: a workout completed by another request in the meantime is never removed
+    through this unguarded path (complete workouts go through the snapshotted M1 delete).
+    """
+    with db.immediate_transaction(connection):
+        _require_draft(connection, workout_id)
+        deleted = connection.execute(
+            "DELETE FROM workout WHERE id = ? AND status = 'draft'", (workout_id,)
+        ).rowcount
+        if deleted != 1:
+            raise Conflict(REOPEN_FIRST)
 
 
 # --- substitution --------------------------------------------------------------------------
@@ -575,7 +597,15 @@ def last_performance(
 
 
 def load_entry(connection: sqlite3.Connection, workout_id: str) -> EntryAggregate:
-    """Everything the Workout Entry screen needs, planned and actual kept apart."""
+    """Everything the Workout Entry screen needs, planned and actual kept apart.
+
+    All reads share one read transaction, so the aggregate is a single consistent snapshot.
+    """
+    with db.transaction(connection):
+        return _load_entry(connection, workout_id)
+
+
+def _load_entry(connection: sqlite3.Connection, workout_id: str) -> EntryAggregate:
     workout = _require_workout(connection, workout_id)
     origin = get_origin(connection, workout_id)
     slots: tuple[EntrySlot, ...] = ()
