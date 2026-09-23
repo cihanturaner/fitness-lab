@@ -1,116 +1,69 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useEffect, useState } from 'react'
 import { fetchHealth, fetchPingDb, type HealthResponse, type PingDbResponse } from '@/api/m0'
+import { EntryScreen } from '@/features/entry/EntryScreen'
+import { HomeScreen } from '@/features/home/HomeScreen'
+import { useRoute } from '@/lib/route'
 
-type Probe<T> = { state: 'loading' } | { state: 'ok'; data: T } | { state: 'error'; message: string }
+type SystemState =
+  | { state: 'checking' }
+  | { state: 'ok'; health: HealthResponse; db: PingDbResponse }
+  | { state: 'error'; message: string }
 
-const LOADING = { state: 'loading' } as const
+function SystemStatus() {
+  const [system, setSystem] = useState<SystemState>({ state: 'checking' })
 
-function toProbe<T>(promise: Promise<T>): Promise<Probe<T>> {
-  return promise.then(
-    (data) => ({ state: 'ok', data }) as const,
-    (error: unknown) =>
-      ({ state: 'error', message: error instanceof Error ? error.message : String(error) }) as const,
-  )
-}
+  useEffect(() => {
+    let live = true
+    Promise.all([fetchHealth(), fetchPingDb()]).then(
+      ([health, db]) => live && setSystem({ state: 'ok', health, db }),
+      (error: unknown) =>
+        live &&
+        setSystem({ state: 'error', message: error instanceof Error ? error.message : String(error) }),
+    )
+    return () => {
+      live = false
+    }
+  }, [])
 
-function Row({ label, value, testId }: { label: string; value: string; testId: string }) {
+  if (system.state === 'checking') return <span>Checking the local server…</span>
+  if (system.state === 'error') {
+    return <span className="text-destructive">Local server unreachable: {system.message}</span>
+  }
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-border/60 py-1.5 last:border-b-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span data-testid={testId} className="font-mono text-foreground">
-        {value}
-      </span>
-    </div>
+    <span className="num">
+      Local server <span data-testid="health-status">{system.health.status}</span>, version{' '}
+      <span data-testid="health-version">{system.health.version}</span>. Database{' '}
+      <span data-testid="db-source">{system.db.source}</span>{' '}
+      <span data-testid="db-version">{system.db.sqlite_version}</span>, on this machine only.
+    </span>
   )
-}
-
-function StatusBadge({ probe }: { probe: Probe<unknown> }) {
-  if (probe.state === 'loading') return <Badge variant="secondary">checking…</Badge>
-  if (probe.state === 'error') return <Badge variant="destructive">failed</Badge>
-  return <Badge>ok</Badge>
 }
 
 export default function App() {
-  const [health, setHealth] = useState<Probe<HealthResponse>>(LOADING)
-  const [pingDb, setPingDb] = useState<Probe<PingDbResponse>>(LOADING)
-
-  const runChecks = useCallback(() => {
-    void toProbe(fetchHealth()).then(setHealth)
-    void toProbe(fetchPingDb()).then(setPingDb)
-  }, [])
-
-  const rerunChecks = useCallback(() => {
-    setHealth(LOADING)
-    setPingDb(LOADING)
-    runChecks()
-  }, [runChecks])
-
-  useEffect(runChecks, [runChecks])
+  const route = useRoute()
 
   return (
-    <main className="min-h-screen bg-background px-6 py-16 text-foreground">
-      <div className="mx-auto flex max-w-3xl flex-col gap-8">
-        <header className="flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <h1 className="font-heading text-3xl font-semibold tracking-tight">fitness-lab</h1>
-            <Badge variant="outline">M0 · walking skeleton</Badge>
-          </div>
-          <p className="text-muted-foreground">
-            Technical feasibility page. It proves the React → FastAPI → SQLite chain runs
-            end-to-end on this machine. No fitness features live here.
-          </p>
-        </header>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card data-testid="health-card">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>FastAPI health</CardTitle>
-              <StatusBadge probe={health} />
-            </CardHeader>
-            <CardContent className="text-sm">
-              {health.state === 'ok' ? (
-                <>
-                  <Row label="status" value={health.data.status} testId="health-status" />
-                  <Row label="service" value={health.data.service} testId="health-service" />
-                  <Row label="version" value={health.data.version} testId="health-version" />
-                </>
-              ) : (
-                <p data-testid="health-message" className="font-mono text-muted-foreground">
-                  {health.state === 'loading' ? 'loading…' : health.message}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card data-testid="db-card">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>SQLite round-trip</CardTitle>
-              <StatusBadge probe={pingDb} />
-            </CardHeader>
-            <CardContent className="text-sm">
-              {pingDb.state === 'ok' ? (
-                <>
-                  <Row label="source" value={pingDb.data.source} testId="db-source" />
-                  <Row label="token" value={pingDb.data.token} testId="db-token" />
-                  <Row label="sqlite" value={pingDb.data.sqlite_version} testId="db-version" />
-                  <Row label="row created" value={pingDb.data.created_at} testId="db-created-at" />
-                </>
-              ) : (
-                <p data-testid="db-message" className="font-mono text-muted-foreground">
-                  {pingDb.state === 'loading' ? 'loading…' : pingDb.message}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <header className="border-b border-border bg-card">
+        <div className="mx-auto flex h-12 max-w-[1440px] items-center gap-6 px-6">
+          <a href="#/" className="text-[15px] font-semibold tracking-tight">
+            fitness-lab
+          </a>
+          <nav className="text-sm text-muted-foreground">
+            <a href="#/" className="hover:text-foreground">
+              Program
+            </a>
+          </nav>
         </div>
-
-        <div>
-          <Button onPress={rerunChecks}>Re-run checks</Button>
+      </header>
+      <main className="mx-auto w-full max-w-[1440px] flex-1 px-6 py-8">
+        {route.name === 'workout' ? <EntryScreen key={route.id} workoutId={route.id} /> : <HomeScreen />}
+      </main>
+      <footer className="border-t border-border px-6 py-3 text-xs text-muted-foreground">
+        <div className="mx-auto max-w-[1440px]">
+          <SystemStatus />
         </div>
-      </div>
-    </main>
+      </footer>
+    </div>
   )
 }

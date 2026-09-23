@@ -1,70 +1,67 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { PROGRAM, SYSTEM_ROUTES, entryFixture, fakeApi } from './test/fakeApi'
 
-const HEALTH = { status: 'ok', service: 'fitness-lab', version: '0.1.0' }
-const PING_DB = {
-  status: 'ok',
-  source: 'sqlite',
-  row_id: 1,
-  token: 'sqlite-roundtrip-ok',
-  created_at: '2026-09-07T19:08:24+00:00',
-  sqlite_version: '3.53.4',
-}
-
-function mockApi(overrides: { health?: unknown; pingDb?: unknown; failPingDb?: boolean } = {}) {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-    const url = String(input)
-    if (url.endsWith('/api/health')) {
-      return new Response(JSON.stringify(overrides.health ?? HEALTH), { status: 200 })
-    }
-    if (url.endsWith('/api/ping-db')) {
-      if (overrides.failPingDb) return new Response('boom', { status: 500 })
-      return new Response(JSON.stringify(overrides.pingDb ?? PING_DB), { status: 200 })
-    }
-    throw new Error(`unexpected fetch: ${url}`)
-  })
-  vi.stubGlobal('fetch', fetchMock)
-  return fetchMock
-}
-
-describe('M0 page', () => {
+describe('home', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
+    window.location.hash = ''
   })
 
-  it('renders both the health and the SQLite-backed responses', async () => {
-    mockApi()
+  it('shows the active program, its planned sessions and the local server status', async () => {
+    fakeApi({
+      ...SYSTEM_ROUTES,
+      'GET /api/program/active': () => ({ body: PROGRAM }),
+      'GET /api/workouts': () => ({ body: [] }),
+    })
 
     render(<App />)
 
+    expect(
+      await screen.findByRole('heading', { name: PROGRAM.version?.name }),
+    ).toBeInTheDocument()
+    const sessions = screen.getByRole('list', { name: 'Planned sessions' })
+    expect(within(sessions).getByText('Upper A')).toBeInTheDocument()
+    expect(within(sessions).getByRole('button', { name: 'Start Upper A' })).toBeInTheDocument()
+    expect(within(sessions).getByRole('button', { name: 'Resume draft of Lower A' })).toBeInTheDocument()
     expect(await screen.findByTestId('health-status')).toHaveTextContent('ok')
-    expect(screen.getByTestId('health-service')).toHaveTextContent('fitness-lab')
-    expect(await screen.findByTestId('db-source')).toHaveTextContent('sqlite')
-    expect(screen.getByTestId('db-token')).toHaveTextContent('sqlite-roundtrip-ok')
-    expect(screen.getByTestId('db-version')).toHaveTextContent('3.53.4')
+    expect(screen.getByTestId('db-source')).toHaveTextContent('sqlite')
   })
 
-  it('surfaces a failing endpoint instead of pretending it succeeded', async () => {
-    mockApi({ failPingDb: true })
-
+  it('explains what to do when no program is active', async () => {
+    fakeApi({
+      ...SYSTEM_ROUTES,
+      'GET /api/program/active': () => ({
+        body: { version: null, activated_at_utc: null, notes_text: null, planned_workouts: [] },
+      }),
+      'GET /api/workouts': () => ({ body: [] }),
+    })
     render(<App />)
-
-    expect(await screen.findByTestId('db-message')).toHaveTextContent('HTTP 500')
-    expect(screen.getByText('failed')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'No active program' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start unplanned session' })).toBeInTheDocument()
   })
 
-  it('re-queries both endpoints when the button is pressed', async () => {
-    const fetchMock = mockApi()
+  it('opens a planned session as a draft and routes to it', async () => {
+    const calls = fakeApi({
+      ...SYSTEM_ROUTES,
+      'GET /api/program/active': () => ({ body: PROGRAM }),
+      'GET /api/workouts': () => ({ body: [] }),
+      'POST /api/planned-workouts/pw-upper/open': () => ({
+        body: { workout_id: 'w1', created: true, workout: entryFixture().workout, origin: null },
+      }),
+      'GET /api/workouts/w1/entry': () => ({ body: entryFixture() }),
+      'GET /api/exercises': () => ({ body: [] }),
+    })
     const user = userEvent.setup()
-
     render(<App />)
-    await screen.findByTestId('db-token')
-    const callsAfterMount = fetchMock.mock.calls.length
 
-    await user.click(screen.getByRole('button', { name: 'Re-run checks' }))
+    await user.click(await screen.findByRole('button', { name: 'Start Upper A' }))
 
-    await waitFor(() => expect(fetchMock.mock.calls.length).toBe(callsAfterMount + 2))
+    await waitFor(() => expect(window.location.hash).toBe('#/workouts/w1'))
+    const open = calls.find((call) => call.method === 'POST')
+    expect(open?.body).toEqual({ performed_on: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) })
+    expect(await screen.findByRole('heading', { name: 'Upper A', level: 1 })).toBeInTheDocument()
   })
 })
