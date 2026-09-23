@@ -43,9 +43,22 @@ else
 fi
 
 echo "==> starting fitness-lab on http://${HOST}:${PORT}"
-(cd backend && uv run uvicorn fitness_lab.api.app:app --host "$HOST" --port "$PORT") &
+# exec: the background job IS the uv process (which forwards signals to uvicorn), not a
+# subshell around it. Killing a subshell would orphan the server, still holding the port
+# and the database open.
+(cd backend && exec uv run uvicorn fitness_lab.api.app:app --host "$HOST" --port "$PORT") &
 SERVER_PID=$!
-trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT INT TERM
+
+stop_server() {
+  if kill -0 "$SERVER_PID" 2>/dev/null; then
+    kill -TERM "$SERVER_PID" 2>/dev/null || true
+    # Wait for uvicorn's graceful shutdown so the database connection is closed cleanly.
+    wait "$SERVER_PID" 2>/dev/null || true
+  fi
+}
+trap stop_server EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 for _ in $(seq 1 60); do
   if curl -sf "http://${HOST}:${PORT}/api/health" >/dev/null 2>&1; then
