@@ -77,6 +77,25 @@ def transaction(connection: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
     connection.execute("COMMIT")
 
 
+@contextmanager
+def immediate_transaction(connection: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
+    """A transaction that takes the write lock up front (``BEGIN IMMEDIATE``).
+
+    Required for read-then-write sequences that must not race: a deferred transaction
+    that reads first and upgrades to a writer later fails with SQLITE_BUSY in WAL mode
+    when another writer committed in between, instead of waiting. Taking the lock first
+    makes a second writer — another thread, another process, a retried request — wait
+    for ``busy_timeout`` and then read the committed state.
+    """
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        yield connection
+    except BaseException:
+        connection.execute("ROLLBACK")
+        raise
+    connection.execute("COMMIT")
+
+
 def bootstrap_database(path: Path | None = None) -> None:
     """Persistent database configuration, set once — not routine connection state.
 
