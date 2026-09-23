@@ -269,7 +269,10 @@ function PendingRow({
   const [problem, setProblem] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const inFlight = useRef(false)
+  // Saved and about to be removed: nothing — not even the focus leaving it — resubmits it.
+  const done = useRef(false)
   const loadRef = useRef<HTMLInputElement>(null)
+  const rowRef = useRef<HTMLTableRowElement>(null)
   const unsavedKey = useUnsavedKey()
   const label = `new set ${number}`
   const dirty = reps.trim() !== '' || rir.trim() !== '' || (load.trim() !== '' && load !== carriedLoad)
@@ -299,8 +302,18 @@ function PendingRow({
     }
   }, [carriedLoad])
 
-  const submit = async () => {
-    if (inFlight.current || !dirty) return
+  /** Where Enter sends the cursor once this row is saved: the next row, else "+ Set". */
+  const focusNext = () => {
+    let next = rowRef.current?.nextElementSibling ?? null
+    while (next && next.getAttribute('data-testid') !== 'new-set-row') next = next.nextElementSibling
+    const target =
+      next?.querySelector('input') ??
+      rowRef.current?.closest('table')?.parentElement?.querySelector<HTMLButtonElement>('button[aria-label^="Add set"]')
+    target?.focus()
+  }
+
+  const submit = async (fromEnter = false) => {
+    if (inFlight.current || done.current || !dirty) return
     const parsedLoad = parseLoad(load)
     const parsedReps = parseCount(reps, { allowNegative: false })
     const parsedRir = parseCount(rir, { allowNegative: true })
@@ -327,7 +340,9 @@ function PendingRow({
     if (saved) {
       // Nothing here is unsaved any more, even before React removes the row (Complete may
       // be reading the registry right now).
+      done.current = true
       markUnsaved(unsavedKey, null)
+      if (fromEnter && rowRef.current?.contains(document.activeElement)) focusNext()
       onSaved()
     } else {
       setProblem('Not saved. Press Enter to retry.')
@@ -342,7 +357,7 @@ function PendingRow({
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === 'Enter') {
       event.preventDefault()
-      void submit()
+      void submit(true)
     }
     if (event.key === 'Escape') {
       // Drop what was typed in this row; the carried load and type stay as offered.
@@ -362,7 +377,8 @@ function PendingRow({
         setProblem(null)
       },
       onKeyDown,
-      disabled: saving,
+      // readOnly, not disabled: a disabled field drops the lifter's focus mid-save.
+      readOnly: saving,
       className: gridInputClass,
     }
   }
@@ -370,7 +386,7 @@ function PendingRow({
 
   return (
     <>
-      <tr data-testid="new-set-row" onBlur={onBlur} aria-busy={saving || undefined}>
+      <tr ref={rowRef} data-testid="new-set-row" onBlur={onBlur} aria-busy={saving || undefined}>
         <td className="num pr-1 text-[13px] text-muted-foreground">{number}</td>
         <td className="py-0.5 pr-1">
           <input
@@ -405,10 +421,10 @@ function PendingRow({
           <TypeSelect
             label={`Set type, ${label}`}
             value={type}
-            disabled={saving}
             invalid={problem !== null && type === ''}
             quiet={!first && problem === null}
             onChange={(code) => {
+              if (saving) return
               setType(code)
               setProblem(null)
             }}

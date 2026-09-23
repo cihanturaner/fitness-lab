@@ -72,12 +72,12 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
       ) : (
         <>
           <div className="overflow-x-auto rounded-lg border border-border bg-card p-3">
-            <table className="num w-full text-[13px]" aria-label="Exposures">
+            <table className="num text-[13px]" aria-label="Exposures">
               <thead className="text-left text-[11px] tracking-wider text-muted-foreground uppercase">
                 <tr>
-                  <th className="pb-1 pr-3 font-medium">Date</th>
-                  {history.block_start_on && <th className="pb-1 pr-3 font-medium">Wk</th>}
-                  <th className="pb-1 pr-3 font-medium">Session</th>
+                  <th className="pb-1 pr-6 font-medium">Date</th>
+                  {history.block_start_on && <th className="pb-1 pr-6 font-medium">Wk</th>}
+                  <th className="pb-1 pr-6 font-medium">Session</th>
                   {Array.from({ length: widest }, (_, index) => (
                     <th key={index} className="pb-1 pr-3 font-medium">
                       Set {index + 1}
@@ -88,24 +88,24 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
               <tbody>
                 {exposures.map((exposure) => (
                   <tr key={exposure.workout_id} data-testid="history-exposure" className="border-t border-border/70">
-                    <td className="py-1.5 pr-3 whitespace-nowrap">
+                    <td className="py-1.5 pr-6 whitespace-nowrap">
                       <a href={workoutHref(exposure.workout_id)} className="hover:underline">
                         {formatShortDate(exposure.performed_on)}
                       </a>
                     </td>
                     {history.block_start_on && (
-                      <td className="py-1.5 pr-3 text-muted-foreground">
+                      <td className="py-1.5 pr-6 text-muted-foreground">
                         {exposure.block_week !== null && exposure.block_week >= 1 ? exposure.block_week : '–'}
                       </td>
                     )}
-                    <td className="py-1.5 pr-3 whitespace-nowrap text-muted-foreground">
+                    <td className="py-1.5 pr-6 whitespace-nowrap text-muted-foreground">
                       {exposure.planned_workout_name ?? 'Unplanned'}
                     </td>
                     {exposure.sets.map((performed) => (
                       <td
                         key={performed.id}
                         data-testid="history-set"
-                        className={`py-1.5 pr-3 whitespace-nowrap ${performed.set_type === 'warmup' ? 'text-muted-foreground' : 'font-medium'}`}
+                        className={`py-1.5 pr-6 whitespace-nowrap ${performed.set_type === 'warmup' ? 'text-muted-foreground' : 'font-medium'}`}
                       >
                         {compactSet(performed)}
                         {performed.set_type === 'warmup' && <sup className="ml-px text-[9px]">w</sup>}

@@ -4,6 +4,7 @@ import type { Nutrition, NutritionDay } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { addDays, formatShortDate, localDate } from '@/lib/format'
 import { parseWhole } from '@/lib/numbers'
+import { confirmLeave, markUnsaved, useUnsavedKey } from '@/lib/unsaved'
 
 // Mirrors backend domain/nutrition.py; the server enforces the same limits.
 const FIXED_PROTEIN_FAT_KCAL = 1120
@@ -169,6 +170,18 @@ export function NutritionScreen() {
   const [problem, setProblem] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const unsavedKey = useUnsavedKey()
+  const saved_ = draftOf(data?.day ?? null)
+  const typed = (Object.keys(saved_) as (keyof Draft)[]).some((key) => draft[key].trim() !== saved_[key].trim())
+  useEffect(() => {
+    markUnsaved(unsavedKey, typed ? 'Nutrition log (typed, not saved)' : null)
+  }, [unsavedKey, typed])
+  /** Another date replaces the form; typed input is only dropped if the lifter agrees. */
+  const goTo = (next: string) => {
+    if (next === day || !confirmLeave()) return
+    markUnsaved(unsavedKey, null)
+    setDay(next)
+  }
 
   const load = useCallback(
     (date: string) =>
@@ -216,6 +229,7 @@ export function NutritionScreen() {
         fat_g: values.fat_g ?? null,
         notes: draft.notes.trim() === '' ? null : draft.notes.trim(),
       })
+      markUnsaved(unsavedKey, null)
       setSaved(`Saved ${formatShortDate(day)}.`)
       await load(day)
     } catch (failure) {
@@ -254,7 +268,7 @@ export function NutritionScreen() {
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h1 className="text-xl font-semibold tracking-tight">Nutrition</h1>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon-sm" aria-label="Previous day" onPress={() => setDay(addDays(day, -1))}>
+          <Button variant="ghost" size="icon-sm" aria-label="Previous day" onPress={() => goTo(addDays(day, -1))}>
             ‹
           </Button>
           <input
@@ -263,19 +277,19 @@ export function NutritionScreen() {
             className={inputClass}
             value={day}
             max={today}
-            onChange={(event) => event.target.value && setDay(event.target.value)}
+            onChange={(event) => event.target.value && goTo(event.target.value)}
           />
           <Button
             variant="ghost"
             size="icon-sm"
             aria-label="Next day"
             isDisabled={day >= today}
-            onPress={() => setDay(addDays(day, 1))}
+            onPress={() => goTo(addDays(day, 1))}
           >
             ›
           </Button>
           {day !== today && (
-            <Button variant="ghost" size="sm" onPress={() => setDay(today)}>
+            <Button variant="ghost" size="sm" onPress={() => goTo(today)}>
               Today
             </Button>
           )}
@@ -401,7 +415,7 @@ export function NutritionScreen() {
                   key={row.logged_on}
                   data-testid="nut-day"
                   className={`cursor-pointer border-t border-border/70 hover:bg-muted/60 ${row.logged_on === day ? 'bg-muted/60' : ''}`}
-                  onClick={() => setDay(row.logged_on)}
+                  onClick={() => goTo(row.logged_on)}
                 >
                   <td className="py-1">{formatShortDate(row.logged_on)}</td>
                   <td className="py-1 text-right">{row.calories_kcal ?? '—'}</td>

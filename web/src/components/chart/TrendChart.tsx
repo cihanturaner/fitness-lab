@@ -145,7 +145,7 @@ export function TrendChart({
                 {(item.kind === 'dots' || item.markers) &&
                   item.values.map((value, index) =>
                     value === null ? null : (
-                      <circle key={index} cx={x(index)} cy={y(value)} r={item.markers ? 4 : 3} fill={item.color} stroke="var(--card)" strokeWidth={1.5} />
+                      <circle key={index} cx={x(index)} cy={y(value)} r={4} fill={item.color} stroke="var(--card)" strokeWidth={1.5} />
                     ),
                   )}
               </g>

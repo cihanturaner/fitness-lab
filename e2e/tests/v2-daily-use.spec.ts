@@ -117,6 +117,8 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
   await page.keyboard.type('1')
   await page.keyboard.press('Enter')
   await expect.poll(() => savedRows(squat)).toEqual(['100×8@2', '100×7@2', '102.5×6@1'])
+  // Enter on the last planned row leaves the cursor on "+ Set", ready for an extra set.
+  await expect(squat.getByRole('button', { name: /^Add set/ })).toBeFocused()
   expect(
     db(
       `SELECT group_concat(load_g || 'x' || reps || '@' || rir || ':' || set_type, ' ') FROM (SELECT * FROM performed_set WHERE workout_id = '${workoutId}' ORDER BY set_order)`,
@@ -288,5 +290,7 @@ test('history: chronological kg/reps/RIR per exercise, week by week', async ({ p
   await expect(page.getByTestId('history-exposure').first().getByTestId('history-set')).toHaveText(['80×10'])
   await page.screenshot({ path: '../artifacts/v2-history-1440x900.png' })
   await page.goto('/')
+  await expect(page.getByTestId('block-week')).toBeVisible()
+  await expect(page.getByTestId('home-recent')).toContainText('Smith High-Bar Squat')
   await page.screenshot({ path: '../artifacts/v2-home-1440x900.png' })
 })

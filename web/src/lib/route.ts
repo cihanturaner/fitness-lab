@@ -37,9 +37,9 @@ export function navigate(href: string): void {
 }
 
 /**
- * The current route. Every way of leaving a workout — a link, Back/Forward, a trackpad
+ * The current route. Every way of leaving a screen — a link, Back/Forward, a trackpad
  * swipe — is a hashchange, so this is the one place that asks before unsaved input is
- * dropped; declining puts the workout's address back without a new history entry.
+ * dropped; declining puts the screen's address back without a new history entry.
  */
 export function useRoute(): Route {
   const [route, setRoute] = useState(() => parseRoute(window.location.hash))
@@ -48,7 +48,7 @@ export function useRoute(): Route {
     const onChange = () => {
       const next = window.location.hash
       if (next === current) return
-      if (parseRoute(current).name === 'workout' && !confirmLeave()) {
+      if (!confirmLeave()) {
         window.history.replaceState(null, '', current)
         return
       }

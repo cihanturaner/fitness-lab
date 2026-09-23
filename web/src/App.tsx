@@ -7,6 +7,7 @@ import { SessionsScreen } from '@/features/history/SessionsScreen'
 import { HomeScreen } from '@/features/home/HomeScreen'
 import { NutritionScreen } from '@/features/nutrition/NutritionScreen'
 import { useRoute, type Route } from '@/lib/route'
+import { installUnloadGuard } from '@/lib/unsaved'
 
 type SystemState =
   | { state: 'checking' }
@@ -69,6 +70,7 @@ function Screen({ route }: { route: Route }) {
 
 export default function App() {
   const route = useRoute()
+  useEffect(installUnloadGuard, [])
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">

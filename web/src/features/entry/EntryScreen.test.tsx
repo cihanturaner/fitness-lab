@@ -540,4 +540,26 @@ describe('EntryScreen — one compact block per exercise', () => {
     expect(deleted).toBeGreaterThan(-1)
     expect(server.calls.slice(deleted + 1).some((call) => call.url.includes('/entry'))).toBe(false)
   })
+
+  it('after Enter saves a row, the cursor is in the next row’s load', async () => {
+    const saved = performed(2, { load_kg: '85', reps: 5 })
+    const server = serve(entryFixture({ sets: [performed(1)] }), {
+      'POST /api/workouts/w1/sets': () => {
+        server.set(entryFixture({ sets: [performed(1), saved] }))
+        return { status: 201, body: saved }
+      },
+    })
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const block = await screen.findByTestId('slot-upper_a.01')
+    // 2 planned sets, 1 saved: one pending row; add a second so Enter has somewhere to go.
+    await user.click(within(block).getByRole('button', { name: /^Add set/ }))
+    const load = within(block).getByRole('textbox', { name: 'Load in kg, new set 2' })
+    await user.click(load)
+    await user.keyboard('{Control>}a{/Control}85{Tab}5{Enter}')
+    await waitFor(() => expect(posts(server.calls)).toHaveLength(1))
+    await waitFor(() =>
+      expect(within(block).getByRole('textbox', { name: 'Load in kg, new set 3' })).toHaveFocus(),
+    )
+  })
 })

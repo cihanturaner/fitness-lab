@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { TrendChart } from '@/components/chart/TrendChart'
 import { formatShortDate, localDate, signed } from '@/lib/format'
 import { parseBodyweight } from '@/lib/numbers'
+import { markUnsaved, useUnsavedKey } from '@/lib/unsaved'
 
 const inputClass =
   'num h-8 rounded-md border border-input bg-card px-2 text-[13px] outline-none ' +
@@ -35,6 +36,11 @@ export function BodyweightScreen() {
   const [problem, setProblem] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const unsavedKey = useUnsavedKey()
+  const typed = kg.trim() !== '' || notes.trim() !== ''
+  useEffect(() => {
+    markUnsaved(unsavedKey, typed ? 'Bodyweight (typed, not saved)' : null)
+  }, [unsavedKey, typed])
 
   const load = useCallback(
     () =>
@@ -69,6 +75,7 @@ export function BodyweightScreen() {
     setSaving(true)
     try {
       await api.putBodyweight(day, value, notes.trim() === '' ? null : notes.trim())
+      markUnsaved(unsavedKey, null)
       setSaved(`Saved ${value} kg for ${formatShortDate(day)}.`)
       setKg('')
       setNotes('')

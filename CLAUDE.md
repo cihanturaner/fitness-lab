@@ -47,9 +47,18 @@ Dependency direction is one-way:
 - Imported program content is append-only (trigger-enforced); at most one version is active.
 - Development, tests and E2E never use `data/fitness_lab.db`; always a scratch
   `FITNESS_LAB_DB`.
+- Bodyweight is exact integer grams, one entry per date. Nutrition is one log per date
+  (integer kcal and grams). Protein 145 g and fat 60 g are locked; the calorie target is
+  unknown until the lifter records one (append-only `calorie_target`), and carbohydrate
+  is then (calories - 1120) / 4. The app never sets or changes calories itself.
+- A workout row in the UI is not a set until the lifter saves it; its set type is never
+  taken from the plan.
 
-Current design: `docs/superpowers/specs/2026-09-23-m2-planned-program-workflow-design.md`
-(M2, builds on the M1 spec in the same directory).
+Current design: `docs/superpowers/specs/2026-09-23-v2-product-ux-note.md` (V2: Week,
+Workout, Bodyweight, Nutrition, History), on top of
+`docs/superpowers/specs/2026-09-23-m2-planned-program-workflow-design.md` (M2) and the M1
+spec in the same directory. The authoritative nutrition source is
+`programs/advanced-natural-12w-nutrition/artifact/locked_nutrition_tracker.json`.
 
 ## Repository layout
 
@@ -97,6 +106,7 @@ one JSON result:
     uv run fitness-lab import-program ../programs/advanced-natural-12w/package
     uv run fitness-lab activate-program <version_id>
     uv run fitness-lab list-programs | show-program | deactivate-program
+    uv run fitness-lab set-block-start 2026-10-01    # week 1 = the Mon-Sun week containing it
 
 Import is idempotent (an identical package returns the existing version and writes
 nothing) and never creates exercises; `ensure-exercises` creates missing identities
@@ -134,8 +144,9 @@ Frontend (from `web/`):
     npm test
     npm run build
 
-End-to-end (from `e2e/`) — seeds a fresh scratch database with the locked program and
-starts the real launcher on port 8710 (8711 for the restart test); it ignores
+End-to-end (from `e2e/`) — seeds fresh scratch databases with the locked program and
+starts the real launcher on port 8710 (V1 journey; 8711 for the restart test) and 8712
+(V2 daily-use journey, its own database, block started two Mondays ago); it ignores
 `FITNESS_LAB_DB` and never reuses a running server:
 
     npx playwright test
