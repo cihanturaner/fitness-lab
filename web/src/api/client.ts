@@ -42,8 +42,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
-  if (response.status === 204) return undefined as T
+  // Always drain the body, even for 204: an unread response stream is cancelled (and
+  // reported as a failed request) when the page navigates away.
   const text = await response.text()
+  if (response.status === 204) return undefined as T
   const payload: unknown = text ? JSON.parse(text) : null
   if (!response.ok) {
     const record = (payload ?? {}) as { detail?: unknown; blockers?: CompletionIssue[] }
