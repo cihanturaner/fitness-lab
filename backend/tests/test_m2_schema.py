@@ -497,3 +497,63 @@ def test_an_exercise_used_by_a_plan_cannot_be_deleted(plan: sqlite3.Connection) 
 
     with pytest.raises(sqlite3.IntegrityError, match="FOREIGN KEY"):
         delete_exercise(plan, "e2")
+
+
+# --- final council: REPLACE and id rewrites on the M1 evidence tables -----------------------
+
+
+def test_update_or_replace_cannot_rewrite_a_workout_id(plan: sqlite3.Connection) -> None:
+    insert_workout(plan, "w2")
+    with pytest.raises(sqlite3.IntegrityError, match="never changes"):
+        plan.execute("UPDATE OR REPLACE workout SET id = 'w1' WHERE id = 'w2'")
+    assert plan.execute("SELECT count(*) FROM workout_plan_origin").fetchone()[0] == 1
+
+
+def performed_sql(set_id: str, order: int, reps: int, verb: str = "INSERT") -> str:
+    return (
+        f"{verb} INTO performed_set (id, workout_id, exercise_id, set_order, set_type, load_g, "
+        "reps, rir, notes, entered_at_utc, updated_at_utc) "
+        f"VALUES ('{set_id}', 'w1', 'e1', {order}, 'working', 80000, {reps}, 2, NULL, "
+        f"'{STAMP}', '{STAMP}')"
+    )
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        performed_sql("evil", 1, 99, verb="INSERT OR REPLACE"),  # collides on (workout, order)
+        performed_sql("k1", 7, 99, verb="INSERT OR REPLACE"),  # collides on id
+        performed_sql("evil", 1, 99, verb="REPLACE"),
+    ],
+)
+def test_replace_cannot_overwrite_a_performed_set(plan: sqlite3.Connection, statement: str) -> None:
+    plan.execute(performed_sql("k1", 1, 5))
+    with pytest.raises(sqlite3.IntegrityError, match="never replaced"):
+        plan.execute(statement)
+    rows = plan.execute("SELECT id, reps FROM performed_set").fetchall()
+    assert [tuple(row) for row in rows] == [("k1", 5)]
+
+
+def test_a_performed_set_id_never_changes(plan: sqlite3.Connection) -> None:
+    plan.execute(performed_sql("k1", 1, 5))
+    with pytest.raises(sqlite3.IntegrityError, match="never changes"):
+        plan.execute("UPDATE performed_set SET id = 'k2' WHERE id = 'k1'")
+
+
+def test_set_order_renumbering_still_works(plan: sqlite3.Connection) -> None:
+    plan.execute(performed_sql("k1", 1, 5))
+    plan.execute(performed_sql("k2", 2, 6))
+    plan.execute("UPDATE performed_set SET set_order = set_order + 1000 WHERE workout_id = 'w1'")
+    plan.execute(
+        "UPDATE performed_set SET set_order = 3 - (set_order - 1000) WHERE workout_id = 'w1'"
+    )
+    rows = plan.execute("SELECT id, set_order FROM performed_set ORDER BY set_order").fetchall()
+    assert [tuple(row) for row in rows] == [("k2", 1), ("k1", 2)]
+
+
+def test_update_or_replace_cannot_overwrite_a_performed_set(plan: sqlite3.Connection) -> None:
+    plan.execute(performed_sql("k1", 1, 5))
+    plan.execute(performed_sql("k2", 2, 6))
+    with pytest.raises(sqlite3.IntegrityError, match="never replaced"):
+        plan.execute("UPDATE OR REPLACE performed_set SET set_order = 1 WHERE id = 'k2'")
+    assert plan.execute("SELECT count(*) FROM performed_set").fetchone()[0] == 2

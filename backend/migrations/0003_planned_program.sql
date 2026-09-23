@@ -219,6 +219,46 @@ BEGIN
     SELECT RAISE(ABORT, 'workout already exists; it is updated in place, never replaced');
 END;
 
+-- The same protection for the rest of the M1 evidence. An id is permanent, and no write may
+-- land on another row's unique key: UPDATE OR REPLACE / INSERT OR REPLACE would otherwise
+-- delete that row (cascading away a workout's sets, origin and substitutions) without any
+-- delete trigger firing. Ordinary renumbering never collides, so it is unaffected.
+CREATE TRIGGER trg_workout_id_immutable BEFORE UPDATE OF id ON workout
+WHEN NEW.id IS NOT OLD.id
+BEGIN
+    SELECT RAISE(ABORT, 'a workout id never changes');
+END;
+
+CREATE TRIGGER trg_performed_set_id_immutable BEFORE UPDATE OF id ON performed_set
+WHEN NEW.id IS NOT OLD.id
+BEGIN
+    SELECT RAISE(ABORT, 'a performed set id never changes');
+END;
+
+CREATE TRIGGER trg_performed_set_no_replace BEFORE INSERT ON performed_set
+WHEN EXISTS (SELECT 1 FROM performed_set WHERE id = NEW.id)
+BEGIN
+    SELECT RAISE(ABORT, 'a performed set is never replaced; it is updated in place');
+END;
+
+CREATE TRIGGER trg_performed_set_no_replace_order BEFORE INSERT ON performed_set
+WHEN EXISTS (SELECT 1 FROM performed_set
+             WHERE workout_id = NEW.workout_id AND set_order = NEW.set_order)
+BEGIN
+    SELECT RAISE(ABORT,
+        'a performed set is never replaced: (workout_id, set_order) is already taken');
+END;
+
+CREATE TRIGGER trg_performed_set_no_replace_order_update
+BEFORE UPDATE OF workout_id, set_order ON performed_set
+WHEN EXISTS (SELECT 1 FROM performed_set
+             WHERE workout_id = NEW.workout_id AND set_order = NEW.set_order
+               AND id <> OLD.id)
+BEGIN
+    SELECT RAISE(ABORT,
+        'a performed set is never replaced: (workout_id, set_order) is already taken');
+END;
+
 -- Immutable provenance. A DELETE is legal only as the cascade of the workout's own
 -- deletion: by then the workout row is already gone (verified against SQLite 3.53).
 

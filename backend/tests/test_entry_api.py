@@ -137,6 +137,9 @@ def test_open_creates_an_empty_draft_and_resumes(
 
     active = client.get("/api/program/active").json()
     assert active["planned_workouts"][0]["open_draft_id"] == body["workout_id"]
+    # The draft's own date travels with it, so resuming an older draft is never silent.
+    assert active["planned_workouts"][0]["open_draft_performed_on"] == DAY
+    assert active["planned_workouts"][1]["open_draft_performed_on"] is None
 
 
 def test_open_ignores_any_client_supplied_provenance(
@@ -411,3 +414,47 @@ def test_discarding_a_draft_with_sets_keeps_a_snapshot(
     assert client.delete(f"/api/workouts/{workout_id}").status_code == 204
     snapshots = list((db_file.parent / "snapshots").glob(f"*-pre-discard-workout-{workout_id}.db"))
     assert len(snapshots) == 1
+
+
+# --- final council ------------------------------------------------------------------------
+
+
+def test_last_performance_names_the_session_it_came_from(
+    client: TestClient, seeded: dict[str, Any]
+) -> None:
+    bench = seeded["exercises"]["Bench Press"]
+    workout_id = open_upper(client, seeded)
+    add(client, workout_id, bench)
+    assert client.post(f"/api/workouts/{workout_id}/complete").status_code == 200
+    body = client.get(f"/api/exercises/{bench}/last-performance").json()
+    assert body["planned_workout_name"] == "Upper A"
+
+    unplanned = client.post("/api/workouts", json={"performed_on": "2026-10-06"}).json()["id"]
+    add(client, unplanned, bench)
+    assert client.post(f"/api/workouts/{unplanned}/complete").status_code == 200
+    body = client.get(f"/api/exercises/{bench}/last-performance").json()
+    assert body["workout_id"] == unplanned
+    assert body["planned_workout_name"] is None
+
+
+def test_requests_for_a_foreign_host_are_refused(client: TestClient) -> None:
+    """DNS rebinding: a page on another origin that resolves to 127.0.0.1 gets nothing."""
+    assert client.get("/api/workouts", headers={"host": "evil.example:8000"}).status_code == 400
+    assert client.get("/api/workouts", headers={"host": "127.0.0.1:8000"}).status_code == 200
+    assert client.get("/api/workouts", headers={"host": "localhost:5173"}).status_code == 200
+
+
+def test_health_carries_the_launch_identity(db_file: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FITNESS_LAB_LAUNCH_ID", "launch-123")
+    with TestClient(create_app()) as launched:
+        assert launched.get("/api/health").json()["launch_id"] == "launch-123"
+    monkeypatch.delenv("FITNESS_LAB_LAUNCH_ID")
+    with TestClient(create_app()) as plain:
+        assert plain.get("/api/health").json()["launch_id"] is None
+
+
+def test_new_exercise_names_and_labels_are_trimmed(client: TestClient) -> None:
+    created = client.post(
+        "/api/exercises", json={"name": " Cable Fly ", "equipment_label": "  Low pulley "}
+    ).json()
+    assert (created["name"], created["equipment_label"]) == ("Cable Fly", "Low pulley")

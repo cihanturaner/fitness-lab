@@ -11,12 +11,14 @@ different worker threads.
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from datetime import date
 
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -56,12 +58,18 @@ from fitness_lab.storage.exercises import get_exercise, insert_exercise, list_ex
 from fitness_lab.storage.workouts import get_workout
 
 WEB_DIST = db.REPO_ROOT / "web" / "dist"
+# The app listens on loopback only; any other Host header is a DNS-rebinding attempt by a
+# page on a foreign origin. "testserver" is the in-process test client's host.
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "testserver"]
 
 
 class HealthResponse(BaseModel):
     status: str
     service: str
     version: str
+    # Set by scripts/start.sh so the launcher can prove the server answering on its port is
+    # the one it just started, not another instance holding the port.
+    launch_id: str | None
 
 
 class PingDbResponse(BaseModel):
@@ -108,6 +116,8 @@ def _entry_out(connection: sqlite3.Connection, workout_id: str) -> EntryOut:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="fitness-lab", version=__version__, lifespan=lifespan)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
+    launch_id = os.environ.get("FITNESS_LAB_LAUNCH_ID")
 
     @app.exception_handler(entry.NotFound)
     async def _not_found(_request: Request, exc: entry.NotFound) -> JSONResponse:
@@ -123,7 +133,9 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health")
     def health() -> HealthResponse:
-        return HealthResponse(status="ok", service="fitness-lab", version=__version__)
+        return HealthResponse(
+            status="ok", service="fitness-lab", version=__version__, launch_id=launch_id
+        )
 
     @app.get("/api/ping-db")
     def ping_db() -> PingDbResponse:
@@ -314,7 +326,8 @@ def create_app() -> FastAPI:
 
     @app.post("/api/exercises", status_code=201)
     def new_exercise(body: ExerciseCreateIn) -> ExerciseOut:
-        exercise = create_exercise(body.name.strip(), body.equipment_label, notes=body.notes)
+        label = None if body.equipment_label is None else body.equipment_label.strip()
+        exercise = create_exercise(body.name.strip(), label, notes=body.notes)
         with _connection() as connection:
             try:
                 insert_exercise(connection, exercise)

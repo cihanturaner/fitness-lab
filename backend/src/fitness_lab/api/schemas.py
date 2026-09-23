@@ -313,6 +313,7 @@ class LastPerformanceOut(BaseModel):
     workout_id: str
     performed_on: str
     performed_time_local: str | None
+    planned_workout_name: str | None
     sets: list[PerformedSetOut]
 
     @classmethod
@@ -323,6 +324,7 @@ class LastPerformanceOut(BaseModel):
             workout_id=performance.workout_id,
             performed_on=performance.performed_on,
             performed_time_local=performance.performed_time_local,
+            planned_workout_name=performance.planned_workout_name,
             sets=[PerformedSetOut.of(performed) for performed in performance.sets],
         )
 
@@ -395,6 +397,7 @@ class PlannedWorkoutSummaryOut(PlannedWorkoutOut):
     slot_count: int
     set_count: int
     open_draft_id: str | None
+    open_draft_performed_on: str | None
     completed_count: int
     last_completed_on: str | None
 
@@ -407,6 +410,7 @@ class PlannedWorkoutSummaryOut(PlannedWorkoutOut):
             slot_count=len(slots),
             set_count=sum(len(slot.sets) for slot in slots),
             open_draft_id=usage.open_draft_id,
+            open_draft_performed_on=usage.open_draft_performed_on,
             completed_count=usage.completed_count,
             last_completed_on=usage.last_completed_on,
         )

@@ -38,4 +38,25 @@ def create_snapshot(connection: sqlite3.Connection, db_path: Path, label: str) -
         connection.execute("VACUUM INTO ?", (str(target),))
     except sqlite3.Error as exc:
         raise SnapshotError(f"snapshot failed: {exc}") from exc
+    verify_snapshot(target)
     return target
+
+
+def verify_snapshot(path: Path) -> None:
+    """Refuse a snapshot that cannot be opened read-only and pass ``quick_check``.
+
+    A backup is only a backup once it has been read back; callers treat a failure exactly
+    like a failed snapshot and do not proceed.
+    """
+    if not path.is_file():
+        raise SnapshotError(f"snapshot verification failed: {path} does not exist")
+    try:
+        check = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            result = check.execute("PRAGMA quick_check").fetchall()
+        finally:
+            check.close()
+    except sqlite3.Error as exc:
+        raise SnapshotError(f"snapshot verification failed: {exc}") from exc
+    if [tuple(row) for row in result] != [("ok",)]:
+        raise SnapshotError(f"snapshot verification failed: quick_check returned {result}")

@@ -124,11 +124,15 @@ colliding with an existing origin aborts; an insert aborts unless the workout is
 with zero performed sets — an origin is recorded only at creation, never attached later
 to unplanned or completed history.
 
-### 4.8 Guard on `workout` (additive trigger, table unchanged)
+### 4.8 Guards on `workout` and `performed_set` (additive triggers, tables unchanged)
 
 `INSERT OR REPLACE` on an existing workout id would delete and recreate it, cascading away
 its sets, origin and substitutions without any delete trigger firing. A `BEFORE INSERT`
-trigger refuses any insert whose id already exists.
+trigger refuses any insert whose id already exists. Likewise (final release review): the
+ids of `workout` and `performed_set` never change (`BEFORE UPDATE OF id`), and no insert or
+update of a `performed_set` may land on an existing id or `(workout_id, set_order)`, so
+`UPDATE OR REPLACE` / `INSERT OR REPLACE` can only abort. M1's offset-pass renumbering never
+collides and is unaffected.
 
 ### 4.7 `workout_slot_substitution` (actual-side decision)
 
@@ -231,7 +235,9 @@ renumbering and the status. Blockers return 409 with the report. Reopen: M1
 `reopen_workout`. Workout metadata (`performed_on`, `performed_time_local`, `notes`) is
 editable via M1 `update_workout`. A draft may be discarded; one that holds sets may be a
 reopened, formerly complete workout, so a `VACUUM INTO` snapshot is taken first (no
-snapshot, no delete). The status check and a
+snapshot, no delete; the snapshot is read back with `quick_check` before it counts). The
+no-snapshot decision for an empty draft is re-checked under the write lock: a set that
+arrived in between refuses the discard (409). The status check and a
 `DELETE … WHERE status = 'draft'` share one `BEGIN IMMEDIATE` transaction, so a workout
 completed meanwhile is never removed through this unguarded path; deleting a complete
 workout stays storage-only (M1 guarded, snapshotted path), not exposed over HTTP. Set
@@ -248,8 +254,10 @@ planned workout and refuses complete workouts. Slots substitute independently.
 `last_performance(exercise_id, exclude_workout_id)`: the most recent `complete` workout
 (order: `performed_on` DESC, `performed_time_local` DESC NULLS LAST, `entered_at_utc` DESC,
 `id` DESC) holding at least one set of exactly that `exercise_id`, excluding the workout
-being edited; returns that workout's sets for the exercise in `set_order`. No fuzzy
-matching, no substitution-family merging, no calculations.
+being edited; returns that workout's sets for the exercise in `set_order`, with the name
+of the planned session it came from (none when unplanned) so the lifter can tell which
+session's prescription it answered. No fuzzy matching, no substitution-family merging, no
+calculations.
 
 ### 6.7 Displaying actual work against slots (derived, not stored)
 

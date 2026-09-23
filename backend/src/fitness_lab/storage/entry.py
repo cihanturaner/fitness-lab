@@ -95,6 +95,7 @@ class LastPerformance:
     workout_id: str
     performed_on: str
     performed_time_local: str | None
+    planned_workout_name: str | None  # the session it came from; None when unplanned
     sets: tuple[PerformedSet, ...]
 
 
@@ -129,6 +130,7 @@ class WorkoutSummary:
 @dataclass(frozen=True, slots=True)
 class PlannedWorkoutUsage:
     open_draft_id: str | None
+    open_draft_performed_on: str | None
     completed_count: int
     last_completed_on: str | None
 
@@ -206,6 +208,7 @@ def planned_workout_usage(
     ).fetchone()
     return PlannedWorkoutUsage(
         open_draft_id=None if draft is None else draft.id,
+        open_draft_performed_on=None if draft is None else draft.performed_on,
         completed_count=int(row["n"]),
         last_completed_on=None if row["last_on"] is None else str(row["last_on"]),
     )
@@ -497,6 +500,14 @@ def edit_workout(
     return updated
 
 
+def _has_sets(connection: sqlite3.Connection, workout_id: str) -> bool:
+    return bool(
+        connection.execute(
+            "SELECT EXISTS (SELECT 1 FROM performed_set WHERE workout_id = ?)", (workout_id,)
+        ).fetchone()[0]
+    )
+
+
 def discard_draft(connection: sqlite3.Connection, workout_id: str, *, db_path: Path) -> Path | None:
     """Delete a draft. Returns the safety snapshot taken first, if any.
 
@@ -509,16 +520,17 @@ def discard_draft(connection: sqlite3.Connection, workout_id: str, *, db_path: P
     the meantime is never removed through this path.
     """
     _require_draft(connection, workout_id)
-    has_sets = connection.execute(
-        "SELECT EXISTS (SELECT 1 FROM performed_set WHERE workout_id = ?)", (workout_id,)
-    ).fetchone()[0]
     snapshot = (
         create_snapshot(connection, db_path, f"pre-discard-workout-{workout_id}")
-        if has_sets
+        if _has_sets(connection, workout_id)
         else None
     )
     with db.immediate_transaction(connection):
         _require_draft(connection, workout_id)
+        # The snapshot decision was taken before the write lock; a set recorded in between
+        # must never be deleted without one.
+        if snapshot is None and _has_sets(connection, workout_id):
+            raise Conflict("the draft changed while it was being discarded; try again")
         deleted = connection.execute(
             "DELETE FROM workout WHERE id = ? AND status = 'draft'", (workout_id,)
         ).rowcount
@@ -583,7 +595,10 @@ def last_performance(
     Exact identity only: no name matching, no substitution families, no calculation.
     """
     row = connection.execute(
-        "SELECT w.id, w.performed_on, w.performed_time_local FROM workout w "
+        "SELECT w.id, w.performed_on, w.performed_time_local, pw.name AS planned_name "
+        "FROM workout w "
+        "LEFT JOIN workout_plan_origin o ON o.workout_id = w.id "
+        "LEFT JOIN planned_workout pw ON pw.id = o.planned_workout_id "
         "WHERE w.status = 'complete' AND w.id IS NOT ? "
         "AND EXISTS (SELECT 1 FROM performed_set s "
         "            WHERE s.workout_id = w.id AND s.exercise_id = ?) "
@@ -605,6 +620,7 @@ def last_performance(
         performed_time_local=(
             None if row["performed_time_local"] is None else str(row["performed_time_local"])
         ),
+        planned_workout_name=None if row["planned_name"] is None else str(row["planned_name"]),
         sets=tuple(row_to_performed_set(item) for item in sets),
     )
 

@@ -9,7 +9,12 @@ import pytest
 
 from fitness_lab.storage import db
 from fitness_lab.storage.migrations import ChecksumMismatchError, migrate_to_head
-from fitness_lab.storage.snapshots import SnapshotError, create_snapshot, snapshot_directory
+from fitness_lab.storage.snapshots import (
+    SnapshotError,
+    create_snapshot,
+    snapshot_directory,
+    verify_snapshot,
+)
 
 CREATE_ONE = "CREATE TABLE one (id INTEGER PRIMARY KEY, label TEXT NOT NULL) STRICT;\n"
 CREATE_TWO = "CREATE TABLE two (id INTEGER PRIMARY KEY) STRICT;\n"
@@ -165,3 +170,19 @@ def test_a_snapshot_directory_blocked_by_a_file_raises_snapshot_error(db_path: P
 
         with pytest.raises(SnapshotError, match="snapshot directory unusable"):
             create_snapshot(connection, db_path, "pre-0001")
+
+
+def test_a_written_snapshot_is_verified_readable(db_path: Path) -> None:
+    with db.connection_scope(db_path) as connection:
+        connection.execute("CREATE TABLE t (id INTEGER PRIMARY KEY) STRICT")
+        target = create_snapshot(connection, db_path, "pre-0001")
+    verify_snapshot(target)  # does not raise
+
+
+def test_an_unreadable_snapshot_fails_verification(tmp_path: Path) -> None:
+    broken = tmp_path / "broken.db"
+    broken.write_bytes(b"SQLite format 3\x00" + b"\xff" * 4096)
+    with pytest.raises(SnapshotError, match="verification"):
+        verify_snapshot(broken)
+    with pytest.raises(SnapshotError, match="verification"):
+        verify_snapshot(tmp_path / "missing.db")

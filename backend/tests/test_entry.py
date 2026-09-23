@@ -698,3 +698,46 @@ def test_last_performance_prefers_a_recorded_time_over_none_on_the_same_day(
     finished(migrated_db, exercises, "2026-10-03", ["60"])
     result = last_performance(migrated_db, exercises["Bench Press"].id)
     assert result is not None and result.workout_id == timed
+
+
+# --- final council ------------------------------------------------------------------------
+
+
+def test_discard_refuses_when_sets_appear_after_the_snapshot_decision(
+    migrated_db: sqlite3.Connection,
+    exercises: dict[str, Exercise],
+    db_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The no-snapshot decision is re-checked under the write lock: a set that arrives in
+    between must never be deleted without a snapshot."""
+    import fitness_lab.storage.entry as entry_module
+
+    workout_id = open_upper(migrated_db)
+    real = entry_module._has_sets
+    calls: list[bool] = []
+
+    def racing(connection: sqlite3.Connection, target: str) -> bool:
+        if not calls:
+            calls.append(False)
+            decided = real(connection, target)  # the decision is taken on an empty draft,
+            working(migrated_db, workout_id, exercises["Bench Press"])  # then a set lands
+            return decided
+        calls.append(True)
+        return real(connection, target)
+
+    monkeypatch.setattr(entry_module, "_has_sets", racing)
+    with pytest.raises(Conflict, match="changed"):
+        discard_draft(migrated_db, workout_id, db_path=db_path)
+    assert get_workout(migrated_db, workout_id) is not None
+    assert len(list_sets_for_workout(migrated_db, workout_id)) == 1
+
+
+def test_last_performance_carries_its_session_name(
+    migrated_db: sqlite3.Connection, exercises: dict[str, Exercise]
+) -> None:
+    workout_id = open_upper(migrated_db)
+    working(migrated_db, workout_id, exercises["Bench Press"])
+    complete(migrated_db, workout_id)
+    result = last_performance(migrated_db, exercises["Bench Press"].id)
+    assert result is not None and result.planned_workout_name == "Upper A"
