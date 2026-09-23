@@ -15,9 +15,11 @@ import {
   formatDate,
   formatReps,
   formatRir,
+  localDate,
   setTypeLabel,
 } from '@/lib/format'
 import { navigate } from '@/lib/route'
+import { confirmLeave, installUnloadGuard, unsavedDescriptions } from '@/lib/unsaved'
 import { ActualSets, type SetActions } from './ActualSets'
 import { CommitInput } from './fields'
 import { buildEntryView, type SlotView } from './model'
@@ -72,7 +74,8 @@ function LastTime({ performance }: { performance: LastPerformance | null | undef
   return (
     <div className="text-sm" data-testid="last-performance">
       <p className="text-muted-foreground">
-        Last time, {formatDate(performance.performed_on)}
+        Last time, {performance.planned_workout_name ?? 'unplanned session'},{' '}
+        {formatDate(performance.performed_on)}
         {performance.performed_time_local ? ` ${performance.performed_time_local}` : ''}:
       </p>
       <ol className="num mt-1 flex flex-wrap gap-x-4 gap-y-1">
@@ -128,7 +131,11 @@ function ExerciseSelect({
   )
 }
 
-function NewExerciseForm({ onCreate }: { onCreate: (name: string, label: string | null) => Promise<void> }) {
+function NewExerciseForm({
+  onCreate,
+}: {
+  onCreate: (name: string, label: string | null) => Promise<boolean>
+}) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [equipment, setEquipment] = useState('')
@@ -146,7 +153,8 @@ function NewExerciseForm({ onCreate }: { onCreate: (name: string, label: string 
       onSubmit={(event) => {
         event.preventDefault()
         if (!name.trim()) return
-        void onCreate(name.trim(), equipment.trim() === '' ? null : equipment.trim()).then(() => {
+        void onCreate(name.trim(), equipment.trim() === '' ? null : equipment.trim()).then((created) => {
+          if (!created) return // keep what was typed; the reason is shown above
           setName('')
           setEquipment('')
           setOpen(false)
@@ -274,6 +282,7 @@ function ExtraCard({
   exercises,
   locked,
   actions,
+  planned,
 }: {
   exerciseId: string
   sets: PerformedSet[]
@@ -281,6 +290,7 @@ function ExtraCard({
   exercises: Exercise[]
   locked: boolean
   actions: SetActions
+  planned: boolean
 }) {
   const exercise = entry.exercises[exerciseId] ?? exercises.find((item) => item.id === exerciseId)
   return (
@@ -289,7 +299,9 @@ function ExtraCard({
       className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4"
     >
       <header className="flex flex-col">
-        <span className="text-xs text-muted-foreground">Actual, not in the plan</span>
+        <span className="text-xs text-muted-foreground">
+          {planned ? 'Actual, outside the slots as currently selected' : 'Actual'}
+        </span>
         <h3 className="font-semibold tracking-tight">{exerciseLabel(exercise)}</h3>
       </header>
       <LastTime performance={entry.last_performance[exerciseId]} />
@@ -307,7 +319,33 @@ function ExtraCard({
   )
 }
 
-function CompletionFeedback({ feedback }: { feedback: Feedback }) {
+const ISSUE_LABELS: Record<string, string> = {
+  C2: 'Missing reps',
+  C4: 'Missing set type',
+  'A-LOAD': 'No load recorded',
+  'A-RIR': 'No RIR recorded',
+}
+
+/**
+ * Completion rules name sets by their position in the whole session; the screen numbers
+ * them per exercise. Translate, e.g. order 3 -> "Smith Flat Bench Press set 2".
+ */
+function describeIssue(issue: CompletionIssue, entry: Entry): string {
+  const label = ISSUE_LABELS[issue.rule]
+  if (!label || issue.set_orders.length === 0) return issue.message
+  const ordered = [...entry.sets].sort((a, b) => a.set_order - b.set_order)
+  const names = issue.set_orders.map((order) => {
+    const target = ordered[order - 1]
+    if (!target) return `set ${order}`
+    const index = ordered.filter(
+      (other) => other.exercise_id === target.exercise_id && other.set_order <= target.set_order,
+    ).length
+    return `${exerciseLabel(entry.exercises[target.exercise_id])} set ${index}`
+  })
+  return `${label}: ${names.join(', ')}`
+}
+
+function CompletionFeedback({ feedback, entry }: { feedback: Feedback; entry: Entry }) {
   if (!feedback) return null
   if (feedback.kind === 'completed') {
     return (
@@ -316,7 +354,7 @@ function CompletionFeedback({ feedback }: { feedback: Feedback }) {
         {feedback.advisories.length > 0 && (
           <ul className="mt-1 list-disc pl-5 text-muted-foreground">
             {feedback.advisories.map((issue) => (
-              <li key={issue.rule}>{issue.message}</li>
+              <li key={issue.rule}>{describeIssue(issue, entry)}</li>
             ))}
           </ul>
         )}
@@ -329,7 +367,7 @@ function CompletionFeedback({ feedback }: { feedback: Feedback }) {
       {feedback.blockers.length > 0 && (
         <ul className="mt-1 list-disc pl-5">
           {feedback.blockers.map((issue) => (
-            <li key={issue.rule}>{issue.message}</li>
+            <li key={issue.rule}>{describeIssue(issue, entry)}</li>
           ))}
         </ul>
       )}
@@ -375,24 +413,32 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
     }
   }, [workoutId])
 
-  /** Every change is persisted immediately, then the screen re-reads the server's truth. */
+  useEffect(installUnloadGuard, [])
+
+  /**
+   * Every change is persisted immediately, then the screen re-reads the server's truth.
+   * The whole task (save and re-read) is tracked, so Complete waits for it and for the
+   * field that started it to settle.
+   */
   const run = useCallback(
-    async (change: () => Promise<unknown>): Promise<boolean> => {
-      setSaving(true)
-      const pending = change()
-      inFlight.current.add(pending)
-      try {
-        await pending
-        setFeedback((current) => (current?.kind === 'error' ? null : current))
-        return true
-      } catch (error) {
-        setFeedback(errorFeedback(error))
-        return false
-      } finally {
-        inFlight.current.delete(pending)
-        await reload()
-        setSaving(false)
-      }
+    (change: () => Promise<unknown>): Promise<boolean> => {
+      const task = (async () => {
+        setSaving(true)
+        try {
+          await change()
+          setFeedback((current) => (current?.kind === 'error' ? null : current))
+          return true
+        } catch (error) {
+          setFeedback(errorFeedback(error))
+          return false
+        } finally {
+          await reload()
+          setSaving(false)
+        }
+      })()
+      inFlight.current.add(task)
+      void task.finally(() => inFlight.current.delete(task))
+      return task
     },
     [reload],
   )
@@ -412,6 +458,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
 
   const { workout, origin } = entry
   const locked = workout.status === 'complete'
+  const today = localDate()
   const view = buildEntryView(entry, pendingExtras)
   const shownExercises = new Set([
     ...view.slots.map((slot) => slot.slot.effective_exercise_id),
@@ -421,7 +468,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
 
   const actions: SetActions = {
     add: (exerciseId, fields) => run(() => api.addSet(workout.id, { ...fields, exercise_id: exerciseId })),
-    patch: (setId, fields) => void run(() => api.patchSet(setId, fields)),
+    patch: (setId, fields) => run(() => api.patchSet(setId, fields)),
     remove: (setId) => void run(() => api.deleteSet(setId)),
     reorder: (setIds) => void run(() => api.reorderSets(workout.id, setIds)),
   }
@@ -433,6 +480,17 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
     // A field edited just before the click is saved on blur; finish those saves first so
     // the completion judges exactly what the lifter entered.
     await Promise.allSettled([...inFlight.current])
+    const unsaved = unsavedDescriptions()
+    if (unsaved.length > 0) {
+      setFeedback({
+        kind: 'error',
+        message: `Not completed: there is unsaved input (${unsaved.join('; ')}). Save it, or clear it, first.`,
+        blockers: [],
+      })
+      setSaving(false)
+      completing.current = false
+      return
+    }
     try {
       const result = await api.complete(workout.id)
       setFeedback({ kind: 'completed', advisories: result.advisories })
@@ -458,7 +516,13 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-4 border-b border-border pb-5">
-        <a href="#/" className="text-sm text-muted-foreground hover:text-foreground">
+        <a
+          href="#/"
+          className="text-sm text-muted-foreground hover:text-foreground"
+          onClick={(event) => {
+            if (!confirmLeave()) event.preventDefault()
+          }}
+        >
           Program
         </a>
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -507,7 +571,8 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
               className="w-40"
               disabled={locked}
               isValid={(text) => /^\d{4}-\d{2}-\d{2}$/.test(text)}
-              onCommit={(text) => void run(() => api.patchWorkout(workout.id, { performed_on: text }))}
+              invalidHint="a date"
+              onCommit={(text) => run(() => api.patchWorkout(workout.id, { performed_on: text }))}
             />
           </label>
           <label className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -520,7 +585,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
               className="w-32"
               disabled={locked}
               onCommit={(text) =>
-                void run(() => api.patchWorkout(workout.id, { performed_time_local: text === '' ? null : text }))
+                run(() => api.patchWorkout(workout.id, { performed_time_local: text === '' ? null : text }))
               }
             />
           </label>
@@ -532,7 +597,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
               align="left"
               disabled={locked}
               placeholder="Sleep, readiness, pain, gym — anything that explains the numbers"
-              onCommit={(text) => void run(() => api.patchWorkout(workout.id, { notes: text.trim() === '' ? null : text }))}
+              onCommit={(text) => run(() => api.patchWorkout(workout.id, { notes: text.trim() === '' ? null : text }))}
             />
           </label>
         </div>
@@ -541,7 +606,18 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
             This record is complete. Reopen it to correct sets, substitutions or details.
           </p>
         )}
-        <CompletionFeedback feedback={feedback} />
+        {!locked && workout.performed_on !== today && (
+          <p
+            role="status"
+            data-testid="draft-date-notice"
+            className="rounded-md border border-warn/40 bg-card p-3 text-sm text-warn"
+          >
+            This draft is dated {formatDate(workout.performed_on)}, not today ({formatDate(today)}).
+            If you are training today, this is still the earlier session&apos;s record: complete or
+            delete it first, or correct its date above if it really is today&apos;s session.
+          </p>
+        )}
+        <CompletionFeedback feedback={feedback} entry={entry} />
       </header>
 
       {view.slots.length > 0 && (
@@ -575,6 +651,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
             exercises={exercises}
             locked={locked}
             actions={actions}
+            planned={origin !== null}
           />
         ))}
         {!locked && (
@@ -593,6 +670,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
                   setPendingExtras((current) => [...current, created.id])
                 })
                 if (ok) await reloadExercises()
+                return ok
               }}
             />
           </div>

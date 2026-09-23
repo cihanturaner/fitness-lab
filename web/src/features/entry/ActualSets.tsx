@@ -1,7 +1,8 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { PerformedSet, PlannedSet, SetFields, SetType } from '@/api/types'
 import { Button } from '@/components/ui/button'
-import { formatReps, formatRir, setTypeLabel } from '@/lib/format'
+import { describeSet, formatReps, formatRir, setTypeLabel } from '@/lib/format'
+import { markUnsaved, useUnsavedKey } from '@/lib/unsaved'
 import { CommitInput } from './fields'
 import { moveWithinExercise } from './model'
 import { numberInputClass, parseCount, parseLoad, textInputClass } from './parse'
@@ -10,7 +11,7 @@ const SET_TYPES: SetType[] = ['warmup', 'working', 'backoff']
 
 export interface SetActions {
   add: (exerciseId: string, fields: SetFields) => Promise<boolean>
-  patch: (setId: string, fields: SetFields) => void
+  patch: (setId: string, fields: SetFields) => Promise<boolean>
   remove: (setId: string) => void
   reorder: (setIds: string[]) => void
 }
@@ -19,25 +20,31 @@ const validLoad = (text: string) => parseLoad(text).ok
 const validReps = (text: string) => parseCount(text, { allowNegative: false }).ok
 const validRir = (text: string) => parseCount(text, { allowNegative: true }).ok
 
+const LOAD_HINT = 'kilograms with up to 3 decimals, e.g. 82.5'
+const COUNT_HINT = 'a whole number'
+
 function SetRow({
   performed,
   index,
+  exerciseName,
   allSets,
   locked,
   actions,
 }: {
   performed: PerformedSet
   index: number
+  exerciseName: string
   allSets: PerformedSet[]
   locked: boolean
   actions: SetActions
 }) {
   const label = `set ${index + 1}`
+  const context = `${exerciseName} ${label}`
   const up = moveWithinExercise(allSets, performed.id, -1)
   const down = moveWithinExercise(allSets, performed.id, 1)
   const commitCount = (field: 'reps' | 'rir', text: string) => {
     const parsed = parseCount(text, { allowNegative: field === 'rir' })
-    if (parsed.ok) actions.patch(performed.id, { [field]: parsed.value })
+    return parsed.ok ? actions.patch(performed.id, { [field]: parsed.value }) : Promise.resolve(false)
   }
 
   return (
@@ -50,7 +57,7 @@ function SetRow({
           value={performed.set_type ?? ''}
           disabled={locked}
           onChange={(event) =>
-            actions.patch(performed.id, {
+            void actions.patch(performed.id, {
               set_type: event.target.value === '' ? null : (event.target.value as SetType),
             })
           }
@@ -66,39 +73,46 @@ function SetRow({
       <td className="w-24 py-1.5 pr-2">
         <CommitInput
           label={`Load in kg, ${label}`}
+          context={exerciseName}
           value={performed.load_kg ?? ''}
           inputMode="decimal"
           disabled={locked}
           isValid={validLoad}
+          invalidHint={LOAD_HINT}
           onCommit={(text) => {
             const parsed = parseLoad(text)
-            if (parsed.ok) actions.patch(performed.id, { load_kg: parsed.value })
+            return parsed.ok ? actions.patch(performed.id, { load_kg: parsed.value }) : Promise.resolve(false)
           }}
         />
       </td>
       <td className="w-20 py-1.5 pr-2">
         <CommitInput
           label={`Reps, ${label}`}
+          context={exerciseName}
           value={performed.reps === null ? '' : String(performed.reps)}
           inputMode="numeric"
           disabled={locked}
           isValid={validReps}
+          invalidHint={COUNT_HINT}
           onCommit={(text) => commitCount('reps', text)}
         />
       </td>
       <td className="w-20 py-1.5 pr-2">
         <CommitInput
           label={`RIR, ${label}`}
+          context={exerciseName}
           value={performed.rir === null ? '' : String(performed.rir)}
           inputMode="numeric"
           disabled={locked}
           isValid={validRir}
+          invalidHint={`${COUNT_HINT} (negative allowed)`}
           onCommit={(text) => commitCount('rir', text)}
         />
       </td>
       <td className="py-1.5 pr-2">
         <CommitInput
           label={`Notes, ${label}`}
+          context={exerciseName}
           value={performed.notes ?? ''}
           align="left"
           disabled={locked}
@@ -131,7 +145,11 @@ function SetRow({
               size="icon-sm"
               aria-label={`Delete ${label}`}
               className="text-destructive"
-              onPress={() => actions.remove(performed.id)}
+              onPress={() => {
+                if (window.confirm(`Delete ${context} (${describeSet(performed)})?`)) {
+                  actions.remove(performed.id)
+                }
+              }}
             >
               ✕
             </Button>
@@ -144,6 +162,7 @@ function SetRow({
 
 function NewSetRow({
   exerciseId,
+  exerciseName,
   nextIndex,
   planned,
   previousType,
@@ -151,6 +170,7 @@ function NewSetRow({
   onClose,
 }: {
   exerciseId: string
+  exerciseName: string
   nextIndex: number
   planned: PlannedSet | undefined
   previousType: SetType | null
@@ -167,8 +187,21 @@ function NewSetRow({
   const [rir, setRir] = useState('')
   const [notes, setNotes] = useState('')
   const [problem, setProblem] = useState<string | null>(null)
+  // The load kept from the previous save is a convenience, not new input.
+  const [keptLoad, setKeptLoad] = useState('')
   const loadRef = useRef<HTMLInputElement>(null)
   const label = `new set ${nextIndex + 1}`
+  const unsavedKey = useUnsavedKey()
+  const dirty =
+    reps.trim() !== '' || rir.trim() !== '' || notes.trim() !== '' || (load.trim() !== '' && load !== keptLoad)
+  useEffect(() => {
+    markUnsaved(unsavedKey, dirty ? `${exerciseName} ${label} (typed, not saved)` : null)
+  }, [unsavedKey, dirty, exerciseName, label])
+
+  const close = () => {
+    if (dirty && !window.confirm(`Discard the unsaved ${label} of ${exerciseName}?`)) return
+    onClose()
+  }
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault()
@@ -198,6 +231,7 @@ function NewSetRow({
     if (saved) {
       // The next set usually repeats the load: keep it, selected, so typing replaces it.
       setLoad(parsedLoad.value ?? '')
+      setKeptLoad(parsedLoad.value ?? '')
       setReps('')
       setRir('')
       setNotes('')
@@ -279,7 +313,7 @@ function NewSetRow({
         <Button size="sm" isDisabled={submitting} onPress={() => void submit()}>
           Save set
         </Button>
-        <Button size="sm" variant="ghost" onPress={onClose}>
+        <Button size="sm" variant="ghost" onPress={close}>
           Done
         </Button>
       </td>
@@ -332,6 +366,7 @@ export function ActualSets({
                 key={performed.id}
                 performed={performed}
                 index={index}
+                exerciseName={exerciseName}
                 allSets={allSets}
                 locked={locked}
                 actions={actions}
@@ -340,8 +375,11 @@ export function ActualSets({
             {showForm && (
               <NewSetRow
                 exerciseId={exerciseId}
+                exerciseName={exerciseName}
                 nextIndex={sets.length}
-                planned={planned[sets.length]}
+                // Hints follow the prescription, which lists work sets only: warm-ups
+                // recorded before them do not shift which planned set comes next.
+                planned={planned[sets.filter((recorded) => recorded.set_type !== 'warmup').length]}
                 previousType={sets.at(-1)?.set_type ?? null}
                 actions={actions}
                 onClose={() => setAdding(false)}

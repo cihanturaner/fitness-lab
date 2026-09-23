@@ -248,4 +248,137 @@ describe('EntryScreen', () => {
     expect(within(extra).getByText('Preacher Curl')).toBeInTheDocument()
     expect(within(extra).getByRole('textbox', { name: 'Reps, new set 1' })).toBeInTheDocument()
   })
+
+  // --- final council ----------------------------------------------------------------------
+
+  it('keeps a failed edit visibly unsaved next to the field, and retries it', async () => {
+    let fail = true
+    const server = serve(entryFixture({ sets: [performed(1)] }), {
+      'PATCH /api/sets/set-1': () =>
+        fail ? { status: 503, body: { detail: 'unavailable' } } : { body: performed(1, { reps: 7 }) },
+    })
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const reps = await screen.findByRole('textbox', { name: 'Reps, set 1' })
+    await user.clear(reps)
+    await user.type(reps, '7{Enter}')
+    const row = reps.closest('tr') as HTMLElement
+    expect(await within(row).findByRole('alert')).toHaveTextContent(/not saved/i)
+    expect(reps).toHaveValue('7')
+
+    fail = false
+    await user.type(reps, '{Enter}')
+    await waitFor(() => expect(server.calls.filter((call) => call.method === 'PATCH')).toHaveLength(2))
+    await waitFor(() => expect(within(row).queryByRole('alert')).not.toBeInTheDocument())
+  })
+
+  it('says why an invalid edit was not saved, next to the field', async () => {
+    const server = serve(entryFixture({ sets: [performed(1)] }))
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const reps = await screen.findByRole('textbox', { name: 'Reps, set 1' })
+    await user.clear(reps)
+    await user.type(reps, '8x')
+    await user.tab()
+    const row = reps.closest('tr') as HTMLElement
+    expect(within(row).getByRole('alert')).toHaveTextContent(/not saved.*whole number/i)
+    expect(server.calls.some((call) => call.method === 'PATCH')).toBe(false)
+  })
+
+  it('refuses to complete while anything typed is unsaved', async () => {
+    const server = serve(entryFixture({ sets: [performed(1)] }))
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const slot = await screen.findByTestId('slot-upper_a.01')
+    await user.click(within(slot).getByRole('button', { name: 'Add set' }))
+    await user.type(within(slot).getByRole('textbox', { name: 'Reps, new set 2' }), '9')
+    await user.click(screen.getByRole('button', { name: 'Complete workout' }))
+    const alert = await screen.findByText(/not completed/i)
+    expect(alert.closest('[role="alert"]')).toHaveTextContent(/unsaved/i)
+    expect(server.calls.some((call) => call.url.endsWith('/complete'))).toBe(false)
+    // The typed set is still there to be saved.
+    expect(within(slot).getByRole('textbox', { name: 'Reps, new set 2' })).toHaveValue('9')
+  })
+
+  it('asks before closing a new set row that holds unsaved input', async () => {
+    serve(entryFixture())
+    const confirm = vi.fn(() => false)
+    vi.stubGlobal('confirm', confirm)
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const slot = await screen.findByTestId('slot-upper_a.01')
+    await user.click(within(slot).getByRole('button', { name: 'Add set' }))
+    await user.type(within(slot).getByRole('textbox', { name: 'Reps, new set 1' }), '6')
+    await user.click(within(slot).getByRole('button', { name: 'Done' }))
+    expect(confirm).toHaveBeenCalled()
+    expect(within(slot).getByRole('textbox', { name: 'Reps, new set 1' })).toHaveValue('6')
+  })
+
+  it('names blocked sets the way the screen numbers them', async () => {
+    const sets = [performed(1), performed(2, { exercise_id: 'curl' }), performed(3, { reps: null })]
+    serve(entryFixture({ sets, exercises: { bench: BENCH, curl: CURL } }), {
+      'POST /api/workouts/w1/complete': () => ({
+        status: 409,
+        body: {
+          detail: 'workout cannot be completed yet',
+          blockers: [{ rule: 'C2', message: 'sets missing reps: [3]', set_orders: [3] }],
+          advisories: [],
+        },
+      }),
+    })
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    await user.click(await screen.findByRole('button', { name: 'Complete workout' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Smith Flat Bench Press set 2')
+  })
+
+  it('flags a draft that is not dated today', async () => {
+    serve(entryFixture())
+    render(<EntryScreen workoutId="w1" />)
+    expect(await screen.findByTestId('draft-date-notice')).toHaveTextContent(/not today/i)
+  })
+
+  it('does not flag a draft dated today', async () => {
+    const today = entryFixture()
+    const now = new Date()
+    const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    today.workout = { ...today.workout, performed_on: iso }
+    serve(today)
+    render(<EntryScreen workoutId="w1" />)
+    await screen.findByTestId('slot-upper_a.01')
+    expect(screen.queryByTestId('draft-date-notice')).not.toBeInTheDocument()
+  })
+
+  it('names the session the last performance came from', async () => {
+    const fixture = entryFixture()
+    const bench = fixture.last_performance.bench
+    if (!bench) throw new Error('fixture')
+    fixture.last_performance = { bench: { ...bench, planned_workout_name: 'Upper B' } }
+    serve(fixture)
+    render(<EntryScreen workoutId="w1" />)
+    expect(await screen.findByTestId('last-performance')).toHaveTextContent('Upper B')
+  })
+
+  it('asks before deleting a recorded set', async () => {
+    const server = serve(entryFixture({ sets: [performed(1)] }), {
+      'DELETE /api/sets/set-1': () => ({ status: 204 }),
+    })
+    const confirm = vi.fn(() => false)
+    vi.stubGlobal('confirm', confirm)
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    await user.click(await screen.findByRole('button', { name: 'Delete set 1' }))
+    expect(confirm).toHaveBeenCalled()
+    expect(server.calls.some((call) => call.method === 'DELETE')).toBe(false)
+  })
+
+  it('does not count warm-ups when hinting the next planned set', async () => {
+    serve(entryFixture({ sets: [performed(1, { set_type: 'warmup' })] }))
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const slot = await screen.findByTestId('slot-upper_a.01')
+    await user.click(within(slot).getByRole('button', { name: 'Add set' }))
+    // Planned set 1 targets RIR 2; set 2 targets 0-1.
+    expect(within(slot).getByRole('textbox', { name: 'RIR, new set 2' })).toHaveAttribute('placeholder', '2')
+  })
 })

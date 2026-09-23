@@ -89,6 +89,7 @@ export const PROGRAM: ActiveProgram = {
       slot_count: 9,
       set_count: 23,
       open_draft_id: null,
+      open_draft_performed_on: null,
       completed_count: 0,
       last_completed_on: null,
     },
@@ -102,6 +103,7 @@ export const PROGRAM: ActiveProgram = {
       slot_count: 6,
       set_count: 18,
       open_draft_id: 'draft-1',
+      open_draft_performed_on: '2026-10-06',
       completed_count: 2,
       last_completed_on: '2026-10-06',
     },
@@ -170,6 +172,7 @@ export function entryFixture(overrides: Partial<Entry> = {}): Entry {
         workout_id: 'w0',
         performed_on: '2026-09-28',
         performed_time_local: null,
+        planned_workout_name: 'Upper A',
         sets: [
           {
             id: 'old-1',

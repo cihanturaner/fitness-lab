@@ -26,6 +26,8 @@ describe('home', () => {
     expect(within(sessions).getByText('Upper A')).toBeInTheDocument()
     expect(within(sessions).getByRole('button', { name: 'Start Upper A' })).toBeInTheDocument()
     expect(within(sessions).getByRole('button', { name: 'Resume draft of Lower A' })).toBeInTheDocument()
+    // Resuming is never silent about which record it continues.
+    expect(within(sessions).getByTestId('planned-lower_a')).toHaveTextContent(/draft dated/i)
     expect(await screen.findByTestId('health-status')).toHaveTextContent('ok')
     expect(screen.getByTestId('db-source')).toHaveTextContent('sqlite')
   })

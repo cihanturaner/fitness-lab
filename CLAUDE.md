@@ -73,11 +73,16 @@ http://127.0.0.1:8000, opens the browser:
 
     ./scripts/start.sh
 
-Development with hot reload (Vite on :5173 proxying `/api` to FastAPI on :8000):
+Development with hot reload (Vite on :5173 proxying `/api` to FastAPI on :8000). It runs
+against `data/dev/fitness_lab.db` (or `FITNESS_LAB_DB`) and refuses the canonical file,
+because every reload re-runs migrations:
 
     ./scripts/dev.sh
 
-Stopping the launcher (Ctrl-C or SIGTERM) waits for the server's graceful shutdown.
+Stopping the launcher (Ctrl-C or SIGTERM) waits for the server's graceful shutdown. Both
+scripts refuse to start when their port is already in use, and `start.sh` only reports
+"ready" once `/api/health` echoes its own per-launch `launch_id`, so the browser can never
+be opened on some other server (or database) holding the port.
 
 ## Program administration
 
@@ -104,7 +109,8 @@ completed workout), and discarding a draft that holds sets (it may be a reopened
 formerly complete workout). Files are named `<UTC timestamp>-<label>.db`, e.g.
 `20260907T120000000000Z-pre-0003.db` (pre-migration),
 `20260907T120000000000Z-pre-delete-workout-<id>.db` (pre-deletion) or
-`…-pre-discard-workout-<id>.db` (pre-discard). Snapshots are never
+`…-pre-discard-workout-<id>.db` (pre-discard). Every snapshot is read back (`quick_check`)
+before the operation proceeds. Snapshots are never
 pruned in M1 — they accumulate forever by design.
 
 To restore from a snapshot: stop the app, copy the chosen file over `data/fitness_lab.db`,

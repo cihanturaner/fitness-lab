@@ -75,6 +75,7 @@ export interface LastPerformance {
   workout_id: string
   performed_on: string
   performed_time_local: string | null
+  planned_workout_name: string | null
   sets: PerformedSet[]
 }
 
@@ -107,6 +108,7 @@ export interface PlannedWorkoutSummary {
   slot_count: number
   set_count: number
   open_draft_id: string | null
+  open_draft_performed_on: string | null
   completed_count: number
   last_completed_on: string | null
 }

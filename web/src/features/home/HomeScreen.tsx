@@ -38,6 +38,13 @@ function PlannedSession({
           ? 'Not performed yet'
           : `Performed ${planned.completed_count}×, last on ${formatDate(planned.last_completed_on ?? '')}`}
       </p>
+      {planned.open_draft_performed_on && (
+        <p className="num text-sm text-warn">
+          Open draft dated {formatDate(planned.open_draft_performed_on)}
+          {planned.open_draft_performed_on === localDate() ? ' (today)' : ''}. Resuming continues
+          that record.
+        </p>
+      )}
       <div className="mt-auto">
         <Button
           variant={hasDraft ? 'default' : 'outline'}

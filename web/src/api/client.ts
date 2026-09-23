@@ -36,17 +36,36 @@ function describe(detail: unknown): string {
   return 'The request was refused.'
 }
 
+const UNREACHABLE = 'The local fitness-lab server could not be reached. Is it still running?'
+
+function parse(text: string): unknown {
+  try {
+    return text ? (JSON.parse(text) as unknown) : null
+  } catch {
+    return null
+  }
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const response = await fetch(path, {
-    method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-  // Always drain the body, even for 204: an unread response stream is cancelled (and
-  // reported as a failed request) when the page navigates away.
-  const text = await response.text()
+  let response: Response
+  let text: string
+  try {
+    response = await fetch(path, {
+      method,
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    // Always drain the body, even for 204: an unread response stream is cancelled (and
+    // reported as a failed request) when the page navigates away.
+    text = await response.text()
+  } catch {
+    throw new ApiError(0, UNREACHABLE)
+  }
   if (response.status === 204) return undefined as T
-  const payload: unknown = text ? JSON.parse(text) : null
+  const payload = parse(text)
+  if (!response.ok && payload === null) {
+    throw new ApiError(response.status, `The server answered ${response.status}; reload to see what was stored.`)
+  }
   if (!response.ok) {
     const record = (payload ?? {}) as { detail?: unknown; blockers?: CompletionIssue[] }
     throw new ApiError(response.status, describe(record.detail), record.blockers ?? [])

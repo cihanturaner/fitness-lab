@@ -1,4 +1,5 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
+import net from 'node:net'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Locator, type Page } from '@playwright/test'
@@ -95,7 +96,10 @@ test('opening a planned session creates one empty draft and shows the prescripti
   await expect(bench.getByRole('region', { name: /^Actual/ })).toContainText('No sets recorded')
   await expect(page.getByTestId('workout-status')).toHaveText('Draft')
 
-  // Opening again resumes the same draft rather than creating another.
+  // Opening again resumes the same draft rather than creating another, and the home screen
+  // says which record that is.
+  await page.goto('/')
+  await expect(page.getByTestId('planned-upper_a')).toContainText('Open draft dated')
   await resumeUpperA(page)
   await expect(page).toHaveURL(new RegExp(`#/workouts/${workoutId}$`))
   expect(count('workout')).toBe(1)
@@ -131,6 +135,11 @@ test('actual sets are entered, survive a reload, and can be edited, reordered an
     ['82.5', '6', '2'],
   ])
 
+  // Deleting asks first; dismissing keeps the set.
+  page.once('dialog', (dialog) => void dialog.dismiss())
+  await slot(page, 'upper_a.01').getByRole('button', { name: 'Delete set 2' }).click()
+  expect(count('performed_set')).toBe(3)
+  page.once('dialog', (dialog) => void dialog.accept())
   await slot(page, 'upper_a.01').getByRole('button', { name: 'Delete set 2' }).click()
   await expect.poll(() => actualRows(slot(page, 'upper_a.01'))).toEqual([
     ['82.5', '6', '2'],
@@ -179,6 +188,17 @@ test('completion locks the record, reopening allows a correction', async ({ page
   await resumeUpperA(page)
   const workoutId = currentWorkoutId(page)
 
+  // A set typed but not saved blocks completion instead of being silently dropped.
+  const row = slot(page, 'upper_a.02')
+  await row.getByRole('button', { name: 'Add set' }).click()
+  await row.getByTestId('new-set-row').getByRole('textbox', { name: /^Reps/ }).fill('9')
+  await page.getByRole('button', { name: 'Complete workout' }).click()
+  await expect(page.getByRole('alert').filter({ hasText: 'Not completed' })).toContainText('unsaved')
+  expect(sql(`SELECT status FROM workout WHERE id = '${workoutId}'`)).toBe('draft')
+  page.once('dialog', (dialog) => void dialog.accept())
+  await row.getByRole('button', { name: 'Done' }).click()
+  await expect(row.getByTestId('new-set-row')).toHaveCount(0)
+
   await page.getByRole('button', { name: 'Complete workout' }).click()
   await expect(page.getByTestId('workout-status')).toHaveText('Complete')
   expect(sql(`SELECT status FROM workout WHERE id = '${workoutId}'`)).toBe('complete')
@@ -206,6 +226,7 @@ test('the next occurrence starts empty and shows the last exact performance', as
   expect(count('workout')).toBe(2)
   expect(count('performed_set', `workout_id = '${secondId}'`)).toBe(0)
   const last = slot(page, 'upper_a.01').getByTestId('last-performance')
+  await expect(last).toContainText('Upper A')
   await expect(last).toContainText('82.5 kg × 6 @ RIR 2')
   await expect(last).toContainText('82.5 kg × 5 @ RIR 2')
   // The previous occurrence's substitution does not carry over.
@@ -235,11 +256,35 @@ test('an unplanned session is first-class', async ({ page }) => {
 
 // --- restart and clean shutdown --------------------------------------------------------
 
-function launch(port: number): ChildProcess {
+function launch(port: number, dbPath: string = DB_PATH): ChildProcess {
+  // detached: its own process group, so Ctrl-C can be simulated for the whole group.
   return spawn('bash', [path.join(REPO_ROOT, 'scripts', 'start.sh'), '--no-open'], {
-    env: { ...process.env, FITNESS_LAB_DB: DB_PATH, FITNESS_LAB_PORT: String(port) },
-    stdio: 'ignore',
+    env: { ...process.env, FITNESS_LAB_DB: dbPath, FITNESS_LAB_PORT: String(port) },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
   })
+}
+
+/** True while anything accepts TCP connections on the port. */
+function listening(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host: '127.0.0.1', port })
+    socket.once('connect', () => {
+      socket.destroy()
+      resolve(true)
+    })
+    socket.once('error', () => resolve(false))
+  })
+}
+
+/** Server processes started for this port (uv, uvicorn) that are still alive. */
+function survivors(port: number): string {
+  try {
+    return execFileSync('pgrep', ['-fl', `uvicorn.* --port ${port}`], { encoding: 'utf8' }).trim()
+  } catch (error) {
+    if ((error as { status?: number }).status === 1) return '' // pgrep: nothing matched
+    throw error
+  }
 }
 
 async function healthy(port: number): Promise<boolean> {
@@ -250,11 +295,18 @@ async function healthy(port: number): Promise<boolean> {
   }
 }
 
-async function stop(child: ChildProcess, port: number): Promise<number | null> {
+async function stop(
+  child: ChildProcess,
+  port: number,
+  how: 'SIGTERM' | 'Ctrl-C',
+): Promise<number | null> {
   const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)))
-  child.kill('SIGTERM')
+  if (how === 'SIGTERM') child.kill('SIGTERM')
+  else process.kill(-(child.pid ?? 0), 'SIGINT') // a terminal's Ctrl-C reaches the whole group
   const code = await exited
   await expect.poll(() => healthy(port), { timeout: 15_000 }).toBe(false)
+  await expect.poll(() => listening(port), { timeout: 15_000 }).toBe(false)
+  await expect.poll(() => survivors(port), { timeout: 15_000 }).toBe('')
   return code
 }
 
@@ -263,7 +315,7 @@ test('data persists across an application restart and the app shuts down cleanly
   const port = 8711
   const before = sql('SELECT count(*) || ":" || group_concat(id) FROM (SELECT id FROM performed_set ORDER BY id)')
 
-  for (const round of [1, 2]) {
+  for (const how of ['SIGTERM', 'Ctrl-C'] as const) {
     const child = launch(port)
     await expect.poll(() => healthy(port), { timeout: 60_000 }).toBe(true)
     await page.goto(`http://127.0.0.1:${port}/`)
@@ -274,12 +326,27 @@ test('data persists across an application restart and the app shuts down cleanly
       ['82.5', '5', '2'],
     ])
     await page.goto('about:blank')
-    const code = await stop(child, port)
-    expect([0, 143, null], `launcher exit code in round ${round}`).toContain(code)
+    const code = await stop(child, port, how)
+    expect([0, 130, 143, null], `launcher exit code after ${how}`).toContain(code)
     expect(sql('SELECT count(*) || ":" || group_concat(id) FROM (SELECT id FROM performed_set ORDER BY id)')).toBe(before)
   }
 
   expect(sql('PRAGMA quick_check')).toBe('ok')
   expect(sql('PRAGMA integrity_check')).toBe('ok')
   expect(sql('PRAGMA foreign_key_check')).toBe('')
+})
+
+test('a second launcher refuses a port that is already served', async () => {
+  test.setTimeout(60_000)
+  // The E2E server holds 8710. A second launcher on it (even on another database) must
+  // refuse, never report "ready" for the other server or open a browser on it.
+  const intruder = launch(8710, `${DB_PATH}.other.db`)
+  let output = ''
+  intruder.stdout?.on('data', (chunk: Buffer) => (output += chunk.toString()))
+  intruder.stderr?.on('data', (chunk: Buffer) => (output += chunk.toString()))
+  const code = await new Promise<number | null>((resolve) => intruder.once('exit', resolve))
+  expect(code).toBe(3)
+  expect(output).toContain('already in use')
+  expect(output).not.toContain('==> ready')
+  expect(await healthy(8710)).toBe(true)
 })
