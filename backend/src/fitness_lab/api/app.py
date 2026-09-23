@@ -52,6 +52,7 @@ from fitness_lab.api.schemas import (
     completion_body,
     parse_load,
 )
+from fitness_lab.api.tracking import router as tracking_router
 from fitness_lab.domain.models import create_exercise
 from fitness_lab.storage import db, entry, migrations, programs
 from fitness_lab.storage.exercises import get_exercise, insert_exercise, list_exercises
@@ -358,6 +359,8 @@ def create_app() -> FastAPI:
                     connection, exercise_id, exclude_workout_id=exclude_workout_id
                 )
             )
+
+    app.include_router(tracking_router)
 
     # Mounted last so /api/* routes always win. Absent in dev (Vite serves the UI).
     if WEB_DIST.is_dir():

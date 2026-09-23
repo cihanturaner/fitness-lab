@@ -176,3 +176,31 @@ def test_the_locked_program_goes_end_to_end(
     assert adapted["source_sha256"] == (
         "81a7d4bca38bb4a581d146abfc4c6b83b239e281ea4896f37addcd6a76d7b24e"
     )
+
+
+def test_set_block_start_for_the_active_version(
+    db_file: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code, result = run(capsys, "set-block-start", "2026-10-01")
+    assert code == 1
+    assert "no active program" in str(result["error"])
+
+    manifest = write_manifest(tmp_path / "exercises.json", ["Bench Press", "Row", "Squat"])
+    run(capsys, "ensure-exercises", str(manifest))
+    package_dir = tmp_path / "package"
+    package_dir.mkdir()
+    (package_dir / "program.json").write_bytes(encode(document()))
+    _, imported = run(capsys, "import-program", str(package_dir))
+    run(capsys, "activate-program", str(imported["version_id"]))
+
+    code, result = run(capsys, "set-block-start", "2026-10-01")
+    assert code == 0
+    assert result["start_on"] == "2026-10-01"
+    assert result["version_id"] == imported["version_id"]
+    assert result["week_1"] == ["2026-09-28", "2026-10-04"]
+
+    code, result = run(capsys, "set-block-start", "2026-10-32")
+    assert code == 1
+    with db.connection_scope(db_file) as connection:
+        row = connection.execute("SELECT start_on FROM training_block").fetchone()
+    assert row["start_on"] == "2026-10-01"

@@ -375,7 +375,11 @@ def test_m1_database_is_migrated_additively(tmp_path: Path) -> None:
         }
         before = {table: [tuple(row) for row in rows] for table, rows in before.items()}
 
-    result = migrate_to_head(db_path)
+    # Head moves on (0004); this test is about the M1 -> M2 step, so it stops at 0003.
+    shutil.copyfile(
+        MIGRATIONS_DIR / "0003_planned_program.sql", m1_dir / "0003_planned_program.sql"
+    )
+    result = migrate_to_head(db_path, directory=m1_dir)
 
     assert result.applied == (3,)
     assert result.snapshot is not None and result.snapshot.name.endswith("-pre-0003.db")
@@ -396,7 +400,7 @@ def test_m1_database_is_migrated_additively(tmp_path: Path) -> None:
         assert versions == [1, 2, 3]
 
     snapshots_before = sorted(snapshot_directory(db_path).iterdir())
-    second = migrate_to_head(db_path)
+    second = migrate_to_head(db_path, directory=m1_dir)
     assert second.applied == ()
     assert second.snapshot is None
     assert sorted(snapshot_directory(db_path).iterdir()) == snapshots_before

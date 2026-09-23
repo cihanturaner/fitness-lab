@@ -1,0 +1,427 @@
+{
+  "meta": {
+    "name": "12-Week Advanced Natural Nutrition Tracker",
+    "version": "1.0.0",
+    "status": "FINAL_PATCHED_LOCKED",
+    "release": "DECISION_GRADE_PASS_WITH_CAVEAT",
+    "language": "tr",
+    "purpose": "12 haftalık hypertrophy + strength bloğunda kilo, kalori, makro ve controller kararlarını takip etmek"
+  },
+  "athlete": {
+    "training_status": "advanced_natural_bodybuilder",
+    "starting_bodyweight_kg": 72.0,
+    "starting_bodyfat_estimate_pct": 13.0,
+    "bodyfat_role": "descriptive_only",
+    "block_weeks": 12,
+    "weekly_training_days": 4,
+    "weekly_work_sets": 81
+  },
+  "locked_targets": {
+    "protein_g_per_day": 145,
+    "protein_g_per_kg_start": 2.01,
+    "protein_scope": "total_dietary_protein",
+    "fat_g_per_day": 60,
+    "fat_g_per_kg_start": 0.83,
+    "carbohydrate": {
+      "rule": "remainder_of_calibrated_calories",
+      "formula": "(daily_calorie_target - 1120) / 4",
+      "fixed_protein_plus_fat_kcal": 1120,
+      "target_g_per_day": null
+    },
+    "same_macros_training_and_rest_days": true,
+    "routine_carb_cycling": false
+  },
+  "weight_gain_architecture": {
+    "central_zone_pct_bw_per_week": {
+      "min": 0.15,
+      "max": 0.2,
+      "classification": "HEURISTIC_STRONG_PRACTICAL_INFERENCE"
+    },
+    "central_zone_kg_per_week_at_72kg": {
+      "min": 0.108,
+      "max": 0.144
+    },
+    "successful_band_pct_bw_per_week": {
+      "min": 0.1,
+      "max": 0.25,
+      "classification": "HEURISTIC_STRONG_PRACTICAL_INFERENCE"
+    },
+    "successful_band_kg_per_week_at_72kg": {
+      "min": 0.072,
+      "max": 0.18
+    },
+    "week_12_success_corridor_kg": {
+      "min": 73.0,
+      "max": 74.0
+    },
+    "projected_midpoint_kg": 73.5,
+    "projected_midpoint_role": "reference_only_not_mandatory_target"
+  },
+  "maintenance_and_starting_calories": {
+    "exact_maintenance_kcal": null,
+    "exact_maintenance_status": "UNKNOWN_UNTIL_EMPIRICALLY_OBSERVED",
+    "do_not_invent_tdee": true,
+    "starting_controller_rule": "recent_stable_intake_plus_150",
+    "starting_controller_delta_kcal": 150,
+    "fallback_rule": "habitual_intake_plus_approximately_150",
+    "classification": "HEURISTIC_CONTROLLER_SETTING_NOT_MEASURED_SURPLUS",
+    "recent_stable_intake_kcal": null,
+    "current_calorie_target_kcal": null
+  },
+  "measurement_protocol": {
+    "daily_bodyweight": {
+      "required": true,
+      "conditions": [
+        "morning",
+        "after_bathroom",
+        "before_food_or_fluid",
+        "same_scale",
+        "similar_clothing_or_state"
+      ]
+    },
+    "display_metric": "7_day_average",
+    "decision_horizon_days": {
+      "min": 14,
+      "max": 21
+    },
+    "trend_method": {
+      "default": "14_day_linear_regression",
+      "method_must_remain_consistent_for_full_block": true,
+      "note": "Estimator choice is implementation detail; consistency is locked."
+    },
+    "waist": {
+      "role": "corroborative_only",
+      "hard_cutoff_cm": null,
+      "standardized_repeated_measurements": true
+    },
+    "photos": {
+      "role": "corroborative_only",
+      "recommended_weeks": [
+        0,
+        4,
+        8,
+        12
+      ]
+    },
+    "bodyfat_estimate": {
+      "role": "descriptive_only",
+      "automatic_calorie_trigger": false,
+      "approx_reassessment_annotation_pct": 16.0
+    }
+  },
+  "controller_timing": {
+    "weeks_1_2": {
+      "routine_bodyweight_driven_changes": false,
+      "exceptions": [
+        "GI_intolerance",
+        "obvious_logging_error",
+        "illness",
+        "clearly_falling_trend",
+        "implementation_mistake"
+      ]
+    },
+    "first_routine_decision": "end_of_week_3",
+    "subsequent_decision_interval_days_approx": 14,
+    "after_any_adjustment": "wait_for_new_qualified_trend_before_next_routine_change"
+  },
+  "controller_rules": [
+    {
+      "id": "UNDER_GAIN",
+      "condition": "qualified_trend_pct_bw_per_week < 0.10",
+      "recommended_action": "ADD_CALORIES",
+      "delta_kcal_per_day": 150,
+      "primary_macro_adjusted": "carbohydrate",
+      "automatic_apply": false,
+      "classification": "HEURISTIC"
+    },
+    {
+      "id": "IN_RANGE",
+      "condition": "0.10 <= qualified_trend_pct_bw_per_week <= 0.25",
+      "recommended_action": "NO_CHANGE",
+      "delta_kcal_per_day": 0,
+      "automatic_apply": false
+    },
+    {
+      "id": "OVER_GAIN",
+      "condition": "qualified_trend_pct_bw_per_week > 0.25 sustained",
+      "recommended_action": "REDUCE_CALORIES",
+      "delta_kcal_per_day": -100,
+      "primary_macro_adjusted": "carbohydrate",
+      "automatic_apply": false,
+      "classification": "HEURISTIC"
+    },
+    {
+      "id": "VERY_RAPID_GAIN_WITH_COMPOSITION_CONCERN",
+      "condition": "qualified_trend_pct_bw_per_week > 0.30 AND corroborating_composition_deterioration",
+      "recommended_action": "STRONGER_REASSESSMENT",
+      "automatic_apply": false
+    }
+  ],
+  "diagnostic_gate": {
+    "trigger": "two_consecutive_qualified_under_gain_corrections_of_plus_150_fail_to_move_trend_into_band",
+    "automatic_third_increase": false,
+    "rule": "audit_before_continuing",
+    "checks": [
+      "calorie_tracking_method_unchanged",
+      "foods_logged_consistently",
+      "restaurant_or_unlogged_intake_reviewed",
+      "weighing_protocol_unchanged",
+      "activity_or_NEAT_materially_changed",
+      "training_workload_materially_changed",
+      "sleep_or_recovery_materially_changed",
+      "illness_or_travel_disrupted_data",
+      "adherence_actually_consistent"
+    ],
+    "if_genuine_underfeeding_confirmed": "another_plus_150_kcal_per_day_permitted",
+    "if_inputs_unreliable": "fix_input_problem_first",
+    "classification": "STRONG_CONTROL_LOGIC_INFERENCE_HEURISTIC_THRESHOLD"
+  },
+  "partitioning_override": {
+    "hard_waist_threshold": null,
+    "hard_bodyfat_threshold": null,
+    "trigger_logic": [
+      "bodyweight_rate_inside_success_band",
+      "repeated_standardized_waist_trend_concerning",
+      "week_4_photo_comparison_concerning",
+      "no_clear_training_or_recovery_advantage"
+    ],
+    "action": "do_not_increase_calories_to_chase_73_5kg; consider_modest_reduction_after_review",
+    "automatic_apply": false
+  },
+  "performance_signal": {
+    "role": "diagnostic_flag_only",
+    "does_not_automatically_mean": [
+      "eat_more",
+      "eat_less",
+      "deload",
+      "do_not_deload"
+    ],
+    "if_weight_gain_below_band": "nutrition_remains_plausible_contributor"
+  },
+  "bodyweight_interpretation": {
+    "single_day_change_actionable": false,
+    "first_1_2_weeks_can_be_distorted_by": [
+      "glycogen",
+      "water",
+      "sodium",
+      "gut_content",
+      "food_volume",
+      "training_inflammation"
+    ],
+    "scale_gain_is_not_equal_to_muscle_gain": true
+  },
+  "daily_log_template": {
+    "date": "YYYY-MM-DD",
+    "week": 1,
+    "bodyweight_kg": null,
+    "calories_kcal": null,
+    "protein_g": 145,
+    "fat_g": 60,
+    "carbs_g": null,
+    "waist_cm": null,
+    "training_day": false,
+    "session": null,
+    "training_performance": "stable",
+    "recovery": "normal",
+    "sleep_quality": "normal",
+    "illness_or_travel": false,
+    "notes": null
+  },
+  "weekly_review_template": {
+    "week": 1,
+    "seven_day_average_weight_kg": null,
+    "qualified_trend_pct_bw_per_week": null,
+    "controller_status": "INSUFFICIENT_DATA",
+    "waist_trend": "insufficient_data",
+    "photo_context": "not_due",
+    "training_performance_trend": "stable",
+    "recovery_trend": "normal",
+    "current_calorie_target_kcal": null,
+    "protein_g": 145,
+    "fat_g": 60,
+    "carbs_g": null,
+    "recommended_action": null,
+    "recommended_delta_kcal": 0,
+    "user_applied_change": false,
+    "notes": null
+  },
+  "controller_event_template": {
+    "date": "YYYY-MM-DD",
+    "week": null,
+    "previous_calorie_target_kcal": null,
+    "trend_pct_bw_per_week": null,
+    "status": null,
+    "recommended_action": null,
+    "recommended_delta_kcal": null,
+    "user_choice": "PENDING",
+    "new_calorie_target_kcal": null,
+    "reason": null
+  },
+  "diagnostic_gate_event_template": {
+    "date": "YYYY-MM-DD",
+    "week": null,
+    "triggered": false,
+    "checks": {
+      "tracking_method_consistent": null,
+      "food_logging_consistent": null,
+      "restaurant_unlogged_intake_reviewed": null,
+      "weighing_protocol_consistent": null,
+      "activity_NEAT_changed": null,
+      "training_workload_changed": null,
+      "sleep_recovery_changed": null,
+      "illness_travel": null,
+      "adherence_consistent": null
+    },
+    "result": null,
+    "next_action": null
+  },
+  "app_logic_examples": [
+    {
+      "case": "baseline_unknown",
+      "input": {
+        "recent_stable_intake_kcal": null
+      },
+      "expected": {
+        "current_calorie_target_kcal": null,
+        "carbs_g": null,
+        "protein_g": 145,
+        "fat_g": 60,
+        "message": "Başlangıç kalorisi henüz kalibre edilmedi."
+      }
+    },
+    {
+      "case": "stable_intake_2500",
+      "input": {
+        "recent_stable_intake_kcal": 2500
+      },
+      "expected": {
+        "current_calorie_target_kcal": 2650,
+        "protein_g": 145,
+        "fat_g": 60,
+        "carbs_g": 383
+      }
+    },
+    {
+      "case": "week_1_fast_scale_jump",
+      "input": {
+        "week": 1,
+        "trend_pct_bw_per_week": 0.8
+      },
+      "expected": {
+        "routine_calorie_change": false
+      }
+    },
+    {
+      "case": "under_gain",
+      "input": {
+        "week": 3,
+        "trend_pct_bw_per_week": 0.07
+      },
+      "expected": {
+        "action": "ADD_CALORIES",
+        "delta_kcal": 150
+      }
+    },
+    {
+      "case": "in_range",
+      "input": {
+        "week": 5,
+        "trend_pct_bw_per_week": 0.17
+      },
+      "expected": {
+        "action": "NO_CHANGE",
+        "delta_kcal": 0
+      }
+    },
+    {
+      "case": "over_gain",
+      "input": {
+        "week": 5,
+        "trend_pct_bw_per_week": 0.27,
+        "sustained": true
+      },
+      "expected": {
+        "action": "REDUCE_CALORIES",
+        "delta_kcal": -100
+      }
+    },
+    {
+      "case": "two_failed_under_gain_corrections",
+      "input": {
+        "failed_plus_150_corrections": 2
+      },
+      "expected": {
+        "action": "DIAGNOSTIC_GATE",
+        "automatic_third_increase": false
+      }
+    },
+    {
+      "case": "week12_73_1_good_context",
+      "input": {
+        "week": 12,
+        "weight_kg": 73.1,
+        "performance": "good",
+        "composition": "acceptable"
+      },
+      "expected": {
+        "outcome": "SUCCESS"
+      }
+    },
+    {
+      "case": "week12_73_8_good_context",
+      "input": {
+        "week": 12,
+        "weight_kg": 73.8,
+        "performance": "good",
+        "composition": "acceptable"
+      },
+      "expected": {
+        "outcome": "SUCCESS",
+        "automatic_cut": false
+      }
+    },
+    {
+      "case": "bodyfat_16_5_only",
+      "input": {
+        "bodyfat_estimate_pct": 16.5,
+        "weight_trend": "acceptable",
+        "waist": "acceptable",
+        "photos": "acceptable"
+      },
+      "expected": {
+        "automatic_calorie_change": false
+      }
+    }
+  ],
+  "ui_status_labels": {
+    "INSUFFICIENT_DATA": "YETERSİZ VERİ",
+    "UNDER_GAIN": "YAVAŞ ARTIŞ",
+    "IN_RANGE": "ARALIKTA",
+    "OVER_GAIN": "HIZLI ARTIŞ",
+    "DIAGNOSTIC_GATE": "DIAGNOSTIC GATE",
+    "COMPOSITION_REASSESSMENT": "KOMPOZİSYON KONTROLÜ",
+    "UNKNOWN": "UNKNOWN",
+    "HEURISTIC": "HEURISTIC",
+    "LOCKED": "LOCKED"
+  },
+  "evidence_status": {
+    "exact_maintenance": "UNKNOWN",
+    "exact_ideal_surplus": "UNKNOWN",
+    "plus_150_starting_controller": "HEURISTIC",
+    "plus_150_under_gain_adjustment": "HEURISTIC",
+    "minus_100_over_gain_adjustment": "HEURISTIC",
+    "central_gain_zone": "HEURISTIC_STRONG_PRACTICAL_INFERENCE",
+    "successful_band": "HEURISTIC_STRONG_PRACTICAL_INFERENCE",
+    "exact_optimal_week12_weight": "UNKNOWN",
+    "73_74kg_success_corridor": "HEURISTIC",
+    "73_5kg_midpoint": "DESCRIPTIVE_HEURISTIC",
+    "protein_145g": "STRONG_INFERENCE",
+    "fat_60g": "STRONG_PRACTICAL_INFERENCE_HEURISTIC_EXACT_VALUE",
+    "carb_as_remainder": "STRONG_PRACTICAL_INFERENCE",
+    "same_macros_daily": "STRONG_PRACTICAL_INFERENCE",
+    "no_automatic_bf_trigger": "STRONG_INFERENCE",
+    "14_21_day_decision_trend": "STRONG_CONTROL_INFERENCE_HEURISTIC_EXACT_WINDOW",
+    "estimator_consistency": "STRONG_MEASUREMENT_CONTROL_INFERENCE",
+    "diagnostic_gate": "STRONG_CONTROL_LOGIC_INFERENCE_HEURISTIC_THRESHOLD"
+  }
+}

@@ -389,3 +389,29 @@ def get_slot(connection: sqlite3.Connection, slot_id: str) -> SlotRow | None:
         if slot.id == slot_id:
             return slot
     return None
+
+
+def set_block_start(
+    connection: sqlite3.Connection, version_id: str, start_on: str, *, now: str | None = None
+) -> None:
+    """When week 1 of this version's training block starts. State, replaceable."""
+    stamp = now if now is not None else utc_now_iso()
+    with db.immediate_transaction(connection):
+        if get_program_version(connection, version_id) is None:
+            raise ProgramStateError(f"no program version with id {version_id!r}")
+        try:
+            connection.execute(
+                "INSERT INTO training_block (program_version_id, start_on, set_at_utc) "
+                "VALUES (?, ?, ?) ON CONFLICT (program_version_id) DO UPDATE SET "
+                "start_on = excluded.start_on, set_at_utc = excluded.set_at_utc",
+                (version_id, start_on, stamp),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(f"block start must be a YYYY-MM-DD date: {start_on!r}") from exc
+
+
+def get_block_start(connection: sqlite3.Connection, version_id: str) -> str | None:
+    row = connection.execute(
+        "SELECT start_on FROM training_block WHERE program_version_id = ?", (version_id,)
+    ).fetchone()
+    return None if row is None else str(row["start_on"])

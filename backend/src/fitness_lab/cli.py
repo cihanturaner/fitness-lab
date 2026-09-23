@@ -12,11 +12,13 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
+from datetime import date
 from pathlib import Path
 
 from fitness_lab.domain.locked_program import AdapterError, adapt_locked_program
 from fitness_lab.domain.models import create_exercise
 from fitness_lab.domain.program import PackageError, parse_program_package, sha256_hex
+from fitness_lab.domain.week import week_bounds
 from fitness_lab.storage import db, migrations, programs
 from fitness_lab.storage.exercises import find_exercise_by_identity, insert_exercise
 
@@ -177,6 +179,30 @@ def cmd_show(args: argparse.Namespace) -> dict[str, object]:
     return {"version_id": version.id, "name": version.name, "planned_workouts": planned}
 
 
+def cmd_set_block_start(args: argparse.Namespace) -> dict[str, object]:
+    try:
+        start = date.fromisoformat(args.start_on)
+    except ValueError as exc:
+        raise CommandError(f"not a YYYY-MM-DD date: {args.start_on!r}") from exc
+    if start.isoformat() != args.start_on:
+        raise CommandError(f"not a YYYY-MM-DD date: {args.start_on!r}")
+    _migrate()
+    with db.connection_scope() as connection:
+        if args.version_id:
+            version = programs.get_program_version(connection, args.version_id)
+        else:
+            version = programs.get_active_version(connection)
+        if version is None:
+            raise CommandError("no such program version, and no active program to default to")
+        programs.set_block_start(connection, version.id, args.start_on)
+    monday, sunday = week_bounds(start)
+    return {
+        "version_id": version.id,
+        "start_on": args.start_on,
+        "week_1": [monday.isoformat(), sunday.isoformat()],
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="fitness-lab", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -201,6 +227,12 @@ def build_parser() -> argparse.ArgumentParser:
     show = commands.add_parser("show-program", help="summarise a version (default: active)")
     show.add_argument("version_id", nargs="?")
     show.set_defaults(func=cmd_show)
+    block = commands.add_parser(
+        "set-block-start", help="date in week 1 of the block (default: active version)"
+    )
+    block.add_argument("start_on")
+    block.add_argument("version_id", nargs="?")
+    block.set_defaults(func=cmd_set_block_start)
     return parser
 
 
