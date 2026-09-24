@@ -22,6 +22,7 @@ from fitness_lab.domain.completion import (
     renumber_sets,
     reopen_workout,
 )
+from fitness_lab.domain.exercise_names import name_key, typed_exercise_name
 from fitness_lab.domain.models import (
     Exercise,
     PerformedSet,
@@ -33,9 +34,15 @@ from fitness_lab.domain.models import (
     new_id,
     utc_now_iso,
 )
+from fitness_lab.domain.placement import SetFacts, SlotFacts, place_sets
 from fitness_lab.domain.substitutes import approved_substitutes
 from fitness_lab.storage import db
-from fitness_lab.storage.exercises import find_exercise_by_identity, get_exercise, insert_exercise
+from fitness_lab.storage.exercises import (
+    find_exercise_by_identity,
+    get_exercise,
+    insert_exercise,
+    list_exercises,
+)
 from fitness_lab.storage.programs import (
     SlotRow,
     get_active_version,
@@ -129,6 +136,8 @@ class EntryAggregate:
     sets: tuple[PerformedSet, ...]
     exercises: dict[str, Exercise]
     last_performance: dict[str, LastPerformance | None]
+    # The slot each set belongs to (None: extra work) — see domain.placement.
+    set_slots: dict[str, str | None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -317,13 +326,22 @@ def add_set(
     reps: int | None,
     rir: int | None,
     notes: str | None,
+    slot_id: str | None = None,
     now: str | None = None,
 ) -> PerformedSet:
-    """Append one actual set at the end of the session's chronological order."""
+    """Append one actual set at the end of the session's chronological order.
+
+    ``slot_id``: the planned slot it was recorded in (V3.3.1), which must be performed as
+    ``exercise_id`` in this workout. The placement is written in the same transaction, so two
+    slots performed as one exercise keep their own sets.
+    """
     stamp = now if now is not None else utc_now_iso()
     with db.immediate_transaction(connection):
         _require_draft(connection, workout_id)
         _require_exercise(connection, exercise_id)
+        slot = None if slot_id is None else _require_slot_of_draft(connection, workout_id, slot_id)
+        if slot is not None and _performed_as(connection, workout_id, slot) != exercise_id:
+            raise ValueError("this slot is performed as another exercise in this workout")
         next_order = int(
             connection.execute(
                 "SELECT coalesce(max(set_order), 0) + 1 FROM performed_set WHERE workout_id = ?",
@@ -347,6 +365,12 @@ def add_set(
             insert_performed_set(connection, performed)
         except (sqlite3.IntegrityError, ValueError, TypeError, OverflowError) as exc:
             raise ValueError(f"invalid set: {exc}") from exc
+        if slot is not None:
+            connection.execute(
+                "INSERT INTO performed_set_slot (set_id, workout_id, planned_workout_id, "
+                "slot_id, created_at_utc) VALUES (?, ?, ?, ?, ?)",
+                (performed.id, workout_id, slot.planned_workout_id, slot.id, stamp),
+            )
     return performed
 
 
@@ -380,6 +404,9 @@ def edit_set(
             if not isinstance(exercise_id, str):
                 raise ValueError("exercise_id must be a string")
             _require_exercise(connection, exercise_id)
+            if exercise_id != current.exercise_id:
+                # Another exercise is no longer the slot's: the set becomes extra work.
+                connection.execute("DELETE FROM performed_set_slot WHERE set_id = ?", (set_id,))
             updated = replace(updated, exercise_id=exercise_id)
         if "set_type" in changes:
             code = changes["set_type"]
@@ -604,6 +631,44 @@ def use_approved_substitute(
     return exercise
 
 
+def use_typed_exercise(
+    connection: sqlite3.Connection,
+    workout_id: str,
+    slot_id: str,
+    text: str,
+    *,
+    now: str | None = None,
+) -> Exercise:
+    """Perform this slot, in this workout only, as an exercise the lifter typed.
+
+    The name is normalised (``domain.exercise_names``). An existing identity with that name
+    and no equipment — compared case- and whitespace-insensitively — is reused; a retired one
+    is refused, never revived; otherwise it is created. One transaction.
+    """
+    name = typed_exercise_name(text)
+    with db.immediate_transaction(connection):
+        slot = _require_slot_of_draft(connection, workout_id, slot_id)
+        key = name_key(name)
+        exercise = next(
+            (
+                item
+                for item in list_exercises(connection, include_inactive=True)
+                if item.equipment_label is None and name_key(item.name) == key
+            ),
+            None,
+        )
+        if exercise is None:
+            exercise = create_exercise(name, None, now=now)
+            insert_exercise(connection, exercise)
+        _substitute(connection, workout_id, slot, exercise.id, now)
+    return exercise
+
+
+def _performed_as(connection: sqlite3.Connection, workout_id: str, slot: SlotRow) -> str:
+    """The exercise this slot is performed as in this workout: its substitute, else planned."""
+    return _substitutions(connection, workout_id).get(slot.id, slot.exercise_id)
+
+
 def _require_slot_of_draft(
     connection: sqlite3.Connection, workout_id: str, slot_id: str
 ) -> SlotRow:
@@ -626,13 +691,21 @@ def _substitute(
 ) -> None:
     stamp = now if now is not None else utc_now_iso()
     slot_id = slot.id
+    if exercise_id != slot.exercise_id:
+        _require_exercise(connection, exercise_id)
+    # Sets recorded in this slot as another exercise stay what they are — extra work of their
+    # own exercise — rather than being counted as the new one.
+    connection.execute(
+        "DELETE FROM performed_set_slot WHERE workout_id = ? AND slot_id = ? AND set_id IN "
+        "(SELECT id FROM performed_set WHERE workout_id = ? AND exercise_id IS NOT ?)",
+        (workout_id, slot_id, workout_id, exercise_id),
+    )
     if exercise_id == slot.exercise_id:
         connection.execute(
             "DELETE FROM workout_slot_substitution WHERE workout_id = ? AND slot_id = ?",
             (workout_id, slot_id),
         )
         return
-    _require_exercise(connection, exercise_id)
     connection.execute(
         "INSERT INTO workout_slot_substitution (workout_id, planned_workout_id, slot_id, "
         "exercise_id, created_at_utc, updated_at_utc) VALUES (?, ?, ?, ?, ?, ?) "
@@ -648,6 +721,33 @@ def _substitutions(connection: sqlite3.Connection, workout_id: str) -> dict[str,
         (workout_id,),
     ).fetchall()
     return {str(row["slot_id"]): str(row["exercise_id"]) for row in rows}
+
+
+def recorded_placements(connection: sqlite3.Connection, workout_id: str) -> dict[str, str]:
+    """Set id -> the slot it was recorded in, for sets recorded since V3.3.1."""
+    rows = connection.execute(
+        "SELECT set_id, slot_id FROM performed_set_slot WHERE workout_id = ?", (workout_id,)
+    ).fetchall()
+    return {str(row["set_id"]): str(row["slot_id"]) for row in rows}
+
+
+def slot_facts(slots: Sequence[SlotRow], substitutions: Mapping[str, str]) -> tuple[SlotFacts, ...]:
+    return tuple(
+        SlotFacts(
+            slot_id=slot.id,
+            position=slot.position,
+            planned_exercise_id=slot.exercise_id,
+            performed_exercise_id=substitutions.get(slot.id, slot.exercise_id),
+        )
+        for slot in slots
+    )
+
+
+def set_facts(sets: Sequence[PerformedSet]) -> tuple[SetFacts, ...]:
+    return tuple(
+        SetFacts(set_id=item.id, exercise_id=item.exercise_id, set_order=item.set_order)
+        for item in sets
+    )
 
 
 # --- last exact performance ------------------------------------------------------------
@@ -724,6 +824,7 @@ def _load_entry(connection: sqlite3.Connection, workout_id: str) -> EntryAggrega
     workout = _require_workout(connection, workout_id)
     origin = get_origin(connection, workout_id)
     slots: tuple[EntrySlot, ...] = ()
+    substitutes: dict[str, str] = {}
     if origin is not None:
         substitutes = _substitutions(connection, workout_id)
         slots = tuple(
@@ -735,6 +836,11 @@ def _load_entry(connection: sqlite3.Connection, workout_id: str) -> EntryAggrega
             for slot in list_slots(connection, origin.planned_workout_id)
         )
     sets = list_sets_for_workout(connection, workout_id)
+    set_slots = place_sets(
+        slot_facts([item.slot for item in slots], substitutes),
+        set_facts(sets),
+        recorded_placements(connection, workout_id),
+    )
 
     referenced: list[str] = []
     for entry_slot in slots:
@@ -759,6 +865,7 @@ def _load_entry(connection: sqlite3.Connection, workout_id: str) -> EntryAggrega
         sets=sets,
         exercises=exercises,
         last_performance=performance,
+        set_slots=set_slots,
     )
 
 

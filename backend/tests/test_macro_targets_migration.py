@@ -64,7 +64,7 @@ def test_0007_converts_calorie_targets_by_the_source_rule_and_keeps_every_row(
 
     result = migrate_to_head(db_path)
 
-    assert result.applied == (7,)
+    assert result.applied == (7, 8)
     assert result.snapshot is not None and result.snapshot.name.endswith("-pre-0007.db")
     with db.connection_scope(db_path) as connection:
         # The original calorie targets are untouched.

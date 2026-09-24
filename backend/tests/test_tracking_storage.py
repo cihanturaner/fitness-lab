@@ -68,7 +68,7 @@ def test_0004_is_additive_over_a_database_with_training_evidence(tmp_path: Path)
 
     result = migrate_to_head(db_path)
 
-    assert result.applied == (4, 5, 6, 7)
+    assert result.applied == (4, 5, 6, 7, 8)
     assert result.snapshot is not None and result.snapshot.name.endswith("-pre-0004.db")
     with db.connection_scope(db_path) as connection:
         after = {

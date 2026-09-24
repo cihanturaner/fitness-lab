@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -10,7 +11,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fitness_lab.api.app import create_app
+from fitness_lab.domain.models import create_exercise
+from fitness_lab.domain.program import parse_program_package
 from fitness_lab.storage import db
+from fitness_lab.storage.exercises import insert_exercise
 from fitness_lab.storage.programs import activate_program_version, import_program_package
 from program_fixtures import package, seed_exercises
 
@@ -62,3 +66,27 @@ def session(
         assert response.status_code == 201, response.text
     assert client.post(f"/api/workouts/{workout_id}/complete").status_code == 200
     return workout_id
+
+
+LOCKED_PACKAGE = db.REPO_ROOT / "programs" / "advanced-natural-12w" / "package"
+
+
+@pytest.fixture
+def locked(client: TestClient, db_file: Path) -> dict[str, Any]:
+    """The real locked package, imported and activated exactly as the CLI does."""
+    manifest = json.loads((LOCKED_PACKAGE / "exercises.json").read_text(encoding="utf-8"))
+    package = parse_program_package(
+        (LOCKED_PACKAGE / "program.json").read_bytes(),
+        (LOCKED_PACKAGE / "program-notes.md").read_bytes(),
+    )
+    with db.connection_scope(db_file) as connection:
+        for item in manifest["exercises"]:
+            insert_exercise(connection, create_exercise(item["name"], item["equipment_label"]))
+        version = import_program_package(connection, package).version
+        activate_program_version(connection, version.id)
+    active = client.get("/api/program/active").json()
+    return {
+        "version": version.id,
+        "planned": {item["name"]: item["id"] for item in active["planned_workouts"]},
+        "exercises": {item["name"]: item["id"] for item in client.get("/api/exercises").json()},
+    }

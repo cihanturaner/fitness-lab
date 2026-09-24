@@ -1,7 +1,9 @@
 """Read-only views over recorded training: exercise history, recent sessions, a week.
 
 Evidence is complete workouts' performed sets, read as recorded. No aggregation tables,
-no derived numbers: an exposure is one complete workout's sets of one exact exercise.
+no derived numbers: an exposure is one complete workout's sets of one exact exercise in one
+planned slot (or as extra work) — two slots performed as the same exercise are two exposures
+(V3.3.1, ``domain.placement``).
 Workouts are ordered as everywhere else: performed_on, then start time (unknown last),
 then entry time, then id.
 """
@@ -13,7 +15,9 @@ from dataclasses import dataclass
 
 from fitness_lab.domain.completion import work_set_totals
 from fitness_lab.domain.models import Exercise, PerformedSet, Workout
+from fitness_lab.domain.placement import group_sets
 from fitness_lab.domain.week import SessionFacts
+from fitness_lab.storage.entry import recorded_placements, set_facts, slot_facts
 from fitness_lab.storage.exercises import get_exercise
 from fitness_lab.storage.programs import list_planned_workouts, list_slots
 from fitness_lab.storage.workouts import SET_COLUMNS, row_to_performed_set, row_to_workout
@@ -36,6 +40,57 @@ class Exposure:
     planned_workout_name: str | None
     program_version_id: str | None
     sets: tuple[PerformedSet, ...]
+    # The planned slot it was performed in (None: extra work) and, when that slot planned
+    # another exercise, the planned one it replaced.
+    slot_id: str | None = None
+    replaced_exercise_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SlotSets:
+    """One slot's recorded sets in a workout (``slot_id`` None: extra work)."""
+
+    exercise_id: str
+    slot_id: str | None
+    # The planned exercise when the slot was performed as another one, else None.
+    planned_exercise_id: str | None
+    sets: tuple[PerformedSet, ...]
+
+
+def workout_groups(connection: sqlite3.Connection, workout_id: str) -> tuple[SlotSets, ...]:
+    """A workout's sets by planned slot (and extra exercise), in the order trained."""
+    sets = [
+        row_to_performed_set(item)
+        for item in connection.execute(
+            f"SELECT {SET_COLUMNS} FROM performed_set WHERE workout_id = ? ORDER BY set_order",
+            (workout_id,),
+        ).fetchall()
+    ]
+    origin = connection.execute(
+        "SELECT planned_workout_id FROM workout_plan_origin WHERE workout_id = ?", (workout_id,)
+    ).fetchone()
+    slots = () if origin is None else list_slots(connection, str(origin[0]))
+    substitutions = {
+        str(row[0]): str(row[1])
+        for row in connection.execute(
+            "SELECT slot_id, exercise_id FROM workout_slot_substitution WHERE workout_id = ?",
+            (workout_id,),
+        ).fetchall()
+    }
+    by_id = {item.id: item for item in sets}
+    return tuple(
+        SlotSets(
+            exercise_id=group.exercise_id,
+            slot_id=None if group.slot is None else group.slot.slot_id,
+            planned_exercise_id=group.planned_exercise_id,
+            sets=tuple(by_id[set_id] for set_id in group.set_ids),
+        )
+        for group in group_sets(
+            slot_facts(slots, substitutions),
+            set_facts(sets),
+            recorded_placements(connection, workout_id),
+        )
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +104,7 @@ class ExerciseHistorySummary:
 class ExerciseSets:
     exercise_id: str
     sets: tuple[PerformedSet, ...]
+    planned_exercise_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,7 +122,10 @@ def _opt(value: object) -> str | None:
 
 
 def exercise_history(connection: sqlite3.Connection, exercise_id: str) -> tuple[Exposure, ...]:
-    """Every complete workout holding this exact exercise, oldest first, with its sets."""
+    """Every complete workout holding this exact exercise, oldest first, with its sets.
+
+    One exposure per slot (or extra work) it was performed in within a workout.
+    """
     workouts = connection.execute(
         "SELECT w.id, w.performed_on, w.performed_time_local, pw.name AS planned_name, "
         "pw.program_version_id AS version_id FROM workout w "
@@ -79,21 +138,21 @@ def exercise_history(connection: sqlite3.Connection, exercise_id: str) -> tuple[
     ).fetchall()
     exposures: list[Exposure] = []
     for row in workouts:
-        sets = connection.execute(
-            f"SELECT {SET_COLUMNS} FROM performed_set "
-            "WHERE workout_id = ? AND exercise_id = ? ORDER BY set_order",
-            (str(row["id"]), exercise_id),
-        ).fetchall()
-        exposures.append(
-            Exposure(
-                workout_id=str(row["id"]),
-                performed_on=str(row["performed_on"]),
-                performed_time_local=_opt(row["performed_time_local"]),
-                planned_workout_name=_opt(row["planned_name"]),
-                program_version_id=_opt(row["version_id"]),
-                sets=tuple(row_to_performed_set(item) for item in sets),
+        for group in workout_groups(connection, str(row["id"])):
+            if group.exercise_id != exercise_id:
+                continue
+            exposures.append(
+                Exposure(
+                    workout_id=str(row["id"]),
+                    performed_on=str(row["performed_on"]),
+                    performed_time_local=_opt(row["performed_time_local"]),
+                    planned_workout_name=_opt(row["planned_name"]),
+                    program_version_id=_opt(row["version_id"]),
+                    sets=group.sets,
+                    slot_id=group.slot_id,
+                    replaced_exercise_id=group.planned_exercise_id,
+                )
             )
-        )
     return tuple(exposures)
 
 
@@ -121,7 +180,7 @@ def exercises_with_history(connection: sqlite3.Connection) -> tuple[ExerciseHist
 
 
 def recent_sessions(connection: sqlite3.Connection, *, limit: int) -> tuple[RecentSession, ...]:
-    """The latest complete workouts, their sets grouped by exercise in the order trained."""
+    """The latest complete workouts, their sets grouped by slot in the order trained."""
     workouts = connection.execute(
         "SELECT w.id, w.performed_on, w.performed_time_local, pw.name AS planned_name, "
         "o.planned_workout_id FROM workout w "
@@ -132,13 +191,7 @@ def recent_sessions(connection: sqlite3.Connection, *, limit: int) -> tuple[Rece
     ).fetchall()
     sessions: list[RecentSession] = []
     for row in workouts:
-        grouped: dict[str, list[PerformedSet]] = {}
-        for item in connection.execute(
-            f"SELECT {SET_COLUMNS} FROM performed_set WHERE workout_id = ? ORDER BY set_order",
-            (str(row["id"]),),
-        ).fetchall():
-            performed = row_to_performed_set(item)
-            grouped.setdefault(performed.exercise_id, []).append(performed)
+        groups = workout_groups(connection, str(row["id"]))
         sessions.append(
             RecentSession(
                 workout_id=str(row["id"]),
@@ -147,8 +200,12 @@ def recent_sessions(connection: sqlite3.Connection, *, limit: int) -> tuple[Rece
                 planned_workout_name=_opt(row["planned_name"]),
                 planned_workout_id=_opt(row["planned_workout_id"]),
                 exercises=tuple(
-                    ExerciseSets(exercise_id=key, sets=tuple(value))
-                    for key, value in grouped.items()
+                    ExerciseSets(
+                        exercise_id=group.exercise_id,
+                        sets=group.sets,
+                        planned_exercise_id=group.planned_exercise_id,
+                    )
+                    for group in groups
                 ),
             )
         )
@@ -223,11 +280,13 @@ TIMELINE_KINDS = ("training", "bodyweight", "nutrition")
 
 @dataclass(frozen=True, slots=True)
 class DayExercise:
-    """One exercise of a day's workout; ``planned_exercise_id`` when it replaced a slot."""
+    """One slot (or extra exercise) of a day's workout; ``planned_exercise_id`` when the slot
+    was performed as another exercise."""
 
     exercise_id: str
     planned_exercise_id: str | None
     sets: tuple[PerformedSet, ...]
+    slot_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -291,14 +350,7 @@ def _day_workouts(connection: sqlite3.Connection, day: str) -> tuple[DayWorkout,
                 (workout_id,),
             ).fetchall()
         )
-        replaced = {performed: planned for planned, performed in substitutions}
-        grouped: dict[str, list[PerformedSet]] = {}
-        for item in connection.execute(
-            f"SELECT {SET_COLUMNS} FROM performed_set WHERE workout_id = ? ORDER BY set_order",
-            (workout_id,),
-        ).fetchall():
-            performed = row_to_performed_set(item)
-            grouped.setdefault(performed.exercise_id, []).append(performed)
+        groups = workout_groups(connection, workout_id)
         workouts.append(
             DayWorkout(
                 workout_id=workout_id,
@@ -307,9 +359,12 @@ def _day_workouts(connection: sqlite3.Connection, day: str) -> tuple[DayWorkout,
                 planned_workout_name=_opt(row["planned_name"]),
                 exercises=tuple(
                     DayExercise(
-                        exercise_id=key, planned_exercise_id=replaced.get(key), sets=tuple(value)
+                        exercise_id=group.exercise_id,
+                        planned_exercise_id=group.planned_exercise_id,
+                        sets=group.sets,
+                        slot_id=group.slot_id,
                     )
-                    for key, value in grouped.items()
+                    for group in groups
                 ),
                 substitutions=substitutions,
             )
@@ -347,16 +402,3 @@ def timeline_day(
         if nutrition is None
         else (grams(nutrition[0]), grams(nutrition[1]), grams(nutrition[2])),
     )
-
-
-def exposure_replaced(
-    connection: sqlite3.Connection, workout_id: str, exercise_id: str
-) -> str | None:
-    """The planned exercise this exercise replaced in that workout, if it was a substitute."""
-    row = connection.execute(
-        "SELECT ps.exercise_id FROM workout_slot_substitution sub "
-        "JOIN planned_exercise_slot ps ON ps.id = sub.slot_id "
-        "WHERE sub.workout_id = ? AND sub.exercise_id = ? ORDER BY ps.position LIMIT 1",
-        (workout_id, exercise_id),
-    ).fetchone()
-    return None if row is None else str(row[0])

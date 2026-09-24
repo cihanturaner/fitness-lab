@@ -49,6 +49,7 @@ from fitness_lab.api.schemas import (
     SetPatchIn,
     SlotExerciseIn,
     SlotOut,
+    TypedExerciseIn,
     WorkoutOut,
     WorkoutPatchIn,
     WorkoutSummaryOut,
@@ -317,8 +318,9 @@ def create_app() -> FastAPI:
                 reps=body.reps,
                 rir=body.rir,
                 notes=body.notes,
+                slot_id=body.slot_id,
             )
-            return PerformedSetOut.of(performed)
+            return PerformedSetOut.of(performed, body.slot_id)
 
     @app.patch("/api/sets/{set_id}")
     def patch_set(set_id: str, body: SetPatchIn) -> PerformedSetOut:
@@ -352,6 +354,13 @@ def create_app() -> FastAPI:
         """Perform the slot as one of its approved substitutes, for this workout only."""
         with _connection() as connection:
             entry.use_approved_substitute(connection, workout_id, slot_id, body.name)
+            return _entry_out(connection, workout_id)
+
+    @app.put("/api/workouts/{workout_id}/slots/{slot_id}/typed-exercise")
+    def typed_exercise(workout_id: str, slot_id: str, body: TypedExerciseIn) -> EntryOut:
+        """Perform the slot as an exercise typed by name (found or created), this workout only."""
+        with _connection() as connection:
+            entry.use_typed_exercise(connection, workout_id, slot_id, body.name)
             return _entry_out(connection, workout_id)
 
     # --- exercises --------------------------------------------------------------------------

@@ -138,6 +138,9 @@ class SetFieldsIn(RequestModel):
 
 class SetCreateIn(SetFieldsIn):
     exercise_id: str
+    # The planned slot the set is recorded in (V3.3.1); absent: extra work, or the pre-V3.3.1
+    # rule (the first slot performed as this exercise).
+    slot_id: str | None = None
 
 
 class SetPatchIn(SetFieldsIn):
@@ -154,6 +157,12 @@ class SlotExerciseIn(RequestModel):
 
 class ApprovedSubstituteIn(RequestModel):
     name: NonBlank
+
+
+class TypedExerciseIn(RequestModel):
+    """A name the lifter typed; normalised, then found or created (domain.exercise_names)."""
+
+    name: str
 
 
 class ExerciseCreateIn(RequestModel):
@@ -217,10 +226,14 @@ class PerformedSetOut(BaseModel):
     notes: str | None
     entered_at_utc: str
     updated_at_utc: str
+    # The planned slot of its workout this set belongs to (entry and set creation only):
+    # None for extra work, and wherever the set is shown outside its workout.
+    slot_id: str | None = None
 
     @classmethod
-    def of(cls, performed: PerformedSet) -> PerformedSetOut:
+    def of(cls, performed: PerformedSet, slot_id: str | None = None) -> PerformedSetOut:
         return cls(
+            slot_id=slot_id,
             id=performed.id,
             workout_id=performed.workout_id,
             exercise_id=performed.exercise_id,
@@ -388,7 +401,10 @@ class EntryOut(BaseModel):
             workout=WorkoutOut.of(entry.workout),
             origin=OriginOut.of(entry.origin),
             slots=[EntrySlotOut.of_entry(slot) for slot in entry.slots],
-            sets=[PerformedSetOut.of(performed) for performed in entry.sets],
+            sets=[
+                PerformedSetOut.of(performed, entry.set_slots.get(performed.id))
+                for performed in entry.sets
+            ],
             exercises={key: ExerciseOut.of(value) for key, value in entry.exercises.items()},
             last_performance={
                 key: LastPerformanceOut.of(value) for key, value in entry.last_performance.items()

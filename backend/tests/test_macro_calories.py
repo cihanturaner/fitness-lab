@@ -137,7 +137,7 @@ def test_0006_archives_every_typed_calorie_value_before_the_rebuild(tmp_path: Pa
 
     result = migrate_to_head(db_path)
 
-    assert result.applied == (6, 7)
+    assert result.applied == (6, 7, 8)
     assert result.snapshot is not None and result.snapshot.name.endswith("-pre-0006.db")
     with db.connection_scope(db_path) as connection:
         archived = connection.execute(

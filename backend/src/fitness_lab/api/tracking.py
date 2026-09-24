@@ -591,6 +591,9 @@ class ExposureOut(BaseModel):
     planned_workout_name: str | None
     # When this exercise was performed in place of a planned one in that workout.
     replaced: ExerciseOut | None
+    # The planned slot it was performed in (None: extra work). Two slots of one workout
+    # performed as this exercise are two exposures.
+    slot_id: str | None
     block_week: int | None
     phase: BlockPhase | None
     sets: list[PerformedSetOut]
@@ -604,6 +607,8 @@ class ExerciseHistoryOut(BaseModel):
 
 class ExerciseSetsOut(BaseModel):
     exercise: ExerciseOut
+    # The planned exercise when its slot was performed as this one, else None.
+    planned_exercise: ExerciseOut | None = None
     sets: list[PerformedSetOut]
 
 
@@ -661,9 +666,9 @@ def exercise_history(exercise_id: str) -> ExerciseHistoryOut:
         exposures = history.exercise_history(connection, exercise_id)
         replaced: dict[str, ExerciseOut | None] = {}
         for item in exposures:
-            planned_id = history.exposure_replaced(connection, item.workout_id, exercise_id)
+            planned_id = item.replaced_exercise_id
             planned = None if planned_id is None else get_exercise(connection, planned_id)
-            replaced[item.workout_id] = None if planned is None else ExerciseOut.of(planned)
+            replaced[planned_id or ""] = None if planned is None else ExerciseOut.of(planned)
         # Each exposure is numbered in the block of its own program version, so activating
         # a later program (or its block) never renumbers earlier training.
         blocks = {
@@ -680,7 +685,8 @@ def exercise_history(exercise_id: str) -> ExerciseHistoryOut:
                 performed_on=item.performed_on,
                 performed_time_local=item.performed_time_local,
                 planned_workout_name=item.planned_workout_name,
-                replaced=replaced[item.workout_id],
+                replaced=replaced[item.replaced_exercise_id or ""],
+                slot_id=item.slot_id,
                 block_week=None if own is None else block_week(own[0], performed_on),
                 phase=None if own is None else block_phase(own[0], own[1], performed_on),
                 sets=[PerformedSetOut.of(performed) for performed in item.sets],
@@ -696,9 +702,11 @@ def recent_training(limit: int = 3) -> list[RecentSessionOut]:
     with _connection() as connection, db.transaction(connection):
         sessions = history.recent_sessions(connection, limit=max(1, min(limit, 20)))
         exercises = {
-            group.exercise_id: get_exercise(connection, group.exercise_id)
+            exercise_id: get_exercise(connection, exercise_id)
             for item in sessions
             for group in item.exercises
+            for exercise_id in (group.exercise_id, group.planned_exercise_id)
+            if exercise_id is not None
         }
         planned_counts = {
             item.planned_workout_id: history.planned_work_set_count(
@@ -724,6 +732,10 @@ def recent_training(limit: int = 3) -> list[RecentSessionOut]:
             exercises=[
                 ExerciseSetsOut(
                     exercise=ExerciseOut.of(found),
+                    planned_exercise=None
+                    if group.planned_exercise_id is None
+                    or (planned := exercises.get(group.planned_exercise_id)) is None
+                    else ExerciseOut.of(planned),
                     sets=[PerformedSetOut.of(performed) for performed in group.sets],
                 )
                 for group in item.exercises
@@ -738,9 +750,14 @@ def recent_training(limit: int = 3) -> list[RecentSessionOut]:
 
 
 class DayExerciseOut(BaseModel):
+    """One planned slot (or extra exercise) of a workout: the performed exercise, and the
+    planned one when the slot was performed as another exercise."""
+
     exercise: ExerciseOut
     # The planned exercise this one replaced in this workout (a substitution), if any.
     planned_exercise: ExerciseOut | None
+    # The planned slot (None: extra work); two slots of one exercise stay two entries.
+    slot_id: str | None
     sets: list[PerformedSetOut]
 
 
@@ -848,6 +865,7 @@ def history_days(
                     planned_exercise=None
                     if item.planned_exercise_id is None or item.planned_exercise_id not in exercises
                     else ExerciseOut.of(exercises[item.planned_exercise_id]),
+                    slot_id=item.slot_id,
                     sets=[PerformedSetOut.of(performed) for performed in item.sets],
                 )
                 for item in workout.exercises
