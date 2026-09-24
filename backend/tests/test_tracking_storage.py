@@ -67,7 +67,7 @@ def test_0004_is_additive_over_a_database_with_training_evidence(tmp_path: Path)
 
     result = migrate_to_head(db_path)
 
-    assert result.applied == (4, 5)
+    assert result.applied == (4, 5, 6)
     assert result.snapshot is not None and result.snapshot.name.endswith("-pre-0004.db")
     with db.connection_scope(db_path) as connection:
         after = {
@@ -146,7 +146,6 @@ def test_one_nutrition_log_per_date_replaced_on_save(migrated_db: sqlite3.Connec
     tracking.put_nutrition_day(
         migrated_db,
         "2026-10-01",
-        calories_kcal=2400,
         protein_g=150,
         carbs_g=300,
         fat_g=62,
@@ -156,7 +155,6 @@ def test_one_nutrition_log_per_date_replaced_on_save(migrated_db: sqlite3.Connec
     updated = tracking.put_nutrition_day(
         migrated_db,
         "2026-10-01",
-        calories_kcal=2500,
         protein_g=148,
         carbs_g=None,
         fat_g=61,
@@ -165,7 +163,7 @@ def test_one_nutrition_log_per_date_replaced_on_save(migrated_db: sqlite3.Connec
     )
     day = tracking.get_nutrition_day(migrated_db, "2026-10-01")
     assert day == updated
-    assert (day.calories_kcal, day.protein_g, day.carbs_g, day.fat_g) == (2500, 148, None, 61)
+    assert (day.protein_g, day.carbs_g, day.fat_g) == (148, None, 61)
     assert day.notes == "restaurant"
     assert day.entered_at_utc == STAMP
     assert tracking.get_nutrition_day(migrated_db, "2026-10-02") is None
@@ -176,8 +174,7 @@ def test_nutrition_days_list_and_remove(migrated_db: sqlite3.Connection) -> None
         tracking.put_nutrition_day(
             migrated_db,
             day,
-            calories_kcal=2400,
-            protein_g=None,
+            protein_g=150,
             carbs_g=None,
             fat_g=None,
             notes=None,
@@ -197,7 +194,6 @@ def test_an_empty_nutrition_log_is_refused(migrated_db: sqlite3.Connection) -> N
         tracking.put_nutrition_day(
             migrated_db,
             "2026-10-01",
-            calories_kcal=None,
             protein_g=None,
             carbs_g=None,
             fat_g=None,
@@ -205,7 +201,7 @@ def test_an_empty_nutrition_log_is_refused(migrated_db: sqlite3.Connection) -> N
         )
     with pytest.raises(sqlite3.IntegrityError):
         migrated_db.execute(
-            "INSERT INTO nutrition_day VALUES ('2026-10-01', NULL, NULL, NULL, NULL, 'x', 'x', 'x')"
+            "INSERT INTO nutrition_day VALUES ('2026-10-01', NULL, NULL, NULL, 'x', 'x', 'x')"
         )
 
 

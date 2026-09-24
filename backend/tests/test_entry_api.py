@@ -59,7 +59,7 @@ def open_upper(client: TestClient, seeded: dict[str, Any]) -> str:
 
 def add(client: TestClient, workout_id: str, exercise_id: str, **fields: object) -> dict[str, Any]:
     body: dict[str, object] = {"exercise_id": exercise_id, "set_type": "working"}
-    body |= {"load_kg": "80", "reps": 5, "rir": 2}
+    body |= {"load_lb": "80", "reps": 5, "rir": 2}
     body.update(fields)
     response = client.post(f"/api/workouts/{workout_id}/sets", json=body)
     assert response.status_code == 201, response.text
@@ -109,7 +109,7 @@ def test_planned_prescription(client: TestClient, seeded: dict[str, Any]) -> Non
         "reps_max": 8,
         "target_rir_min": 2,
         "target_rir_max": 2,
-        "target_load_kg": "82.5",
+        "target_load_lb": "181.88",  # the package prescribes 82.5 kg
         "notes": None,
     }
     assert body["exercises"][seeded["exercises"]["Bench Press"]]["name"] == "Bench Press"
@@ -197,16 +197,16 @@ def test_entry_aggregate(client: TestClient, seeded: dict[str, Any]) -> None:
 def test_set_lifecycle_over_http(client: TestClient, seeded: dict[str, Any]) -> None:
     workout_id = open_upper(client, seeded)
     bench = seeded["exercises"]["Bench Press"]
-    first = add(client, workout_id, bench, load_kg="82.5")
+    first = add(client, workout_id, bench, load_lb="82.5")
     second = add(client, workout_id, bench)
-    third = add(client, workout_id, seeded["exercises"]["Squat"], load_kg=None, reps=None, rir=None)
-    assert first["load_kg"] == "82.5"
+    third = add(client, workout_id, seeded["exercises"]["Squat"], load_lb=None, reps=None, rir=None)
+    assert first["load_lb"] == "82.5"
     assert (first["set_order"], second["set_order"], third["set_order"]) == (1, 2, 3)
 
     patched = client.patch(f"/api/sets/{first['id']}", json={"reps": 6, "rir": None})
     assert patched.status_code == 200
     assert patched.json()["reps"] == 6 and patched.json()["rir"] is None
-    assert patched.json()["load_kg"] == "82.5"
+    assert patched.json()["load_lb"] == "82.5"
 
     reordered = client.put(
         f"/api/workouts/{workout_id}/set-order",
@@ -226,10 +226,11 @@ def test_set_lifecycle_over_http(client: TestClient, seeded: dict[str, Any]) -> 
 @pytest.mark.parametrize(
     "fields",
     [
-        {"load_kg": 80},
-        {"load_kg": "0.0001"},
-        {"load_kg": "-5"},
-        {"load_kg": "abc"},
+        {"load_lb": 80},
+        {"load_lb": "0.0001"},
+        {"load_lb": "72.755"},
+        {"load_lb": "-5"},
+        {"load_lb": "abc"},
         {"reps": -1},
         {"reps": "5"},
         {"reps": 5.5},
@@ -239,11 +240,11 @@ def test_set_lifecycle_over_http(client: TestClient, seeded: dict[str, Any]) -> 
         {"reps": 10**20},
         {"rir": 10**20},
         {"rir": -(10**20)},
-        {"load_kg": "1e30"},
-        {"load_kg": "1e2"},
-        {"load_kg": "1_0"},
-        {"load_kg": " 80 "},
-        {"load_kg": "99999999999999999999"},
+        {"load_lb": "1e30"},
+        {"load_lb": "1e2"},
+        {"load_lb": "1_0"},
+        {"load_lb": " 80 "},
+        {"load_lb": "99999999999999999999"},
     ],
 )
 def test_invalid_set_input_is_422(
@@ -353,8 +354,8 @@ def test_substitution_over_http(client: TestClient, seeded: dict[str, Any]) -> N
 def test_last_performance_over_http(client: TestClient, seeded: dict[str, Any]) -> None:
     bench = seeded["exercises"]["Bench Press"]
     earlier = open_upper(client, seeded)
-    add(client, earlier, bench, load_kg="80")
-    add(client, earlier, bench, load_kg="82.5")
+    add(client, earlier, bench, load_lb="80")
+    add(client, earlier, bench, load_lb="82.5")
     assert client.post(f"/api/workouts/{earlier}/complete").status_code == 200
 
     later = open_upper(client, seeded)
@@ -362,7 +363,7 @@ def test_last_performance_over_http(client: TestClient, seeded: dict[str, Any]) 
     entry = client.get(f"/api/workouts/{later}/entry").json()
     performance = entry["last_performance"][bench]
     assert performance["workout_id"] == earlier
-    assert [s["load_kg"] for s in performance["sets"]] == ["80", "82.5"]
+    assert [s["load_lb"] for s in performance["sets"]] == ["80", "82.5"]
 
     direct = client.get(f"/api/exercises/{bench}/last-performance").json()
     assert direct["workout_id"] == earlier
@@ -389,7 +390,7 @@ def test_exercise_catalogue(client: TestClient, seeded: dict[str, Any]) -> None:
     assert client.post("/api/exercises", json={"name": "  "}).status_code == 422
 
 
-@pytest.mark.parametrize("fields", [{"reps": 10**20}, {"load_kg": "1e30"}, {"rir": 10**20}])
+@pytest.mark.parametrize("fields", [{"reps": 10**20}, {"load_lb": "1e30"}, {"rir": 10**20}])
 def test_huge_values_on_edit_are_422(
     client: TestClient, seeded: dict[str, Any], fields: dict[str, Any]
 ) -> None:
@@ -464,7 +465,7 @@ def test_new_exercise_names_and_labels_are_trimmed(client: TestClient) -> None:
 def test_load_is_ascii_digits_only(client: TestClient, seeded: dict[str, Any], load: str) -> None:
     workout_id = open_upper(client, seeded)
     body = {"exercise_id": seeded["exercises"]["Bench Press"], "set_type": "working", "reps": 5}
-    response = client.post(f"/api/workouts/{workout_id}/sets", json=body | {"load_kg": load})
+    response = client.post(f"/api/workouts/{workout_id}/sets", json=body | {"load_lb": load})
     assert response.status_code == 422
 
 

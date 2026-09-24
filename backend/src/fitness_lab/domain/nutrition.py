@@ -13,12 +13,14 @@ from decimal import ROUND_HALF_UP, Decimal
 
 PROTEIN_G_PER_DAY = 145
 FAT_G_PER_DAY = 60
-# 145 g x 4 kcal + 60 g x 9 kcal
-FIXED_PROTEIN_FAT_KCAL = 1120
+# Atwater general factors: the only way a day's calories are known (V3.1).
+KCAL_PER_G_PROTEIN = 4
 KCAL_PER_G_CARBOHYDRATE = 4
+KCAL_PER_G_FAT = 9
+# 145 g x 4 kcal + 60 g x 9 kcal
+FIXED_PROTEIN_FAT_KCAL = PROTEIN_G_PER_DAY * KCAL_PER_G_PROTEIN + FAT_G_PER_DAY * KCAL_PER_G_FAT
 
 MAX_CALORIE_TARGET = 10_000
-MAX_DAY_KCAL = 15_000
 MAX_DAY_MACRO_G = 1_500
 
 
@@ -58,16 +60,33 @@ def targets_for(calories_kcal: int | None) -> NutritionTargets:
 
 def check_day_values(
     *,
-    calories_kcal: int | None,
     protein_g: int | None,
     carbs_g: int | None,
     fat_g: int | None,
 ) -> None:
-    """A logged day holds at least one number, and every number is humanly possible."""
-    if calories_kcal is None and protein_g is None and carbs_g is None and fat_g is None:
-        raise ValueError("a nutrition log needs at least one of calories, protein, carbs, fat")
-    if calories_kcal is not None and not 0 <= calories_kcal <= MAX_DAY_KCAL:
-        raise ValueError(f"calories must be 0-{MAX_DAY_KCAL} kcal: {calories_kcal}")
+    """A logged day holds at least one macro, and every macro is humanly possible."""
+    if protein_g is None and carbs_g is None and fat_g is None:
+        raise ValueError("a nutrition log needs at least one of protein, carbs, fat")
     for name, value in (("protein", protein_g), ("carbs", carbs_g), ("fat", fat_g)):
         if value is not None and not 0 <= value <= MAX_DAY_MACRO_G:
             raise ValueError(f"{name} must be 0-{MAX_DAY_MACRO_G} g: {value}")
+
+
+@dataclass(frozen=True, slots=True)
+class DayCalories:
+    """A day's energy, derived from its macros; never entered on its own."""
+
+    calories_kcal: int
+    # True only when protein, carbs and fat were all recorded (0 counts as recorded).
+    complete: bool
+
+
+def day_calories(*, protein_g: int | None, carbs_g: int | None, fat_g: int | None) -> DayCalories:
+    """protein x 4 + carbs x 4 + fat x 9, exact integers; an unrecorded macro adds nothing."""
+    check_day_values(protein_g=protein_g, carbs_g=carbs_g, fat_g=fat_g)
+    return DayCalories(
+        calories_kcal=(protein_g or 0) * KCAL_PER_G_PROTEIN
+        + (carbs_g or 0) * KCAL_PER_G_CARBOHYDRATE
+        + (fat_g or 0) * KCAL_PER_G_FAT,
+        complete=protein_g is not None and carbs_g is not None and fat_g is not None,
+    )

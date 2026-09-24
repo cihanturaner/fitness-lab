@@ -194,23 +194,21 @@ def test_a_calorie_target_must_leave_room_for_protein_and_fat(kcal: int) -> None
 
 def test_a_day_needs_at_least_one_number() -> None:
     with pytest.raises(ValueError):
-        check_day_values(calories_kcal=None, protein_g=None, carbs_g=None, fat_g=None)
-    check_day_values(calories_kcal=None, protein_g=150, carbs_g=None, fat_g=None)
+        check_day_values(protein_g=None, carbs_g=None, fat_g=None)
+    check_day_values(protein_g=150, carbs_g=None, fat_g=None)
 
 
 @pytest.mark.parametrize(
     "values",
     [
-        {"calories_kcal": 15001},
-        {"calories_kcal": -1},
         {"protein_g": 1501},
+        {"protein_g": -1},
         {"carbs_g": -1},
         {"fat_g": 2000},
     ],
 )
 def test_a_day_refuses_impossible_values(values: dict[str, int]) -> None:
     fields: dict[str, int | None] = {
-        "calories_kcal": None,
         "protein_g": None,
         "carbs_g": None,
         "fat_g": None,

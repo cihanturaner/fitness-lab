@@ -143,7 +143,7 @@ def test_entry_counts_working_sets_against_the_plan(
     for set_type in ("warmup", "working"):
         client.post(
             f"/api/workouts/{workout_id}/sets",
-            json={"exercise_id": bench, "set_type": set_type, "load_kg": "60", "reps": 5},
+            json={"exercise_id": bench, "set_type": set_type, "load_lb": "60", "reps": 5},
         )
     entry = client.get(f"/api/workouts/{workout_id}/entry").json()
     assert entry["work_sets"] == {"planned": 4, "actual": 1, "short": True}
@@ -175,7 +175,7 @@ def test_exposure_weeks_use_the_block_of_the_workouts_own_program(
     unplanned = client.post("/api/workouts", json={"performed_on": "2026-09-22"}).json()["id"]
     client.post(
         f"/api/workouts/{unplanned}/sets",
-        json={"exercise_id": bench, "set_type": "working", "load_kg": "70", "reps": 8},
+        json={"exercise_id": bench, "set_type": "working", "load_lb": "70", "reps": 8},
     )
     client.post(f"/api/workouts/{unplanned}/complete")
 

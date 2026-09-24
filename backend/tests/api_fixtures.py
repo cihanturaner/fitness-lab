@@ -54,7 +54,7 @@ def session(
             json={
                 "exercise_id": exercise_id,
                 "set_type": "working",
-                "load_kg": load,
+                "load_lb": load,
                 "reps": reps,
                 "rir": rir,
             },

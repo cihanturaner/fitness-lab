@@ -1,8 +1,9 @@
 """V2 routes: the week, bodyweight, nutrition and exercise history.
 
-Same boundary rules as the workout routes: kilograms cross as decimal strings, integers are
-strict, unknown request fields are refused, and each route opens its own connection. Dates
-are civil YYYY-MM-DD strings; ``date`` defaults to the machine's local day.
+Same boundary rules as the workout routes: bodyweight kilograms and workout pounds cross as
+decimal strings, integers are strict, unknown request fields are refused, and each route
+opens its own connection. Dates are civil YYYY-MM-DD strings; ``date`` defaults to the
+machine's local day.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ from fitness_lab.domain.bodyweight import (
     rolling_series,
     summarize,
 )
-from fitness_lab.domain.nutrition import targets_for
+from fitness_lab.domain.nutrition import day_calories, targets_for
 from fitness_lab.domain.nutrition_controller import classify_trend, qualified_trend
 from fitness_lab.domain.units import format_kg, g_to_kg
 from fitness_lab.domain.week import (
@@ -413,7 +414,8 @@ def delete_bodyweight(day: str) -> Response:
 
 
 class NutritionDayIn(RequestModel):
-    calories_kcal: StrictCount | None = None
+    """Macros only: a request carrying calories is refused (extra fields are forbidden)."""
+
     protein_g: StrictCount | None = None
     carbs_g: StrictCount | None = None
     fat_g: StrictCount | None = None
@@ -428,7 +430,10 @@ class CalorieTargetIn(RequestModel):
 
 class NutritionDayOut(BaseModel):
     logged_on: str
-    calories_kcal: int | None
+    # Derived: protein x 4 + carbs x 4 + fat x 9. Read-only; never stored.
+    calories_kcal: int
+    # False when a macro is unrecorded, so the total covers only the recorded ones.
+    calories_complete: bool
     protein_g: int | None
     carbs_g: int | None
     fat_g: int | None
@@ -436,9 +441,11 @@ class NutritionDayOut(BaseModel):
 
     @classmethod
     def of(cls, row: tracking.NutritionDayRow) -> NutritionDayOut:
+        energy = day_calories(protein_g=row.protein_g, carbs_g=row.carbs_g, fat_g=row.fat_g)
         return cls(
             logged_on=row.logged_on,
-            calories_kcal=row.calories_kcal,
+            calories_kcal=energy.calories_kcal,
+            calories_complete=energy.complete,
             protein_g=row.protein_g,
             carbs_g=row.carbs_g,
             fat_g=row.fat_g,
@@ -514,7 +521,6 @@ def put_nutrition(day: str, body: NutritionDayIn) -> NutritionDayOut:
         row = tracking.put_nutrition_day(
             connection,
             logged_on,
-            calories_kcal=body.calories_kcal,
             protein_g=body.protein_g,
             carbs_g=body.carbs_g,
             fat_g=body.fat_g,

@@ -106,8 +106,9 @@ def _set_changes(body: SetPatchIn) -> dict[str, object]:
     changes: dict[str, object] = {}
     for field in body.model_fields_set:
         value = getattr(body, field)
-        if field == "load_kg":
-            value = parse_load(value)
+        if field == "load_lb":
+            # Pounds in, kilograms of whole grams to storage.
+            field, value = "load_kg", parse_load(value)
         if field == "exercise_id" and value is None:
             raise ValueError("exercise_id cannot be cleared")
         changes[field] = value
@@ -299,7 +300,7 @@ def create_app() -> FastAPI:
                 workout_id,
                 exercise_id=body.exercise_id,
                 set_type=body.set_type,
-                load_kg=parse_load(body.load_kg),
+                load_kg=parse_load(body.load_lb),
                 reps=body.reps,
                 rir=body.rir,
                 notes=body.notes,

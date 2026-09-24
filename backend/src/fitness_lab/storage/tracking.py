@@ -27,8 +27,9 @@ class BodyweightRow:
 
 @dataclass(frozen=True, slots=True)
 class NutritionDayRow:
+    """One day's macros as entered. Its calories are derived (domain.nutrition.day_calories)."""
+
     logged_on: str
-    calories_kcal: int | None
     protein_g: int | None
     carbs_g: int | None
     fat_g: int | None
@@ -132,15 +133,12 @@ def delete_bodyweight(connection: sqlite3.Connection, measured_on: str) -> None:
 
 # --- nutrition -------------------------------------------------------------------------
 
-NUTRITION_COLUMNS = (
-    "logged_on, calories_kcal, protein_g, carbs_g, fat_g, notes, entered_at_utc, updated_at_utc"
-)
+NUTRITION_COLUMNS = "logged_on, protein_g, carbs_g, fat_g, notes, entered_at_utc, updated_at_utc"
 
 
 def _nutrition(row: sqlite3.Row) -> NutritionDayRow:
     return NutritionDayRow(
         logged_on=str(row["logged_on"]),
-        calories_kcal=_opt_int(row["calories_kcal"]),
         protein_g=_opt_int(row["protein_g"]),
         carbs_g=_opt_int(row["carbs_g"]),
         fat_g=_opt_int(row["fat_g"]),
@@ -154,27 +152,24 @@ def put_nutrition_day(
     connection: sqlite3.Connection,
     logged_on: str,
     *,
-    calories_kcal: int | None,
     protein_g: int | None,
     carbs_g: int | None,
     fat_g: int | None,
     notes: str | None,
     now: str | None = None,
 ) -> NutritionDayRow:
-    """Record (or correct) one day's intake. Omitted numbers are stored as unknown."""
-    check_day_values(calories_kcal=calories_kcal, protein_g=protein_g, carbs_g=carbs_g, fat_g=fat_g)
+    """Record (or correct) one day's macros. Omitted macros are stored as unknown."""
+    check_day_values(protein_g=protein_g, carbs_g=carbs_g, fat_g=fat_g)
     stamp = now if now is not None else utc_now_iso()
     with db.immediate_transaction(connection):
         try:
             connection.execute(
-                f"INSERT INTO nutrition_day ({NUTRITION_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
-                "ON CONFLICT (logged_on) DO UPDATE SET calories_kcal = excluded.calories_kcal, "
-                "protein_g = excluded.protein_g, carbs_g = excluded.carbs_g, "
-                "fat_g = excluded.fat_g, notes = excluded.notes, "
+                f"INSERT INTO nutrition_day ({NUTRITION_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT (logged_on) DO UPDATE SET protein_g = excluded.protein_g, "
+                "carbs_g = excluded.carbs_g, fat_g = excluded.fat_g, notes = excluded.notes, "
                 "updated_at_utc = excluded.updated_at_utc",
                 (
                     logged_on,
-                    calories_kcal,
                     protein_g,
                     carbs_g,
                     fat_g,

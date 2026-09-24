@@ -165,13 +165,15 @@ def test_empty_bodyweight_history(client: TestClient) -> None:
 def test_nutrition_day_round_trip_and_uncalibrated_targets(client: TestClient) -> None:
     saved = client.put(
         "/api/nutrition/2026-10-01",
-        json={"calories_kcal": 2410, "protein_g": 150, "carbs_g": 290, "fat_g": 62},
+        json={"protein_g": 150, "carbs_g": 290, "fat_g": 62},
     )
     assert saved.status_code == 200, saved.text
     body = client.get("/api/nutrition", params={"date": "2026-10-01"}).json()
     assert body["day"] == {
         "logged_on": "2026-10-01",
-        "calories_kcal": 2410,
+        # 150 x 4 + 290 x 4 + 62 x 9
+        "calories_kcal": 2318,
+        "calories_complete": True,
         "protein_g": 150,
         "carbs_g": 290,
         "fat_g": 62,
@@ -210,11 +212,14 @@ def test_an_explicit_calorie_target_derives_carbohydrate(client: TestClient) -> 
     "body",
     [
         {},
-        {"calories_kcal": "2400"},
-        {"calories_kcal": 2400.5},
+        {"protein_g": "150"},
+        {"protein_g": 150.5},
         {"protein_g": -1},
-        {"calories_kcal": 99999},
-        {"calories_kcal": 2400, "sugar_g": 10},
+        {"fat_g": 99999},
+        {"protein_g": 150, "sugar_g": 10},
+        # Calories are derived now: a client can no longer send them.
+        {"calories_kcal": 2400},
+        {"calories_kcal": 2400, "protein_g": 150},
     ],
 )
 def test_nutrition_refuses_invalid_input(client: TestClient, body: dict[str, object]) -> None:
@@ -264,7 +269,7 @@ def test_exercise_history_is_chronological_with_exact_sets_and_block_weeks(
     exposures = body["exposures"]
     assert [item["workout_id"] for item in exposures] == [first, second]
     assert [item["block_week"] for item in exposures] == [1, 2]
-    assert [(s["load_kg"], s["reps"], s["rir"]) for s in exposures[0]["sets"]] == [
+    assert [(s["load_lb"], s["reps"], s["rir"]) for s in exposures[0]["sets"]] == [
         ("82.5", 6, 2),
         ("82.5", 6, 2),
         ("82.5", 5, 1),
@@ -284,4 +289,4 @@ def test_recent_training_for_the_home_screen(client: TestClient, seeded: dict[st
     assert recent[0]["workout_id"] == workout
     assert recent[0]["planned_workout_name"] == "Upper A"
     assert [group["exercise"]["name"] for group in recent[0]["exercises"]] == ["Bench Press", "Row"]
-    assert recent[0]["exercises"][1]["sets"][0]["load_kg"] == "60"
+    assert recent[0]["exercises"][1]["sets"][0]["load_lb"] == "60"

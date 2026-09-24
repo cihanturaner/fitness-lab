@@ -1,6 +1,7 @@
 """HTTP request and response models.
 
-Loads cross the boundary as decimal strings ("82.5"), never JSON numbers: a JSON number
+Workout loads cross the boundary in POUNDS (V3.1) as decimal strings ("185", "72.75"), never
+JSON numbers, and are stored as integer grams (domain.units.lb_to_g). A JSON number
 becomes a binary float somewhere along the way, which is exactly what M1 §16 forbids.
 Integers are strict (``"5"`` and ``5.5`` are refused, not coerced), and unknown request
 fields are refused, so a client can never smuggle in state such as provenance.
@@ -24,7 +25,7 @@ from pydantic import (
 
 from fitness_lab.domain.completion import CompletionIssue, CompletionReport, work_set_totals
 from fitness_lab.domain.models import Exercise, PerformedSet, SetTypeCode, Workout
-from fitness_lab.domain.units import format_kg, kg_to_g
+from fitness_lab.domain.units import format_lb, g_to_kg, kg_to_g, lb_to_g
 from fitness_lab.storage.entry import (
     EntryAggregate,
     EntrySlot,
@@ -42,7 +43,7 @@ from fitness_lab.storage.programs import (
 
 TIME_PATTERN = re.compile(r"([01][0-9]|2[0-3]):[0-5][0-9]")
 # ASCII digits only, matched against the whole string (fullmatch): "80\n" and "８０" fail.
-LOAD_PATTERN = re.compile(r"[0-9]+(\.[0-9]{1,3})?")
+LOAD_PATTERN = re.compile(r"[0-9]+(\.[0-9]{1,2})?")
 # SQLite INTEGER is a signed 64-bit value. These are storage limits, not fitness policy.
 INT64_MAX = 2**63 - 1
 StrictInt = Annotated[int, Field(strict=True, ge=-INT64_MAX, le=INT64_MAX)]
@@ -66,19 +67,24 @@ class RequestModel(BaseModel):
 
 
 def parse_load(value: str | None) -> Decimal | None:
-    """Validate a decimal-string load exactly as storage will convert it.
+    """Validate a pound load and return the kilograms storage will record (whole grams).
 
-    Plain digits with at most gram precision only: Decimal() alone would also accept
+    Plain digits with at most 0.01 lb precision only: Decimal() alone would also accept
     exponents ("1e2"), underscores ("1_0") and surrounding spaces.
     """
     if value is None:
         return None
     if not LOAD_PATTERN.fullmatch(value):
-        raise ValueError(f"load_kg must be a plain decimal like 82.5: {value!r}")
-    grams = kg_to_g(value)
-    if grams is not None and grams > INT64_MAX:
-        raise ValueError(f"load_kg is out of range: {value!r}")
-    return Decimal(value)
+        raise ValueError(f"load_lb must be a plain decimal in pounds like 185 or 72.5: {value!r}")
+    grams = lb_to_g(value)
+    if grams is None or grams > INT64_MAX:
+        raise ValueError(f"load_lb is out of range: {value!r}")
+    return g_to_kg(grams)
+
+
+def _lb(kilograms: Decimal | None) -> str | None:
+    """A stored load (kilograms of whole grams) rendered in pounds."""
+    return format_lb(kg_to_g(kilograms))
 
 
 def _check_time(value: str | None) -> str | None:
@@ -118,12 +124,12 @@ class WorkoutPatchIn(RequestModel):
 
 class SetFieldsIn(RequestModel):
     set_type: SetTypeCode | None = None
-    load_kg: str | None = None
+    load_lb: str | None = None
     reps: NonNegativeInt | None = None
     rir: StrictInt | None = None
     notes: str | None = None
 
-    @field_validator("load_kg")
+    @field_validator("load_lb")
     @classmethod
     def _load(cls, value: str | None) -> str | None:
         parse_load(value)
@@ -201,7 +207,7 @@ class PerformedSetOut(BaseModel):
     exercise_id: str
     set_order: int
     set_type: str | None
-    load_kg: str | None
+    load_lb: str | None
     reps: int | None
     rir: int | None
     notes: str | None
@@ -216,7 +222,7 @@ class PerformedSetOut(BaseModel):
             exercise_id=performed.exercise_id,
             set_order=performed.set_order,
             set_type=None if performed.set_type is None else performed.set_type.value,
-            load_kg=format_kg(performed.load_kg),
+            load_lb=_lb(performed.load_kg),
             reps=performed.reps,
             rir=performed.rir,
             notes=performed.notes,
@@ -257,7 +263,7 @@ class PlannedSetOut(BaseModel):
     reps_max: int | None
     target_rir_min: int | None
     target_rir_max: int | None
-    target_load_kg: str | None
+    target_load_lb: str | None
     notes: str | None
 
     @classmethod
@@ -270,7 +276,7 @@ class PlannedSetOut(BaseModel):
             reps_max=planned.reps_max,
             target_rir_min=planned.target_rir_min,
             target_rir_max=planned.target_rir_max,
-            target_load_kg=format_kg(planned.target_load_kg),
+            target_load_lb=_lb(planned.target_load_kg),
             notes=planned.notes,
         )
 

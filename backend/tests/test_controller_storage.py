@@ -70,7 +70,6 @@ def test_0005_is_additive_over_a_v2_database(tmp_path: Path) -> None:
         tracking.put_nutrition_day(
             connection,
             "2026-09-23",
-            calories_kcal=2500,
             protein_g=150,
             carbs_g=None,
             fat_g=60,
@@ -90,7 +89,11 @@ def test_0005_is_additive_over_a_v2_database(tmp_path: Path) -> None:
             if table != "schema_migrations"
         }
 
-    result = migrate_to_head(db_path)
+    through_0005 = tmp_path / "v3-migrations"
+    through_0005.mkdir()
+    for path in sorted(MIGRATIONS_DIR.glob("000[12345]_*.sql")):
+        shutil.copyfile(path, through_0005 / path.name)
+    result = migrate_to_head(db_path, directory=through_0005)
 
     assert result.applied == (5,)
     assert result.snapshot is not None and result.snapshot.name.endswith("-pre-0005.db")
