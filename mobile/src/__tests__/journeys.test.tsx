@@ -23,7 +23,9 @@ jest.mock(
   () => jest.requireActual<{ default: unknown }>('react-native-safe-area-context/jest/mock').default,
 );
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
 const app = (db: TestDb, today: string, ui: React.ReactElement) => (
   <DataProvider open={async () => db as Db} clock={fixedClock(today)}>

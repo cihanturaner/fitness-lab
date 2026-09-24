@@ -10,6 +10,9 @@ import type { ProgramFacts } from './training-facts';
  *
  * Planned is not performed: nothing here says what was lifted.
  */
+/** sha256 of programs/advanced-natural-12w/package/program.json — what the desktop records. */
+export const PROGRAM_JSON_SHA256 = '94b7e92010a462d8d0f9f52c44adf7e145a1ae199add4482448e6cb68126598f';
+
 export const PROGRAM: ProgramFacts = {
   key: 'advanced-natural-12w',
   name: '12-Week Advanced Natural Hypertrophy + Strength Program',

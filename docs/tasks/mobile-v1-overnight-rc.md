@@ -14,7 +14,7 @@ Native iPhone: **NOT YET VERIFIED** for anything in this file unless stated.
 | M4 | Nutrition + bodyweight + Quick Add | done | see log |
 | M5 | History (day-first) + Settings | done | see log |
 | M6 | Local SQLite persistence (expo-sqlite), Clock | done | see log |
-| M6b | Versioned export (read-only tool) / mobile import | queued | — |
+| M6b | Versioned export (read-only tool) / mobile import | done | see log |
 | VP | Integrated visual consistency pass | queued | — |
 | RC | Blocking review + final gates | queued | — |
 
@@ -117,6 +117,11 @@ is real from the start; the M6 commit adds migrations tests, cold-restart and th
   controller's own phase rule (block started, fewer than 3 full block weeks finished).
 - D8 Quick Add is a form sheet sized to content (plain View). Keyboard behaviour inside the
   iOS sheet is a physical-iPhone check.
+- D9 Import onto a device with data never merges: it is refused unless the lifter chooses
+  "Replace all data", which keeps the replaced data as a V1 export in `replaced_data` first.
+- D10 Import accepts the desktop program when its program.json sha matches the bundle
+  (`exact`) or, failing that, when every referenced slot has the same key, position and planned
+  exercise (`compatible`, recorded in import_log); anything else is refused.
 - D1 Muscle focus: the program package states none. Only the existing accepted mobile
   focus (Upper B: back, chest, shoulders, triceps, biceps — M1 fixture) is used; other
   workouts draw a neutral figure. Needs an authoritative source from the user to extend.

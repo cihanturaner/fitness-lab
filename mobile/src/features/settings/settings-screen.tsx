@@ -18,6 +18,7 @@ import { Pressable } from '@/ui/pressable';
 import { Text } from '@/ui/text';
 
 import { BlockCard, Row } from './components/block-card';
+import { DataCard } from './components/data-card';
 import { ProgramCard } from './components/program-card';
 
 /** Settings: what is needed to run the app — the block, the target, the program, your data. */
@@ -81,6 +82,8 @@ export function SettingsScreen() {
             </Pressable>
           </Card>
         ) : null}
+
+        <DataCard write={write} today={today} confirm={setConfirm} />
 
         <ProgramCard versionLabel={PROGRAM.versionLabel} />
 

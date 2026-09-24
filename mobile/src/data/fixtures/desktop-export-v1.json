@@ -1,0 +1,749 @@
+{
+  "archive": {
+    "calorie_target": [],
+    "controller_event": [],
+    "diagnostic_gate_event": [],
+    "nutrition_entered_calories": []
+  },
+  "bodyweight": [
+    {
+      "bodyweight_g": 82900,
+      "entered_at_utc": "2026-10-01T00:17:00Z",
+      "measured_on": "2026-10-04",
+      "notes": null,
+      "updated_at_utc": "2026-10-01T00:18:00Z"
+    },
+    {
+      "bodyweight_g": 82500,
+      "entered_at_utc": "2026-10-01T00:19:00Z",
+      "measured_on": "2026-10-06",
+      "notes": null,
+      "updated_at_utc": "2026-10-01T00:20:00Z"
+    },
+    {
+      "bodyweight_g": 82400,
+      "entered_at_utc": "2026-10-01T00:21:00Z",
+      "measured_on": "2026-10-08",
+      "notes": null,
+      "updated_at_utc": "2026-10-01T00:22:00Z"
+    }
+  ],
+  "counts": {
+    "bodyweight": 3,
+    "exercises": 26,
+    "macro_targets": 2,
+    "nutrition_days": 2,
+    "sets": 10,
+    "workouts": 3
+  },
+  "exercises": [
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-01",
+      "is_active": true,
+      "name": "Smith Flat Bench Press"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-02",
+      "is_active": true,
+      "name": "Chest-Supported Row"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-03",
+      "is_active": true,
+      "name": "Neutral-Grip Lat Pulldown"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-04",
+      "is_active": true,
+      "name": "Incline Converging Machine Press"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-05",
+      "is_active": true,
+      "name": "Stable Machine Shoulder Press"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-06",
+      "is_active": true,
+      "name": "Cable Lateral Raise"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-07",
+      "is_active": true,
+      "name": "Machine Lateral Raise"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-08",
+      "is_active": true,
+      "name": "Reverse Pec Deck"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-09",
+      "is_active": true,
+      "name": "Overhead Cable Triceps Extension"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-10",
+      "is_active": true,
+      "name": "Preacher Curl"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-11",
+      "is_active": true,
+      "name": "Smith High-Bar Squat"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-12",
+      "is_active": true,
+      "name": "Romanian Deadlift"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-13",
+      "is_active": true,
+      "name": "45° Leg Press"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-14",
+      "is_active": true,
+      "name": "Seated Leg Curl"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-15",
+      "is_active": true,
+      "name": "Standing Calf Raise"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-16",
+      "is_active": true,
+      "name": "Cable Crunch"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-17",
+      "is_active": true,
+      "name": "Incline Smith Press"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-18",
+      "is_active": true,
+      "name": "Chest-Supported Upper-Back Row"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-19",
+      "is_active": true,
+      "name": "Flat Converging Machine Press"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-20",
+      "is_active": true,
+      "name": "Cable Pressdown"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-21",
+      "is_active": true,
+      "name": "Bayesian Cable Curl"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-22",
+      "is_active": true,
+      "name": "Hack Squat"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-23",
+      "is_active": true,
+      "name": "Smith Hip Thrust"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-24",
+      "is_active": true,
+      "name": "Machine Hip Thrust"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-25",
+      "is_active": true,
+      "name": "Leg Extension"
+    },
+    {
+      "created_at_utc": "2026-09-01T00:00:00Z",
+      "equipment_label": null,
+      "id": "ex-26",
+      "is_active": true,
+      "name": "Machine Abdominal Crunch"
+    }
+  ],
+  "exported_at_utc": "2026-10-08T20:00:00.000000Z",
+  "format": "fitness-lab-export",
+  "format_version": 1,
+  "macro_targets": [
+    {
+      "carbs_g": 310,
+      "effective_on": "2026-10-01",
+      "fat_g": 60,
+      "from_calorie_target_id": null,
+      "id": "mt-1",
+      "notes": null,
+      "protein_g": 145,
+      "set_at_utc": "2026-09-30T08:00:00Z"
+    },
+    {
+      "carbs_g": 348,
+      "effective_on": "2026-10-06",
+      "fat_g": 60,
+      "from_calorie_target_id": null,
+      "id": "mt-2",
+      "notes": "Weeks 1–2 exception: illness",
+      "protein_g": 145,
+      "set_at_utc": "2026-10-06T07:00:00Z"
+    }
+  ],
+  "nutrition_days": [
+    {
+      "carbs_g": 300,
+      "entered_at_utc": "2026-10-01T00:23:00Z",
+      "fat_g": 62,
+      "logged_on": "2026-10-05",
+      "notes": null,
+      "protein_g": 150,
+      "updated_at_utc": "2026-10-01T00:24:00Z"
+    },
+    {
+      "carbs_g": null,
+      "entered_at_utc": "2026-10-01T00:25:00Z",
+      "fat_g": 55,
+      "logged_on": "2026-10-06",
+      "notes": "travel",
+      "protein_g": 140,
+      "updated_at_utc": "2026-10-01T00:26:00Z"
+    }
+  ],
+  "program": {
+    "duration_weeks": 12,
+    "key": "advanced-natural-12w",
+    "name": "12-Week Advanced Natural Hypertrophy + Strength Program",
+    "program_json_sha256": "94b7e92010a462d8d0f9f52c44adf7e145a1ae199add4482448e6cb68126598f",
+    "version_label": "1.0.0"
+  },
+  "program_slots": [
+    {
+      "exercise_name": "Smith Flat Bench Press",
+      "position": 1,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_a.01",
+      "version_label": "1.0.0",
+      "workout_key": "upper_a",
+      "workout_name": "Upper A"
+    },
+    {
+      "exercise_name": "Chest-Supported Row",
+      "position": 2,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_a.02",
+      "version_label": "1.0.0",
+      "workout_key": "upper_a",
+      "workout_name": "Upper A"
+    },
+    {
+      "exercise_name": "Neutral-Grip Lat Pulldown",
+      "position": 3,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_a.03",
+      "version_label": "1.0.0",
+      "workout_key": "upper_a",
+      "workout_name": "Upper A"
+    },
+    {
+      "exercise_name": "Incline Converging Machine Press",
+      "position": 4,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_a.04",
+      "version_label": "1.0.0",
+      "workout_key": "upper_a",
+      "workout_name": "Upper A"
+    },
+    {
+      "exercise_name": "Stable Machine Shoulder Press",
+      "position": 5,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_a.05",
+      "version_label": "1.0.0",
+      "workout_key": "upper_a",
+      "workout_name": "Upper A"
+    },
+    {
+      "exercise_name": "Cable Lateral Raise",
+      "position": 6,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_a.06",
+      "version_label": "1.0.0",
+      "workout_key": "upper_a",
+      "workout_name": "Upper A"
+    },
+    {
+      "exercise_name": "Reverse Pec Deck",
+      "position": 7,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_a.07",
+      "version_label": "1.0.0",
+      "workout_key": "upper_a",
+      "workout_name": "Upper A"
+    },
+    {
+      "exercise_name": "Overhead Cable Triceps Extension",
+      "position": 8,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_a.08",
+      "version_label": "1.0.0",
+      "workout_key": "upper_a",
+      "workout_name": "Upper A"
+    },
+    {
+      "exercise_name": "Preacher Curl",
+      "position": 9,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_a.09",
+      "version_label": "1.0.0",
+      "workout_key": "upper_a",
+      "workout_name": "Upper A"
+    },
+    {
+      "exercise_name": "Smith High-Bar Squat",
+      "position": 1,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "lower_a.01",
+      "version_label": "1.0.0",
+      "workout_key": "lower_a",
+      "workout_name": "Lower A"
+    },
+    {
+      "exercise_name": "Romanian Deadlift",
+      "position": 2,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "lower_a.02",
+      "version_label": "1.0.0",
+      "workout_key": "lower_a",
+      "workout_name": "Lower A"
+    },
+    {
+      "exercise_name": "45° Leg Press",
+      "position": 3,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "lower_a.03",
+      "version_label": "1.0.0",
+      "workout_key": "lower_a",
+      "workout_name": "Lower A"
+    },
+    {
+      "exercise_name": "Seated Leg Curl",
+      "position": 4,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "lower_a.04",
+      "version_label": "1.0.0",
+      "workout_key": "lower_a",
+      "workout_name": "Lower A"
+    },
+    {
+      "exercise_name": "Standing Calf Raise",
+      "position": 5,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "lower_a.05",
+      "version_label": "1.0.0",
+      "workout_key": "lower_a",
+      "workout_name": "Lower A"
+    },
+    {
+      "exercise_name": "Cable Crunch",
+      "position": 6,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "lower_a.06",
+      "version_label": "1.0.0",
+      "workout_key": "lower_a",
+      "workout_name": "Lower A"
+    },
+    {
+      "exercise_name": "Neutral-Grip Lat Pulldown",
+      "position": 1,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_b.01",
+      "version_label": "1.0.0",
+      "workout_key": "upper_b",
+      "workout_name": "Upper B"
+    },
+    {
+      "exercise_name": "Incline Smith Press",
+      "position": 2,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_b.02",
+      "version_label": "1.0.0",
+      "workout_key": "upper_b",
+      "workout_name": "Upper B"
+    },
+    {
+      "exercise_name": "Chest-Supported Upper-Back Row",
+      "position": 3,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_b.03",
+      "version_label": "1.0.0",
+      "workout_key": "upper_b",
+      "workout_name": "Upper B"
+    },
+    {
+      "exercise_name": "Flat Converging Machine Press",
+      "position": 4,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_b.04",
+      "version_label": "1.0.0",
+      "workout_key": "upper_b",
+      "workout_name": "Upper B"
+    },
+    {
+      "exercise_name": "Cable Lateral Raise",
+      "position": 5,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_b.05",
+      "version_label": "1.0.0",
+      "workout_key": "upper_b",
+      "workout_name": "Upper B"
+    },
+    {
+      "exercise_name": "Reverse Pec Deck",
+      "position": 6,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_b.06",
+      "version_label": "1.0.0",
+      "workout_key": "upper_b",
+      "workout_name": "Upper B"
+    },
+    {
+      "exercise_name": "Cable Pressdown",
+      "position": 7,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_b.07",
+      "version_label": "1.0.0",
+      "workout_key": "upper_b",
+      "workout_name": "Upper B"
+    },
+    {
+      "exercise_name": "Bayesian Cable Curl",
+      "position": 8,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "upper_b.08",
+      "version_label": "1.0.0",
+      "workout_key": "upper_b",
+      "workout_name": "Upper B"
+    },
+    {
+      "exercise_name": "Hack Squat",
+      "position": 1,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "lower_b.01",
+      "version_label": "1.0.0",
+      "workout_key": "lower_b",
+      "workout_name": "Lower B"
+    },
+    {
+      "exercise_name": "Smith Hip Thrust",
+      "position": 2,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "lower_b.02",
+      "version_label": "1.0.0",
+      "workout_key": "lower_b",
+      "workout_name": "Lower B"
+    },
+    {
+      "exercise_name": "Leg Extension",
+      "position": 3,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "lower_b.03",
+      "version_label": "1.0.0",
+      "workout_key": "lower_b",
+      "workout_name": "Lower B"
+    },
+    {
+      "exercise_name": "Seated Leg Curl",
+      "position": 4,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "lower_b.04",
+      "version_label": "1.0.0",
+      "workout_key": "lower_b",
+      "workout_name": "Lower B"
+    },
+    {
+      "exercise_name": "Standing Calf Raise",
+      "position": 5,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "lower_b.05",
+      "version_label": "1.0.0",
+      "workout_key": "lower_b",
+      "workout_name": "Lower B"
+    },
+    {
+      "exercise_name": "Machine Abdominal Crunch",
+      "position": 6,
+      "program_key": "advanced-natural-12w",
+      "slot_key": "lower_b.06",
+      "version_label": "1.0.0",
+      "workout_key": "lower_b",
+      "workout_name": "Lower B"
+    }
+  ],
+  "source": {
+    "app": "fitness-lab-desktop",
+    "database_sha256": "f81b3c9d8a7f823e1d4bec0a033d4db64a9222600114e436c1cc0005549932d0",
+    "schema_version": 8
+  },
+  "training_block": {
+    "set_at_utc": "2026-09-20T08:00:00Z",
+    "start_on": "2026-10-01"
+  },
+  "workouts": [
+    {
+      "entered_at_utc": "2026-10-01T00:12:00Z",
+      "id": "w-2",
+      "notes": null,
+      "origin": null,
+      "performed_on": "2026-10-03",
+      "performed_time_local": null,
+      "sets": [
+        {
+          "entered_at_utc": "2026-10-01T00:13:00Z",
+          "exercise_id": "ex-22",
+          "id": "s-09",
+          "load_g": 90718,
+          "notes": null,
+          "placement": null,
+          "reps": 10,
+          "rir": 2,
+          "set_order": 1,
+          "set_type": "working",
+          "updated_at_utc": "2026-10-01T00:13:00Z"
+        }
+      ],
+      "status": "complete",
+      "substitutions": [],
+      "updated_at_utc": "2026-10-01T00:14:00Z"
+    },
+    {
+      "entered_at_utc": "2026-10-01T00:01:00Z",
+      "id": "w-1",
+      "notes": null,
+      "origin": {
+        "program_key": "advanced-natural-12w",
+        "version_label": "1.0.0",
+        "workout_key": "upper_a"
+      },
+      "performed_on": "2026-10-05",
+      "performed_time_local": null,
+      "sets": [
+        {
+          "entered_at_utc": "2026-10-01T00:03:00Z",
+          "exercise_id": "ex-01",
+          "id": "s-01",
+          "load_g": 102058,
+          "notes": null,
+          "placement": {
+            "slot_key": "upper_a.01"
+          },
+          "reps": 7,
+          "rir": 2,
+          "set_order": 1,
+          "set_type": "working",
+          "updated_at_utc": "2026-10-01T00:03:00Z"
+        },
+        {
+          "entered_at_utc": "2026-10-01T00:04:00Z",
+          "exercise_id": "ex-01",
+          "id": "s-02",
+          "load_g": 102058,
+          "notes": null,
+          "placement": {
+            "slot_key": "upper_a.01"
+          },
+          "reps": 6,
+          "rir": 1,
+          "set_order": 2,
+          "set_type": "working",
+          "updated_at_utc": "2026-10-01T00:04:00Z"
+        },
+        {
+          "entered_at_utc": "2026-10-01T00:05:00Z",
+          "exercise_id": "ex-06",
+          "id": "s-03",
+          "load_g": 9072,
+          "notes": null,
+          "placement": {
+            "slot_key": "upper_a.07"
+          },
+          "reps": 18,
+          "rir": 1,
+          "set_order": 3,
+          "set_type": "working",
+          "updated_at_utc": "2026-10-01T00:05:00Z"
+        },
+        {
+          "entered_at_utc": "2026-10-01T00:06:00Z",
+          "exercise_id": "ex-06",
+          "id": "s-04",
+          "load_g": 11340,
+          "notes": null,
+          "placement": {
+            "slot_key": "upper_a.06"
+          },
+          "reps": 15,
+          "rir": 1,
+          "set_order": 4,
+          "set_type": "working",
+          "updated_at_utc": "2026-10-01T00:06:00Z"
+        },
+        {
+          "entered_at_utc": "2026-10-01T00:07:00Z",
+          "exercise_id": "ex-06",
+          "id": "s-05",
+          "load_g": 9072,
+          "notes": null,
+          "placement": {
+            "slot_key": "upper_a.07"
+          },
+          "reps": 16,
+          "rir": 0,
+          "set_order": 5,
+          "set_type": "working",
+          "updated_at_utc": "2026-10-01T00:07:00Z"
+        },
+        {
+          "entered_at_utc": "2026-10-01T00:08:00Z",
+          "exercise_id": "ex-10",
+          "id": "s-06",
+          "load_g": 20412,
+          "notes": null,
+          "placement": null,
+          "reps": 12,
+          "rir": null,
+          "set_order": 6,
+          "set_type": "working",
+          "updated_at_utc": "2026-10-01T00:08:00Z"
+        },
+        {
+          "entered_at_utc": "2026-10-01T00:09:00Z",
+          "exercise_id": "ex-25",
+          "id": "s-07",
+          "load_g": 31751,
+          "notes": null,
+          "placement": {
+            "slot_key": null
+          },
+          "reps": 15,
+          "rir": 1,
+          "set_order": 7,
+          "set_type": "working",
+          "updated_at_utc": "2026-10-01T00:09:00Z"
+        },
+        {
+          "entered_at_utc": "2026-10-01T00:10:00Z",
+          "exercise_id": "ex-01",
+          "id": "s-08",
+          "load_g": 61235,
+          "notes": null,
+          "placement": {
+            "slot_key": "upper_a.01"
+          },
+          "reps": 5,
+          "rir": null,
+          "set_order": 8,
+          "set_type": "warmup",
+          "updated_at_utc": "2026-10-01T00:10:00Z"
+        }
+      ],
+      "status": "complete",
+      "substitutions": [
+        {
+          "created_at_utc": "2026-10-01T00:02:00Z",
+          "exercise_id": "ex-06",
+          "slot_key": "upper_a.07",
+          "updated_at_utc": "2026-10-01T00:02:00Z"
+        }
+      ],
+      "updated_at_utc": "2026-10-01T00:11:00Z"
+    },
+    {
+      "entered_at_utc": "2026-10-01T00:15:00Z",
+      "id": "w-3",
+      "notes": null,
+      "origin": {
+        "program_key": "advanced-natural-12w",
+        "version_label": "1.0.0",
+        "workout_key": "upper_b"
+      },
+      "performed_on": "2026-10-08",
+      "performed_time_local": null,
+      "sets": [
+        {
+          "entered_at_utc": "2026-10-01T00:16:00Z",
+          "exercise_id": "ex-03",
+          "id": "s-10",
+          "load_g": 63503,
+          "notes": null,
+          "placement": {
+            "slot_key": "upper_b.01"
+          },
+          "reps": 9,
+          "rir": 2,
+          "set_order": 1,
+          "set_type": "working",
+          "updated_at_utc": "2026-10-01T00:16:00Z"
+        }
+      ],
+      "status": "draft",
+      "substitutions": [],
+      "updated_at_utc": "2026-10-01T00:15:00Z"
+    }
+  ]
+}
