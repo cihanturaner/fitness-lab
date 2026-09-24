@@ -20,12 +20,12 @@ const ALL: MuscleGroup[] = [
   'abs',
 ];
 
-type Brush = { type: number } | undefined;
+type Brush = { type: number; brushRef?: string } | undefined;
 
 /**
  * The fill of every muscle plate drawn (both halves of both figures). Plates are the paths
  * with a stroke; react-native-svg hands the native view a brush whose type is 1 for a
- * `url(#…)` gradient (a highlight) and 0 for a plain colour.
+ * `url(#…)` gradient, naming the gradient in `brushRef` (`muscle-…` = trained).
  */
 async function plateBrushes(groups: MuscleGroup[]): Promise<Brush[]> {
   const { container } = await render(<AnatomyFigure groups={groups} height={200} />);
@@ -34,7 +34,8 @@ async function plateBrushes(groups: MuscleGroup[]): Promise<Brush[]> {
     .map((node) => node.props.fill as Brush);
 }
 
-const highlighted = (brushes: Brush[]) => brushes.filter((b) => b?.type === 1).length;
+const highlighted = (brushes: Brush[]) =>
+  brushes.filter((b) => b?.type === 1 && b.brushRef?.startsWith('muscle-')).length;
 
 describe('anatomy artwork', () => {
   it('can draw every muscle group, on at least one of the two figures', () => {

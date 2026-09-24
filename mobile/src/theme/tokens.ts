@@ -41,12 +41,14 @@ export const color = {
 
   onPrimary: '#FFFFFF',
 
-  /** Anatomy figure: neutral body, resting muscle plate, trained plate (top → bottom). */
-  body: '#DDE6E1',
-  bodyPlate: '#C8D4CE',
+  /** Anatomy figure: neutral body (edge → centre), resting plate and trained plate (lit → deep). */
+  bodyShade: '#D5E0DA',
+  body: '#E2EAE6',
+  bodyPlateLight: '#D6E0DB',
+  bodyPlate: '#B7C6BF',
   bodyFloor: '#EDF3EF',
-  muscleLight: '#3DAF84',
-  muscleDeep: '#1D7656',
+  muscleLight: '#4CC293',
+  muscleDeep: '#17684B',
 } as const;
 
 export const space = {

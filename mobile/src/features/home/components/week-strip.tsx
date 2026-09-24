@@ -56,8 +56,8 @@ const styles = StyleSheet.create({
   cell: { flex: 1, alignItems: 'center', gap: 5 },
   todayCell: { flex: 2 },
   pill: {
-    height: 42,
-    minWidth: 42,
+    height: 40,
+    minWidth: 40,
     borderRadius: radius.round,
     alignItems: 'center',
     justifyContent: 'center',

@@ -39,8 +39,8 @@ export function HomeHeader({ dateLabel, blockLabel, onOpenSettings }: Props) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 56 },
-  titles: { flex: 1, gap: 2 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 52 },
+  titles: { flex: 1, gap: 1 },
   settings: {
     width: hitTarget,
     height: hitTarget,

@@ -1,74 +1,177 @@
-import type { MuscleGroup } from '@/data/home-facts';
+import type { MuscleGroup } from "@/data/home-facts";
 
 /**
- * Original Fitness Lab anatomy artwork: a front and a back figure built from flat,
- * segmented muscle plates on a neutral silhouette. Only the left half of each figure is
- * drawn (x ≤ CENTER); the renderer mirrors it, so both sides stay exactly symmetric.
+ * Original Fitness Lab anatomy artwork: an athletic front and back figure whose muscles are
+ * drawn as shaded plates over a neutral body — deltoids, pectorals, serratus, obliques, a
+ * segmented rectus abdominis, the quadriceps heads, trapezius, rotator cuff, latissimus,
+ * glutes, hamstrings and calves. Only the left half of each figure is drawn (x ≤ CENTER);
+ * the renderer mirrors it, so both sides stay exactly symmetric.
  *
- * Paths use absolute commands in the 200 × 440 box `VIEWBOX`. A plate names the group it
- * belongs to, or null for anatomy that is drawn for shape only and never highlighted.
+ * Paths use absolute commands in the 200 × 440 box `VIEWBOX`, painted in order (later
+ * plates sit on earlier ones). A plate names the group it belongs to, or null for anatomy
+ * drawn for shape only and never highlighted (neck, forearms, serratus, obliques,
+ * adductors, knees, shins, lower back, glute medius, soleus). Hand-authored for this app
+ * and iterated against Chromium renders — nothing traced or copied.
  */
 
 export const VIEWBOX = { width: 200, height: 440 } as const;
 export const CENTER = VIEWBOX.width / 2;
 
 export type Plate = { group: MuscleGroup | null; d: string };
-export type FigureArt = { silhouette: readonly string[]; plates: readonly Plate[] };
+export type FigureArt = {
+  silhouette: readonly string[];
+  plates: readonly Plate[];
+};
 
-/** Head, neck, torso, arm, hand, leg and foot: the neutral body both views share. */
-const SILHOUETTE: readonly string[] = [
-  // head
-  'M100,8 C91,8 85,15 85,28 C85,40 90,49 100,51 Z',
-  // neck
-  'M100,44 L90,44 L88,62 L100,66 Z',
-  // torso to the hip
-  'M100,56 L89,56 C82,62 72,64 62,67 C52,70 46,80 46,92 L54,120 C60,142 68,158 70,174 C70,188 66,198 65,208 L66,226 L100,230 Z',
-  // arm
-  'M62,66 C48,68 38,78 38,96 C36,110 35,124 35,138 C34,148 33,156 32,166 C29,184 26,204 25,226 L36,230 C40,210 44,190 48,172 C52,156 56,140 58,120 L60,100 Z',
-  // hand
-  'M25,224 C21,234 21,248 25,256 C29,261 35,259 36,251 C37,243 37,233 36,228 Z',
-  // leg
-  'M65,206 C59,230 57,262 62,298 C64,312 60,326 60,346 C60,368 66,390 69,408 L86,410 C86,392 92,368 92,346 C92,326 89,312 91,298 C96,272 99,248 100,230 Z',
-  // foot
-  'M69,405 C64,413 62,423 68,428 L88,428 C90,420 88,412 86,407 Z',
-];
+/** Head, neck, torso and leg in one outline, and the arm with its hand: the neutral body. */
+const BODY =
+  "M100,8 C88,8 82,17 82,31 C82,41 85,50 91,55 L91,62 C84,68 72,71 62,74 C54,76 48,80 46,86 L60,118 C62,136 65,152 69,168 C71,178 71,186 70,194 C68,204 64,214 63,226 C58,248 57,272 61,296 C63,306 66,314 67,322 C64,334 60,346 61,362 C62,378 66,392 68,404 C64,412 60,420 62,427 C66,431 80,431 88,429 C89,420 87,410 86,404 C87,392 89,374 89,358 C89,344 86,334 84,324 C86,312 90,300 93,286 C96,268 98,248 99,236 L100,236 Z";
+const ARM =
+  "M62,74 C48,76 39,85 37,99 C35,112 34,124 34,136 C33,148 32,160 31,170 C29,186 26,204 25,224 L24,232 C20,240 20,254 24,262 C28,268 34,265 35,256 C36,247 37,238 36,232 L37,228 C40,210 44,192 47,176 C49,166 50,158 51,150 C53,138 56,126 58,116 L62,100 Z";
+const SILHOUETTE: readonly string[] = [BODY, ARM];
 
-const FOREARM = 'M36,168 C32,184 29,202 27,220 L35,223 C39,205 44,188 48,172 C44,166 39,165 36,168 Z';
-const DELTOID = 'M63,69 C52,70 42,78 41,93 C45,101 52,104 58,102 C58,90 62,80 69,75 Z';
+const FOREARM =
+  "M40,166 C34,176 31,190 29,206 L27,222 L36,226 C39,210 43,196 47,182 C49,176 49,170 47,166 C45,163 42,163 40,166 Z";
+const DELTOID =
+  "M64,73 C50,74 40,83 38,98 C38,108 40,116 44,122 C48,112 53,102 60,95 C66,90 70,84 70,79 C68,76 66,74 64,73 Z";
+const OUTER_CALF_BACK =
+  "M63,330 C58,344 59,362 65,378 C70,378 74,368 75,356 C76,344 74,334 71,328 Z";
 
 const FRONT_PLATES: readonly Plate[] = [
-  { group: 'back', d: 'M89,58 C82,63 72,65 64,67 C72,70 80,72 86,72 C88,68 89,63 89,58 Z' },
-  { group: 'shoulders', d: DELTOID },
-  { group: 'chest', d: 'M98,76 C88,72 76,72 69,78 C62,88 61,100 66,110 C76,117 90,117 98,112 Z' },
-  { group: 'biceps', d: 'M44,106 C39,120 37,134 38,150 C42,156 49,155 52,149 C55,134 57,120 57,108 C53,104 47,103 44,106 Z' },
-  { group: null, d: FOREARM },
-  { group: null, d: 'M85,120 C78,120 72,122 67,126 C68,146 72,166 76,182 C80,188 84,192 86,194 Z' },
-  { group: 'abs', d: 'M98,118 L90,118 Q87,118 87,121 L87,131 Q87,134 90,134 L98,134 Z' },
-  { group: 'abs', d: 'M98,137 L90,137 Q87,137 87,140 L87,150 Q87,153 90,153 L98,153 Z' },
-  { group: 'abs', d: 'M98,156 L90,156 Q87,156 87,159 L87,169 Q87,172 90,172 L98,172 Z' },
-  { group: 'abs', d: 'M98,175 L90,175 Q87,175 87,178 L88,188 Q93,198 98,204 Z' },
-  { group: 'quads', d: 'M66,222 C60,246 60,270 66,292 C70,298 76,300 79,296 C78,274 78,248 80,232 Z' },
+  { group: null, d: "M89,46 C90,54 93,61 98,67 L95,68 C90,62 86,54 85,48 Z" },
   {
-    group: 'quads',
-    d: 'M82,232 C80,252 80,276 82,294 C86,302 93,301 94,293 C97,272 98,250 97,236 C92,231 87,230 82,232 Z',
+    group: "back",
+    d: "M91,56 C86,64 76,69 64,73 C72,76 82,76 90,74 C92,68 92,62 91,56 Z",
   },
-  { group: 'calves', d: 'M62,318 C57,336 58,356 64,372 C68,372 72,366 73,356 C74,342 72,326 69,316 Z' },
-  { group: 'calves', d: 'M88,320 C91,336 91,354 86,370 C82,370 79,362 79,352 C79,338 81,326 84,318 Z' },
+  { group: null, d: FOREARM },
+  {
+    group: "biceps",
+    d: "M44,124 C40,134 38,146 39,158 C41,166 46,168 50,164 C53,154 55,140 57,128 C54,120 48,118 44,124 Z",
+  },
+  { group: "shoulders", d: DELTOID },
+  {
+    group: "chest",
+    d: "M99,80 C90,77 78,77 70,81 C65,88 61,97 60,106 C63,116 72,123 84,125 C91,126 96,124 99,121 Z",
+  },
+  {
+    group: null,
+    d: "M63,116 C62,123 63,130 65,136 L71,131 C69,126 67,121 66,117 Z",
+  },
+  {
+    group: null,
+    d: "M66,139 C66,145 67,151 69,156 L73,151 C72,147 71,143 70,139 Z",
+  },
+  {
+    group: null,
+    d: "M74,128 C71,146 70,166 72,184 C75,196 80,206 86,212 L86,132 C82,130 78,128 74,128 Z",
+  },
+  {
+    group: "abs",
+    d: "M98.5,128 L90.5,128 Q88,128 88,131 L88,140 Q88,143 90.5,143 L98.5,143 Z",
+  },
+  {
+    group: "abs",
+    d: "M98.5,146 L90.5,146 Q88,146 88,149 L88,158 Q88,161 90.5,161 L98.5,161 Z",
+  },
+  {
+    group: "abs",
+    d: "M98.5,164 L90.5,164 Q88,164 88,167 L88,176 Q88,179 90.5,179 L98.5,179 Z",
+  },
+  {
+    group: "abs",
+    d: "M98.5,182 L90.5,182 Q88,182 88,185 L88.5,198 Q93,208 98.5,216 Z",
+  },
+  { group: null, d: "M86,236 C89,252 92,266 94,278 C97,266 99,250 99,238 Z" },
+  {
+    group: "quads",
+    d: "M63,228 C56,250 56,278 62,302 C65,311 70,316 75,316 C76,296 74,268 71,240 Z",
+  },
+  {
+    group: "quads",
+    d: "M72,232 C69,256 71,284 77,306 C80,313 87,313 89,306 C92,286 91,262 87,242 C83,232 76,229 72,232 Z",
+  },
+  {
+    group: "quads",
+    d: "M91,282 C87,294 86,306 88,316 C92,320 96,316 96,308 C96,298 94,288 91,282 Z",
+  },
+  {
+    group: null,
+    d: "M77,319 C75,325 77,332 82,334 C87,334 89,327 88,320 C85,316 80,316 77,319 Z",
+  },
+  {
+    group: null,
+    d: "M68,337 C65,352 65,370 69,392 L76,392 C75,372 74,354 74,339 Z",
+  },
+  {
+    group: "calves",
+    d: "M84,334 C88,346 90,360 87,376 C83,378 80,368 80,356 C80,346 81,338 84,334 Z",
+  },
+  {
+    group: "calves",
+    d: "M63,340 C60,352 60,366 64,380 C66,372 66,358 66,344 Z",
+  },
 ];
 
 const BACK_PLATES: readonly Plate[] = [
-  { group: 'back', d: 'M96,104 C88,90 74,86 62,94 C58,114 62,140 72,164 C79,170 88,162 94,150 C97,138 97,120 96,104 Z' },
-  { group: 'back', d: 'M100,48 L91,54 C84,61 72,65 62,68 C74,74 86,84 93,96 C97,103 99,110 100,116 Z' },
-  { group: 'shoulders', d: DELTOID },
-  { group: 'triceps', d: 'M43,106 C38,120 36,136 38,152 C42,158 49,156 52,150 C55,134 57,120 56,108 C52,104 46,103 43,106 Z' },
   { group: null, d: FOREARM },
-  { group: null, d: 'M99,144 L91,152 C89,166 89,182 90,196 L99,200 Z' },
-  { group: 'glutes', d: 'M99,204 C89,200 74,202 67,214 C63,228 67,242 80,247 C91,249 99,242 99,234 Z' },
-  { group: 'hamstrings', d: 'M65,252 C62,272 64,290 71,302 L79,302 C77,284 77,266 79,252 Z' },
-  { group: 'hamstrings', d: 'M82,252 C81,270 81,288 83,302 L91,302 C95,286 97,268 97,252 Z' },
-  { group: 'calves', d: 'M61,318 C56,336 58,356 66,372 C72,370 76,358 76,344 C76,332 75,322 73,316 Z' },
-  { group: 'calves', d: 'M78,318 C79,332 79,348 78,362 C81,372 89,370 90,356 C92,342 91,326 88,318 Z' },
+  {
+    group: "triceps",
+    d: "M44,122 C39,134 38,148 39,160 C42,167 47,168 50,162 C53,150 55,136 57,124 C54,117 48,116 44,122 Z",
+  },
+  {
+    group: "back",
+    d: "M61,120 C61,140 65,160 71,178 C77,188 86,192 95,188 C96,172 96,158 96,146 C88,134 76,126 61,120 Z",
+  },
+  {
+    group: null,
+    d: "M97.5,140 C93,152 91,172 91,194 C94,202 97,206 98.5,208 Z",
+  },
+  {
+    group: null,
+    d: "M70,184 C68,193 67,202 68,210 C74,206 82,200 89,196 C82,194 76,190 70,184 Z",
+  },
+  {
+    group: "back",
+    d: "M100,50 L93,56 C88,64 76,70 63,74 C73,80 83,90 90,104 C94,114 97,124 100,136 Z",
+  },
+  {
+    group: "back",
+    d: "M66,88 C60,96 58,106 61,116 C69,116 79,114 87,112 C83,102 76,94 66,88 Z",
+  },
+  { group: "shoulders", d: DELTOID },
+  {
+    group: null,
+    d: "M66,212 C64,216 63,222 64,228 C68,218 76,212 86,208 C78,206 71,208 66,212 Z",
+  },
+  {
+    group: "glutes",
+    d: "M98.5,210 C88,204 73,206 66,220 C62,234 66,250 79,256 C89,258 97,254 98.5,246 Z",
+  },
+  {
+    group: null,
+    d: "M92,258 C94,264 96,272 97,282 C98.5,274 98.5,264 98.5,258 Z",
+  },
+  {
+    group: "hamstrings",
+    d: "M64,262 C59,280 61,298 67,314 C70,318 74,318 76,316 C74,298 74,280 77,262 Z",
+  },
+  {
+    group: "hamstrings",
+    d: "M80,262 C79,280 80,298 82,315 C85,319 89,318 90,315 C94,300 96,282 95,264 C91,260 85,260 80,262 Z",
+  },
+  {
+    group: null,
+    d: "M66,378 C67,388 69,398 70,404 L85,404 C85,396 87,386 88,378 C84,384 78,386 74,384 C70,384 68,381 66,378 Z",
+  },
+  { group: "calves", d: OUTER_CALF_BACK },
+  {
+    group: "calves",
+    d: "M78,328 C80,342 80,358 79,372 C82,382 89,380 90,366 C92,352 90,338 86,328 Z",
+  },
 ];
 
-export const FRONT: FigureArt = { silhouette: SILHOUETTE, plates: FRONT_PLATES };
+export const FRONT: FigureArt = {
+  silhouette: SILHOUETTE,
+  plates: FRONT_PLATES,
+};
 export const BACK: FigureArt = { silhouette: SILHOUETTE, plates: BACK_PLATES };

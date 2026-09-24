@@ -53,7 +53,7 @@ export function HomeScreen({ facts }: { facts: HomeFacts }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.paper },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: gutter, paddingTop: space.sm },
-  strip: { marginTop: space.md, marginBottom: space.lg },
-  section: { marginTop: space.xxl, marginBottom: space.md },
+  content: { paddingHorizontal: gutter, paddingTop: space.xs },
+  strip: { marginTop: space.sm, marginBottom: space.md },
+  section: { marginTop: space.xl, marginBottom: space.md },
 });

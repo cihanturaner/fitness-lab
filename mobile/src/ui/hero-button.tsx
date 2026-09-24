@@ -34,7 +34,7 @@ export function HeroButton({ label, icon, accessibilityLabel, onPress, emphasis 
 
 const styles = StyleSheet.create({
   button: {
-    height: 52,
+    height: 50,
     borderRadius: radius.lg + 2,
     flexDirection: 'row',
     alignItems: 'center',

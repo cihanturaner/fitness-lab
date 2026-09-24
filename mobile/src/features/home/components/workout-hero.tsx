@@ -60,21 +60,24 @@ export function WorkoutHero({ hero, focusGroups, onOpenWorkout }: Props) {
       </View>
 
       <View style={styles.progress}>
-        <View style={styles.progressLabels}>
+        {/* One line: recorded sets, a thin bar, the share — progress stays secondary. */}
+        <View style={styles.progressRow}>
           <Text variant="numeric">{hero.setsLabel}</Text>
           {hero.status !== 'planned' ? (
-            <Text variant="numeric" tone="muted">
-              {Math.round(hero.progress * 100)}%
-            </Text>
+            <>
+              <View style={styles.bar}>
+                <ProgressBar
+                  value={hero.progress}
+                  height={6}
+                  color={hero.status === 'shortened' ? color.warn : color.emerald600}
+                />
+              </View>
+              <Text variant="numeric" tone="muted">
+                {Math.round(hero.progress * 100)}%
+              </Text>
+            </>
           ) : null}
         </View>
-        {hero.status !== 'planned' ? (
-          <ProgressBar
-            value={hero.progress}
-            height={6}
-            color={hero.status === 'shortened' ? color.warn : color.emerald600}
-          />
-        ) : null}
         {hero.nextLabel ? (
           <Text variant="caption" tone="muted" numberOfLines={1}>
             Up next · <Text variant="caption" tone="inkSoft">{hero.nextLabel}</Text>
@@ -95,10 +98,11 @@ export function WorkoutHero({ hero, focusGroups, onOpenWorkout }: Props) {
 
 const styles = StyleSheet.create({
   rest: { gap: space.sm },
-  card: { paddingBottom: space.xl },
+  card: { paddingTop: space.lg + 2, paddingBottom: space.lg + 2 },
   topRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
-  titles: { flex: 1, gap: 3 },
-  anatomy: { marginTop: space.lg, marginBottom: space.lg },
-  progress: { gap: space.sm, marginBottom: space.lg },
-  progressLabels: { flexDirection: 'row', justifyContent: 'space-between' },
+  titles: { flex: 1, gap: 2 },
+  anatomy: { marginTop: space.sm, marginBottom: space.md },
+  progress: { gap: space.xs + 2, marginBottom: space.md + 2 },
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  bar: { flex: 1 },
 });
