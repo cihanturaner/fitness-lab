@@ -116,6 +116,8 @@ spec in the same directory. The authoritative nutrition source is
                         src/fitness_lab/{domain,storage,api}, cli.py, tests/
     backend/migrations/ forward-only, numbered SQL migration files (NNNN_description.sql)
     web/                React SPA; src/components/ui holds generated shadcn components
+    mobile/             Expo (React Native) iPhone app, independent of web/ and the API;
+                        its own invariants are in mobile/CLAUDE.md
     e2e/                Playwright end-to-end tests; scripts/serve-scratch.sh seeds a
                         scratch database and runs the real launcher against it
     programs/           program artifacts: <name>/artifact/ holds the source exactly as
