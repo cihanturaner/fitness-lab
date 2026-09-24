@@ -1,6 +1,6 @@
 """The weekly nutrition review: what the locked controller recommends, and the lifter's choice.
 
-GET never writes. A calorie target changes only through ``POST /api/nutrition/review/decision``
+GET never writes. A target changes only through ``POST /api/nutrition/review/decision``
 with ``choice = APPLIED``, and only when the recomputed review still says exactly what the
 lifter saw (status and delta); anything stale or untimely is refused with 409.
 """
@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from fitness_lab.api.schemas import RequestModel, StrictDate
 from fitness_lab.api.tracking import CENT, OnDate, _day
 from fitness_lab.domain.bodyweight import WeightEntry, summarize
+from fitness_lab.domain.nutrition import MacroTargets
 from fitness_lab.domain.nutrition_controller import (
     DECIDABLE,
     GATE_CHECKS,
@@ -72,6 +73,25 @@ class TrendOut(BaseModel):
         )
 
 
+class MacrosOut(BaseModel):
+    protein_g: int
+    carbs_g: int
+    fat_g: int
+    # Derived: protein x 4 + carbs x 4 + fat x 9.
+    calories_kcal: int
+
+    @classmethod
+    def of(cls, macros: MacroTargets | None) -> MacrosOut | None:
+        if macros is None:
+            return None
+        return cls(
+            protein_g=macros.protein_g,
+            carbs_g=macros.carbs_g,
+            fat_g=macros.fat_g,
+            calories_kcal=macros.calories_kcal,
+        )
+
+
 class DecisionOut(BaseModel):
     id: str
     block_week: int
@@ -84,6 +104,7 @@ class DecisionOut(BaseModel):
     previous_calorie_target_kcal: int
     user_choice: str
     new_calorie_target_kcal: int | None
+    new_target: MacrosOut | None
     composition_concern: bool
     notes: str | None
     recorded_at_utc: str
@@ -101,7 +122,10 @@ class DecisionOut(BaseModel):
             recommended_delta_kcal=row.recommended_delta_kcal,
             previous_calorie_target_kcal=row.previous_calorie_target_kcal,
             user_choice=row.user_choice,
-            new_calorie_target_kcal=row.new_calorie_target_kcal,
+            new_calorie_target_kcal=None
+            if row.new_target is None
+            else row.new_target.calories_kcal,
+            new_target=MacrosOut.of(row.new_target),
             composition_concern=row.composition_concern,
             notes=row.notes,
             recorded_at_utc=row.recorded_at_utc,
@@ -147,6 +171,10 @@ class ReviewOut(BaseModel):
     current_target_kcal: int | None
     recommended_target_kcal: int | None
     recommended_carbs_g: int | None
+    current_macros: MacrosOut | None
+    # What Apply records: the current target with carbohydrate moved by the change (source:
+    # primary_macro_adjusted = carbohydrate). Shown before the lifter decides.
+    recommended_macros: MacrosOut | None
     failed_corrections: int
     note: str | None
     decision: DecisionOut | None
@@ -173,6 +201,8 @@ class ReviewOut(BaseModel):
             current_target_kcal=review.current_target_kcal,
             recommended_target_kcal=review.recommended_target_kcal,
             recommended_carbs_g=review.recommended_carbs_g,
+            current_macros=MacrosOut.of(review.current_macros),
+            recommended_macros=MacrosOut.of(review.recommended_macros),
             failed_corrections=review.failed_corrections,
             note=review.note,
             decision=decision,
@@ -239,10 +269,10 @@ def _context(
     targets = [
         TargetDecision(
             effective_on=date.fromisoformat(row.effective_on),
-            calories_kcal=row.calories_kcal,
+            macros=row.macros,
             set_at_utc=row.set_at_utc,
         )
-        for row in tracking.list_calorie_targets(connection)
+        for row in tracking.list_macro_targets(connection)
     ]
     decisions = controller.list_decisions(connection, version.id)
     gates = controller.list_gates(connection, version.id)
@@ -258,8 +288,8 @@ def _context(
                 status=row.status,  # type: ignore[arg-type]
                 user_choice=row.user_choice,  # type: ignore[arg-type]
                 delta_kcal=0
-                if row.new_calorie_target_kcal is None
-                else row.new_calorie_target_kcal - row.previous_calorie_target_kcal,
+                if row.new_target is None
+                else row.new_target.calories_kcal - row.previous_calorie_target_kcal,
             )
             for row in decisions
         ],
@@ -340,6 +370,12 @@ def nutrition_review(
     )
 
 
+class ExpectedMacrosIn(RequestModel):
+    protein_g: StrictCount
+    carbs_g: StrictCount
+    fat_g: StrictCount
+
+
 class DecisionIn(RequestModel):
     block_week: StrictCount
     choice: Literal["APPLIED", "KEPT"]
@@ -347,6 +383,8 @@ class DecisionIn(RequestModel):
     expected_delta_kcal: StrictCount | None
     # The target the lifter saw: Apply writes exactly that number or nothing.
     expected_target_kcal: StrictCount | None
+    # ... and exactly those macros (a same-calorie change in between is refused too).
+    expected_macros: ExpectedMacrosIn | None = None
     composition_concern: StrictBool = False
     notes: str | None = None
     date: StrictDate | None = None
@@ -373,11 +411,20 @@ def record_decision(body: DecisionIn) -> DecisionOut:
             raise Conflict("the review changed since it was shown; reload it")
         assert review.trend is not None and review.trend.pct is not None
         assert review.current_target_kcal is not None and review.recommended_action is not None
-        new_target: int | None = None
+        new_target: MacroTargets | None = None
         if body.choice == "APPLIED":
-            if not review.recommended_delta_kcal or review.recommended_target_kcal is None:
+            if not review.recommended_delta_kcal or review.recommended_macros is None:
                 raise Conflict("this review recommends no calorie change to apply")
-            new_target = review.recommended_target_kcal
+            shown = body.expected_macros
+            if (
+                shown is not None
+                and MacroTargets(
+                    protein_g=shown.protein_g, carbs_g=shown.carbs_g, fat_g=shown.fat_g
+                )
+                != review.recommended_macros
+            ):
+                raise Conflict("the review changed since it was shown; reload it")
+            new_target = review.recommended_macros
         row = controller.record_decision(
             connection,
             program_version_id=context.version_id,
@@ -392,7 +439,7 @@ def record_decision(body: DecisionIn) -> DecisionOut:
             recommended_delta_kcal=review.recommended_delta_kcal,
             previous_calorie_target_kcal=review.current_target_kcal,
             user_choice=body.choice,
-            new_calorie_target_kcal=new_target,
+            new_target=new_target,
             composition_concern=body.composition_concern,
             notes=body.notes,
         )

@@ -236,7 +236,7 @@ def test_the_block_start_cannot_move_under_recorded_review_decisions(
             recommended_delta_kcal=0,
             previous_calorie_target_kcal=2650,
             user_choice="KEPT",
-            new_calorie_target_kcal=None,
+            new_target=None,
             composition_concern=False,
             notes=None,
         )

@@ -3,9 +3,12 @@
 Authoritative source: ``programs/advanced-natural-12w-nutrition/artifact/
 locked_nutrition_tracker.json`` (``controller_rules``, ``controller_timing``,
 ``measurement_protocol.trend_method``, ``diagnostic_gate``). Everything here is pure: it
-reads bodyweights, calorie-target decisions and the lifter's earlier review decisions and
-says what the plan recommends. It cannot store anything; a calorie target changes only when
-the lifter explicitly applies a recommendation (``automatic_apply: false`` on every rule).
+reads bodyweights, the lifter's macro targets and earlier review decisions and says what the
+plan recommends. It cannot store anything; a target changes only when the lifter explicitly
+applies a recommendation (``automatic_apply: false`` on every rule). A recommendation is in
+calories; the source adjusts carbohydrate for it (``primary_macro_adjusted``), so the
+proposed target keeps protein and fat and moves carbohydrate by the change / 4 kcal per gram,
+rounded half-up to whole grams (+150 kcal -> +38 g, -100 kcal -> -25 g).
 
 Three rules are not defined by the source and are fixed here as APP CHOICES, consistent for
 the whole block (the source locks estimator consistency, not the estimator):
@@ -28,7 +31,11 @@ from fractions import Fraction
 from typing import Literal
 
 from fitness_lab.domain.bodyweight import WeightEntry
-from fitness_lab.domain.nutrition import carbohydrate_target_g, check_calorie_target
+from fitness_lab.domain.nutrition import (
+    KCAL_PER_G_CARBOHYDRATE,
+    MacroTargets,
+    check_calorie_target,
+)
 from fitness_lab.domain.week import block_phase, week_bounds
 
 # Quoted from the source.
@@ -101,9 +108,15 @@ CENT = Decimal("0.01")
 
 @dataclass(frozen=True, slots=True)
 class TargetDecision:
+    """One recorded target, effective from ``effective_on``."""
+
     effective_on: date
-    calories_kcal: int
+    macros: MacroTargets
     set_at_utc: str
+
+    @property
+    def calories_kcal(self) -> int:
+        return self.macros.calories_kcal
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +167,9 @@ class Review:
     current_target_kcal: int | None
     recommended_target_kcal: int | None
     recommended_carbs_g: int | None
+    current_macros: MacroTargets | None
+    # What Apply would record: the current target with carbohydrate moved by the change.
+    recommended_macros: MacroTargets | None
     failed_corrections: int
     note: str | None
 
@@ -164,6 +180,20 @@ class Review:
 def starting_target(recent_stable_intake_kcal: int) -> int:
     """The source's starting rule: recent stable intake + 150 (never an invented TDEE)."""
     return check_calorie_target(recent_stable_intake_kcal + STARTING_DELTA_KCAL)
+
+
+def adjust_carbohydrate(current: MacroTargets, delta_kcal: int) -> MacroTargets | None:
+    """The source's adjustment: protein and fat kept, carbohydrate moved by delta / 4.
+
+    None when the change would take carbohydrate below zero.
+    """
+    grams = (Decimal(delta_kcal) / KCAL_PER_G_CARBOHYDRATE).quantize(
+        Decimal(1), rounding=ROUND_HALF_UP
+    )
+    carbs = current.carbs_g + int(grams)
+    if carbs < 0:
+        return None
+    return MacroTargets(protein_g=current.protein_g, carbs_g=carbs, fat_g=current.fat_g)
 
 
 def _ordered(targets: Sequence[TargetDecision]) -> list[TargetDecision]:
@@ -348,8 +378,10 @@ def evaluate_review(
             current_target_kcal=current_kcal,
             recommended_target_kcal=None,
             recommended_carbs_g=None,
+            current_macros=None if current is None else current.macros,
+            recommended_macros=None,
             failed_corrections=0,
-            note=None if current is not None else "Starting calories not calibrated yet.",
+            note=None if current is not None else "No macro target recorded yet.",
         )
 
     week = min(finished, weeks)
@@ -374,7 +406,7 @@ def evaluate_review(
     failed = 0
     if current is None:
         status = "UNKNOWN"
-        notes.append("Starting calories not calibrated yet.")
+        notes.append("No macro target recorded yet.")
     elif trend.pct is None:
         status = "INSUFFICIENT_DATA"
     else:
@@ -426,10 +458,9 @@ def evaluate_review(
         )
     if not due:
         action, delta = None, None
-    recommended = None
-    if due and current_kcal is not None and delta is not None:
-        candidate = current_kcal + delta
-        recommended = candidate if candidate >= 1120 else None
+    recommended: MacroTargets | None = None
+    if due and current is not None and delta is not None:
+        recommended = adjust_carbohydrate(current.macros, delta)
     upcoming = None if post else (next_week_after(week) if not due else week)
     return Review(
         phase="post_block" if post else "early" if early else "decision",
@@ -446,8 +477,10 @@ def evaluate_review(
         recommended_action=action,
         recommended_delta_kcal=delta,
         current_target_kcal=current_kcal,
-        recommended_target_kcal=recommended,
-        recommended_carbs_g=None if recommended is None else carbohydrate_target_g(recommended),
+        recommended_target_kcal=None if recommended is None else recommended.calories_kcal,
+        recommended_carbs_g=None if recommended is None else recommended.carbs_g,
+        current_macros=None if current is None else current.macros,
+        recommended_macros=recommended,
         failed_corrections=failed,
         note=" ".join(notes) if notes else None,
     )

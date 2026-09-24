@@ -2,7 +2,7 @@
 
 Append-only records (migration 0005). What a review recommends is computed by
 ``domain.nutrition_controller``; this module only stores what the lifter chose. Applying a
-recommendation appends the new ``calorie_target`` and the decision in one transaction, so
+recommendation appends the new ``macro_target`` and the decision in one transaction, so
 there is never a target change without its reason, nor a recorded "applied" without a target.
 """
 
@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from fitness_lab.domain.models import new_id, utc_now_iso
+from fitness_lab.domain.nutrition import MacroTargets
 from fitness_lab.domain.nutrition_controller import GATE_CHECKS
 from fitness_lab.storage import db, tracking
 from fitness_lab.storage.entry import Conflict
@@ -33,8 +34,8 @@ class DecisionRow:
     recommended_delta_kcal: int | None
     previous_calorie_target_kcal: int
     user_choice: str
-    new_calorie_target_id: str | None
-    new_calorie_target_kcal: int | None
+    new_target_id: str | None
+    new_target: MacroTargets | None
     composition_concern: bool
     notes: str | None
     recorded_at_utc: str
@@ -64,9 +65,10 @@ DECISION_SELECT = (
     "SELECT e.id, e.program_version_id, e.block_week, e.decided_on, e.window_first, "
     "e.window_last, e.weigh_ins, e.trend_pct_bw_per_week, e.status, e.recommended_action, "
     "e.recommended_delta_kcal, e.previous_calorie_target_kcal, e.user_choice, "
-    "e.new_calorie_target_id, t.calories_kcal AS new_kcal, e.composition_concern, e.notes, "
+    "e.new_macro_target_id, t.protein_g AS new_protein_g, t.carbs_g AS new_carbs_g, "
+    "t.fat_g AS new_fat_g, e.composition_concern, e.notes, "
     "e.recorded_at_utc FROM controller_event e "
-    "LEFT JOIN calorie_target t ON t.id = e.new_calorie_target_id"
+    "LEFT JOIN macro_target t ON t.id = e.new_macro_target_id"
 )
 
 
@@ -85,8 +87,14 @@ def _decision(row: sqlite3.Row) -> DecisionRow:
         recommended_delta_kcal=_opt_int(row["recommended_delta_kcal"]),
         previous_calorie_target_kcal=int(row["previous_calorie_target_kcal"]),
         user_choice=str(row["user_choice"]),
-        new_calorie_target_id=_opt_str(row["new_calorie_target_id"]),
-        new_calorie_target_kcal=_opt_int(row["new_kcal"]),
+        new_target_id=_opt_str(row["new_macro_target_id"]),
+        new_target=None
+        if row["new_macro_target_id"] is None
+        else MacroTargets(
+            protein_g=int(row["new_protein_g"]),
+            carbs_g=int(row["new_carbs_g"]),
+            fat_g=int(row["new_fat_g"]),
+        ),
         composition_concern=bool(row["composition_concern"]),
         notes=_opt_str(row["notes"]),
         recorded_at_utc=str(row["recorded_at_utc"]),
@@ -108,16 +116,16 @@ def record_decision(
     recommended_delta_kcal: int | None,
     previous_calorie_target_kcal: int,
     user_choice: str,
-    new_calorie_target_kcal: int | None,
+    new_target: MacroTargets | None,
     composition_concern: bool,
     notes: str | None,
     now: str | None = None,
 ) -> DecisionRow:
     """Record the lifter's choice on one review; APPLIED also appends the new target."""
-    if user_choice == "APPLIED" and new_calorie_target_kcal is None:
-        raise ValueError("an applied recommendation needs its new calorie target")
-    if user_choice == "KEPT" and new_calorie_target_kcal is not None:
-        raise ValueError("a kept target records no new calorie target")
+    if user_choice == "APPLIED" and new_target is None:
+        raise ValueError("an applied recommendation needs its new target")
+    if user_choice == "KEPT" and new_target is not None:
+        raise ValueError("a kept target records no new target")
     stamp = now if now is not None else utc_now_iso()
     clean_notes = None if notes is None or notes.strip() == "" else notes
     decision_id = new_id()
@@ -128,13 +136,15 @@ def record_decision(
         ).fetchone():
             raise Conflict(f"the week {block_week} review was already decided")
         target_id = None
-        if new_calorie_target_kcal is not None:
-            delta = new_calorie_target_kcal - previous_calorie_target_kcal
-            target = tracking.add_calorie_target(
+        if new_target is not None:
+            delta = new_target.calories_kcal - previous_calorie_target_kcal
+            target = tracking.add_macro_target(
                 connection,
                 decided_on,
-                new_calorie_target_kcal,
-                f"Week {block_week} review: {status}, {delta:+d} kcal/day applied",
+                protein_g=new_target.protein_g,
+                carbs_g=new_target.carbs_g,
+                fat_g=new_target.fat_g,
+                notes=f"Week {block_week} review: {status}, {delta:+d} kcal/day applied",
                 now=stamp,
             )
             target_id = target.id
@@ -143,7 +153,7 @@ def record_decision(
                 "INSERT INTO controller_event (id, program_version_id, block_week, decided_on, "
                 "window_first, window_last, weigh_ins, trend_pct_bw_per_week, status, "
                 "recommended_action, recommended_delta_kcal, previous_calorie_target_kcal, "
-                "user_choice, new_calorie_target_id, composition_concern, notes, "
+                "user_choice, new_macro_target_id, composition_concern, notes, "
                 "recorded_at_utc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     decision_id,

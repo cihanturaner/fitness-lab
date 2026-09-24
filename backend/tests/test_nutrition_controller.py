@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from fitness_lab.domain.bodyweight import WeightEntry
-from fitness_lab.domain.nutrition import carbohydrate_target_g
+from fitness_lab.domain.nutrition import MacroTargets, carbohydrate_target_g
 from fitness_lab.domain.nutrition_controller import (
     BAND_MAX,
     BAND_MIN,
@@ -25,6 +25,7 @@ from fitness_lab.domain.nutrition_controller import (
     PriorDecision,
     Review,
     TargetDecision,
+    adjust_carbohydrate,
     adjustment_dates,
     classify_trend,
     evaluate_review,
@@ -59,7 +60,9 @@ def linear(pct: str, first: date, last: date, base: int = 72_000) -> list[Weight
 
 
 def target(day: date, kcal: int, stamp: str = "2026-09-01T00:00:00Z") -> TargetDecision:
-    return TargetDecision(effective_on=day, calories_kcal=kcal, set_at_utc=stamp)
+    """The source's locked protein 145 g and fat 60 g, carbohydrate the remainder (half-up)."""
+    macros = MacroTargets(protein_g=145, carbs_g=(kcal - 1120 + 2) // 4, fat_g=60)
+    return TargetDecision(effective_on=day, macros=macros, set_at_utc=stamp)
 
 
 CALIBRATED = [target(START - timedelta(days=10), 2650)]
@@ -113,7 +116,7 @@ def test_example_baseline_unknown() -> None:
     assert result.current_target_kcal is None
     assert result.recommended_action is None
     assert result.recommended_carbs_g is None
-    assert result.note == "Starting calories not calibrated yet."
+    assert result.note == "No macro target recorded yet."
 
 
 def test_example_stable_intake_2500() -> None:
@@ -135,21 +138,25 @@ def test_example_under_gain_week_3() -> None:
     assert result.trend is not None and result.trend.pct == Decimal("0.07")
     assert (result.status, result.decision_due) == ("UNDER_GAIN", True)
     assert (result.recommended_action, result.recommended_delta_kcal) == ("ADD_CALORIES", 150)
-    assert (result.recommended_target_kcal, result.recommended_carbs_g) == (2800, 420)
+    # 2650 kcal is 145 P / 383 C / 60 F (2652 kcal); +150 kcal moves carbohydrate +38 g.
+    assert result.current_macros == MacroTargets(protein_g=145, carbs_g=383, fat_g=60)
+    assert result.recommended_macros == MacroTargets(protein_g=145, carbs_g=421, fat_g=60)
+    assert (result.recommended_target_kcal, result.recommended_carbs_g) == (2804, 421)
 
 
 def test_example_in_range_week_5() -> None:
     result = review(sunday(5), linear("0.17", START, sunday(5)))
     assert result.status == "IN_RANGE"
     assert (result.recommended_action, result.recommended_delta_kcal) == ("NO_CHANGE", 0)
-    assert result.recommended_target_kcal == 2650
+    assert result.recommended_target_kcal == 2652
 
 
 def test_example_sustained_over_gain_week_5() -> None:
     result = review(sunday(5), linear("0.27", START, sunday(5)))
     assert (result.status, result.sustained) == ("OVER_GAIN", True)
     assert (result.recommended_action, result.recommended_delta_kcal) == ("REDUCE_CALORIES", -100)
-    assert result.recommended_target_kcal == 2550
+    assert result.recommended_macros == MacroTargets(protein_g=145, carbs_g=358, fat_g=60)
+    assert result.recommended_target_kcal == 2552
 
 
 def test_example_two_failed_under_gain_corrections_open_the_gate() -> None:
@@ -268,7 +275,7 @@ def test_the_target_in_force_is_the_latest_decision_on_or_before_the_day() -> No
     found = target_in_force(targets, date(2026, 10, 19))
     assert found is not None and found.calories_kcal == 2700
     later = target_in_force(targets, date(2026, 10, 20))
-    assert later is not None and later.calories_kcal == 2850
+    assert later is not None and later.calories_kcal == 2852  # 145 P / 433 C / 60 F
 
 
 def test_re_recording_the_same_value_is_not_an_adjustment() -> None:
@@ -461,7 +468,7 @@ def gate_case(gates: list[GateRecord], history_len: int = 2) -> Review:
 def test_confirmed_underfeeding_permits_another_increase() -> None:
     result = gate_case([GateRecord(block_week=7, result="GENUINE_UNDERFEEDING_CONFIRMED")])
     assert (result.status, result.recommended_delta_kcal) == ("UNDER_GAIN", 150)
-    assert result.recommended_target_kcal == 3100
+    assert result.recommended_target_kcal == 3104  # 2952 + 38 g carbohydrate
 
 
 def test_unreliable_inputs_must_be_fixed_first() -> None:
@@ -518,3 +525,11 @@ def test_the_controller_module_has_no_way_to_store_anything() -> None:
     source = inspect.getsource(controller)
     for forbidden in ("sqlite3", "fitness_lab.storage", "fastapi", "open("):
         assert forbidden not in source
+
+
+def test_a_calorie_change_moves_only_carbohydrate_rounded_half_up() -> None:
+    current = MacroTargets(protein_g=150, carbs_g=300, fat_g=70)
+    assert adjust_carbohydrate(current, 150) == MacroTargets(150, 338, 70)
+    assert adjust_carbohydrate(current, -100) == MacroTargets(150, 275, 70)
+    assert adjust_carbohydrate(current, 0) == current
+    assert adjust_carbohydrate(MacroTargets(150, 10, 70), -100) is None

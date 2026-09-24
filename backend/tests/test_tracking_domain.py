@@ -23,7 +23,6 @@ from fitness_lab.domain.nutrition import (
     carbohydrate_target_g,
     check_calorie_target,
     check_day_values,
-    targets_for,
 )
 from fitness_lab.domain.week import (
     SessionFacts,
@@ -167,18 +166,9 @@ def test_locked_targets_match_the_authoritative_source() -> None:
     assert source["maintenance_and_starting_calories"]["current_calorie_target_kcal"] is None
 
 
-def test_unknown_calorie_target_leaves_carbohydrate_unknown() -> None:
-    targets = targets_for(None)
-    assert targets.protein_g == 145
-    assert targets.fat_g == 60
-    assert targets.calories_kcal is None
-    assert targets.carbs_g is None
-
-
 def test_the_sources_own_example_2650_kcal_gives_383_g_carbohydrate() -> None:
     # (2650 - 1120) / 4 = 382.5 -> 383, as the source's stable_intake_2500 example states.
     assert carbohydrate_target_g(2650) == 383
-    assert targets_for(2650).carbs_g == 383
 
 
 @pytest.mark.parametrize(("kcal", "carbs"), [(1120, 0), (2400, 320), (2401, 320), (2402, 321)])

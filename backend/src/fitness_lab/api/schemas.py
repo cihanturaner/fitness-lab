@@ -152,6 +152,10 @@ class SlotExerciseIn(RequestModel):
     exercise_id: str
 
 
+class ApprovedSubstituteIn(RequestModel):
+    name: NonBlank
+
+
 class ExerciseCreateIn(RequestModel):
     name: NonBlank
     equipment_label: NonBlank | None = None
@@ -301,9 +305,18 @@ class SlotOut(BaseModel):
         )
 
 
+class ApprovedSubstituteOut(BaseModel):
+    """One of the slot's approved substitutes (locked source); exercise_id once it exists."""
+
+    name: str
+    condition: str | None
+    exercise_id: str | None
+
+
 class EntrySlotOut(SlotOut):
     substitute_exercise_id: str | None
     effective_exercise_id: str
+    approved_substitutes: list[ApprovedSubstituteOut]
 
     @classmethod
     def of_entry(cls, entry_slot: EntrySlot) -> EntrySlotOut:
@@ -313,6 +326,12 @@ class EntrySlotOut(SlotOut):
             sets=base.sets,
             substitute_exercise_id=entry_slot.substitute_exercise_id,
             effective_exercise_id=entry_slot.effective_exercise_id,
+            approved_substitutes=[
+                ApprovedSubstituteOut(
+                    name=item.name, condition=item.condition, exercise_id=item.exercise_id
+                )
+                for item in entry_slot.approved
+            ],
         )
 
 
@@ -446,6 +465,9 @@ class ActiveProgramOut(BaseModel):
     version: ProgramVersionOut | None
     activated_at_utc: str | None
     notes_text: str | None
+    # sha256 of notes_text: lets the web app show its Turkish rendering only for exactly
+    # the notes it was translated from.
+    notes_sha256: str | None
     planned_workouts: list[PlannedWorkoutSummaryOut]
 
 

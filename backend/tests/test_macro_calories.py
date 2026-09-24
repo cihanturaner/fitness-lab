@@ -11,8 +11,8 @@ from fastapi.testclient import TestClient
 
 from fitness_lab.domain.nutrition import (
     FIXED_PROTEIN_FAT_KCAL,
+    check_macro_targets,
     day_calories,
-    targets_for,
 )
 from fitness_lab.storage import db, tracking
 from fitness_lab.storage.migrations import MIGRATIONS_DIR, migrate_to_head
@@ -57,12 +57,11 @@ def test_locked_protein_and_fat_alone_are_1120_kcal() -> None:
     assert day_calories(protein_g=145, carbs_g=0, fat_g=60).calories_kcal == 1120
 
 
-def test_eating_the_macro_targets_lands_on_the_calorie_target() -> None:
-    # The carbohydrate target is rounded to whole grams, so the macros land within 2 kcal.
-    targets = targets_for(2650)
-    assert targets.carbs_g is not None
-    eaten = day_calories(protein_g=targets.protein_g, carbs_g=targets.carbs_g, fat_g=targets.fat_g)
-    assert abs(eaten.calories_kcal - 2650) <= 2
+def test_eating_the_macro_targets_lands_exactly_on_their_calories() -> None:
+    # A target's calories are derived by the same rule as a logged day's: no 2 kcal gap.
+    targets = check_macro_targets(protein_g=150, carbs_g=300, fat_g=70)
+    eaten = day_calories(protein_g=150, carbs_g=300, fat_g=70)
+    assert eaten.calories_kcal == targets.calories_kcal == 2430
 
 
 # --- HTTP -------------------------------------------------------------------------------
@@ -95,14 +94,15 @@ def test_history_shows_calories_derived_from_each_days_macros(client: TestClient
 
 def test_logged_calories_compare_against_an_untouched_target(client: TestClient) -> None:
     client.post(
-        "/api/nutrition/calorie-targets", json={"effective_on": "2026-10-01", "calories_kcal": 2650}
+        "/api/nutrition/targets",
+        json={"effective_on": "2026-10-01", "protein_g": 150, "carbs_g": 300, "fat_g": 70},
     )
-    client.put("/api/nutrition/2026-10-02", json={"protein_g": 145, "carbs_g": 383, "fat_g": 60})
+    client.put("/api/nutrition/2026-10-02", json={"protein_g": 150, "carbs_g": 200, "fat_g": 50})
     body = client.get("/api/nutrition", params={"date": "2026-10-02"}).json()
-    assert body["targets"]["calories_kcal"] == 2650
-    assert body["day"]["calories_kcal"] == 2652
+    assert body["target"]["calories_kcal"] == 2430
+    assert body["day"]["calories_kcal"] == 1850
     # Logging never writes a target.
-    assert [item["calories_kcal"] for item in body["target_history"]] == [2650]
+    assert [item["calories_kcal"] for item in body["target_history"]] == [2430]
 
 
 # --- migration 0006 ---------------------------------------------------------------------
@@ -137,7 +137,7 @@ def test_0006_archives_every_typed_calorie_value_before_the_rebuild(tmp_path: Pa
 
     result = migrate_to_head(db_path)
 
-    assert result.applied == (6,)
+    assert result.applied == (6, 7)
     assert result.snapshot is not None and result.snapshot.name.endswith("-pre-0006.db")
     with db.connection_scope(db_path) as connection:
         archived = connection.execute(

@@ -75,6 +75,7 @@ def test_no_active_program(client: TestClient) -> None:
         "version": None,
         "activated_at_utc": None,
         "notes_text": None,
+        "notes_sha256": None,
         "planned_workouts": [],
     }
 

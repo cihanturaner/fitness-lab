@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from fitness_lab.domain.nutrition import MacroTargets
 from fitness_lab.domain.nutrition_controller import GATE_CHECKS
 from fitness_lab.storage import controller, db, tracking
 from fitness_lab.storage.entry import Conflict
@@ -31,7 +32,7 @@ def version(migrated_db: sqlite3.Connection) -> str:
 
 
 def decide(
-    connection: sqlite3.Connection, version: str, week: int, choice: str, new_kcal: int | None
+    connection: sqlite3.Connection, version: str, week: int, choice: str, new_carbs: int | None
 ) -> controller.DecisionRow:
     return controller.record_decision(
         connection,
@@ -47,7 +48,9 @@ def decide(
         recommended_delta_kcal=150,
         previous_calorie_target_kcal=2650,
         user_choice=choice,
-        new_calorie_target_kcal=new_kcal,
+        new_target=None
+        if new_carbs is None
+        else MacroTargets(protein_g=145, carbs_g=new_carbs, fat_g=60),
         composition_concern=False,
         notes=None,
         now=STAMP,
@@ -76,7 +79,10 @@ def test_0005_is_additive_over_a_v2_database(tmp_path: Path) -> None:
             notes=None,
             now=STAMP,
         )
-        tracking.add_calorie_target(connection, "2026-09-23", 2650, "calibration", now=STAMP)
+        connection.execute(
+            "INSERT INTO calorie_target VALUES ('t1', '2026-09-23', 2650, 'calibration', ?)",
+            (STAMP,),
+        )
         tables = [
             str(row[0])
             for row in connection.execute(
@@ -111,12 +117,14 @@ def test_0005_is_additive_over_a_v2_database(tmp_path: Path) -> None:
 def test_applying_appends_one_target_and_one_decision_together(
     migrated_db: sqlite3.Connection, version: str
 ) -> None:
-    row = decide(migrated_db, version, 3, "APPLIED", 2800)
-    targets = tracking.list_calorie_targets(migrated_db)
-    assert [(item.effective_on, item.calories_kcal) for item in targets] == [("2026-10-18", 2800)]
-    assert row.new_calorie_target_id == targets[0].id
-    assert row.new_calorie_target_kcal == 2800
-    assert targets[0].notes == "Week 3 review: UNDER_GAIN, +150 kcal/day applied"
+    row = decide(migrated_db, version, 3, "APPLIED", 421)
+    targets = tracking.list_macro_targets(migrated_db)
+    assert [(item.effective_on, item.macros.calories_kcal) for item in targets] == [
+        ("2026-10-18", 2804)
+    ]
+    assert row.new_target_id == targets[0].id
+    assert row.new_target == MacroTargets(protein_g=145, carbs_g=421, fat_g=60)
+    assert targets[0].notes == "Week 3 review: UNDER_GAIN, +154 kcal/day applied"
     assert [item.block_week for item in controller.list_decisions(migrated_db, version)] == [3]
 
 
@@ -124,8 +132,8 @@ def test_keeping_records_the_decision_and_no_target(
     migrated_db: sqlite3.Connection, version: str
 ) -> None:
     row = decide(migrated_db, version, 3, "KEPT", None)
-    assert (row.user_choice, row.new_calorie_target_id) == ("KEPT", None)
-    assert tracking.list_calorie_targets(migrated_db) == ()
+    assert (row.user_choice, row.new_target_id) == ("KEPT", None)
+    assert tracking.list_macro_targets(migrated_db) == ()
 
 
 def test_a_week_is_decided_once_and_a_refused_apply_leaves_no_target(
@@ -133,8 +141,8 @@ def test_a_week_is_decided_once_and_a_refused_apply_leaves_no_target(
 ) -> None:
     decide(migrated_db, version, 3, "KEPT", None)
     with pytest.raises(Conflict, match="already"):
-        decide(migrated_db, version, 3, "APPLIED", 2800)
-    assert tracking.list_calorie_targets(migrated_db) == ()
+        decide(migrated_db, version, 3, "APPLIED", 421)
+    assert tracking.list_macro_targets(migrated_db) == ()
 
 
 def test_decisions_and_audits_are_append_only(
@@ -191,7 +199,7 @@ def test_audits_keep_every_answer_and_list_in_recorded_order(
 def test_an_applied_decision_must_carry_a_new_target(
     migrated_db: sqlite3.Connection, version: str
 ) -> None:
-    with pytest.raises(ValueError, match="new calorie target"):
+    with pytest.raises(ValueError, match="new target"):
         decide(migrated_db, version, 3, "APPLIED", None)
     with pytest.raises(ValueError, match="kept"):
-        decide(migrated_db, version, 3, "KEPT", 2800)
+        decide(migrated_db, version, 3, "KEPT", 421)

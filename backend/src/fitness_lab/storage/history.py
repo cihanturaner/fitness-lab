@@ -213,3 +213,150 @@ def work_set_count(connection: sqlite3.Connection, workout_id: str) -> int:
         "SELECT set_type FROM performed_set WHERE workout_id = ?", (workout_id,)
     ).fetchall()
     return work_set_totals((), [None if row[0] is None else str(row[0]) for row in rows]).actual
+
+
+# --- day timeline (V3.3) -------------------------------------------------------------------
+
+TimelineKind = str  # "training" | "bodyweight" | "nutrition"
+TIMELINE_KINDS = ("training", "bodyweight", "nutrition")
+
+
+@dataclass(frozen=True, slots=True)
+class DayExercise:
+    """One exercise of a day's workout; ``planned_exercise_id`` when it replaced a slot."""
+
+    exercise_id: str
+    planned_exercise_id: str | None
+    sets: tuple[PerformedSet, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class DayWorkout:
+    workout_id: str
+    performed_time_local: str | None
+    planned_workout_id: str | None
+    planned_workout_name: str | None
+    exercises: tuple[DayExercise, ...]
+    # Slots performed as another exercise in this workout: (planned, performed) ids.
+    substitutions: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TimelineDay:
+    day: str
+    workouts: tuple[DayWorkout, ...]
+    bodyweight_g: int | None
+    nutrition: tuple[int | None, int | None, int | None] | None  # protein, carbs, fat
+
+
+def timeline_dates(
+    connection: sqlite3.Connection,
+    kinds: tuple[TimelineKind, ...],
+    *,
+    before: str | None,
+    limit: int,
+) -> tuple[str, ...]:
+    """The newest dates (before ``before``, exclusive) holding any of ``kinds``."""
+    sources = {
+        "training": "SELECT performed_on AS day FROM workout WHERE status = 'complete'",
+        "bodyweight": "SELECT measured_on AS day FROM bodyweight_entry",
+        "nutrition": "SELECT logged_on AS day FROM nutrition_day",
+    }
+    union = " UNION ".join(sources[kind] for kind in kinds)
+    rows = connection.execute(
+        f"SELECT day FROM ({union}) WHERE ? IS NULL OR day < ? ORDER BY day DESC LIMIT ?",
+        (before, before, limit),
+    ).fetchall()
+    return tuple(str(row[0]) for row in rows)
+
+
+def _day_workouts(connection: sqlite3.Connection, day: str) -> tuple[DayWorkout, ...]:
+    rows = connection.execute(
+        "SELECT w.id, w.performed_time_local, o.planned_workout_id, pw.name AS planned_name "
+        "FROM workout w LEFT JOIN workout_plan_origin o ON o.workout_id = w.id "
+        "LEFT JOIN planned_workout pw ON pw.id = o.planned_workout_id "
+        f"WHERE w.status = 'complete' AND w.performed_on = ? ORDER BY {CHRONOLOGICAL}",
+        (day,),
+    ).fetchall()
+    workouts: list[DayWorkout] = []
+    for row in rows:
+        workout_id = str(row["id"])
+        substitutions = tuple(
+            (str(item["planned"]), str(item["performed"]))
+            for item in connection.execute(
+                "SELECT ps.exercise_id AS planned, sub.exercise_id AS performed "
+                "FROM workout_slot_substitution sub "
+                "JOIN planned_exercise_slot ps ON ps.id = sub.slot_id "
+                "WHERE sub.workout_id = ? ORDER BY ps.position",
+                (workout_id,),
+            ).fetchall()
+        )
+        replaced = {performed: planned for planned, performed in substitutions}
+        grouped: dict[str, list[PerformedSet]] = {}
+        for item in connection.execute(
+            f"SELECT {SET_COLUMNS} FROM performed_set WHERE workout_id = ? ORDER BY set_order",
+            (workout_id,),
+        ).fetchall():
+            performed = row_to_performed_set(item)
+            grouped.setdefault(performed.exercise_id, []).append(performed)
+        workouts.append(
+            DayWorkout(
+                workout_id=workout_id,
+                performed_time_local=_opt(row["performed_time_local"]),
+                planned_workout_id=_opt(row["planned_workout_id"]),
+                planned_workout_name=_opt(row["planned_name"]),
+                exercises=tuple(
+                    DayExercise(
+                        exercise_id=key, planned_exercise_id=replaced.get(key), sets=tuple(value)
+                    )
+                    for key, value in grouped.items()
+                ),
+                substitutions=substitutions,
+            )
+        )
+    return tuple(workouts)
+
+
+def timeline_day(
+    connection: sqlite3.Connection, day: str, kinds: tuple[TimelineKind, ...]
+) -> TimelineDay:
+    """Everything recorded on one civil date, limited to ``kinds``."""
+    bodyweight = (
+        connection.execute(
+            "SELECT bodyweight_g FROM bodyweight_entry WHERE measured_on = ?", (day,)
+        ).fetchone()
+        if "bodyweight" in kinds
+        else None
+    )
+    nutrition = (
+        connection.execute(
+            "SELECT protein_g, carbs_g, fat_g FROM nutrition_day WHERE logged_on = ?", (day,)
+        ).fetchone()
+        if "nutrition" in kinds
+        else None
+    )
+
+    def grams(value: object) -> int | None:
+        return None if value is None else int(str(value))
+
+    return TimelineDay(
+        day=day,
+        workouts=_day_workouts(connection, day) if "training" in kinds else (),
+        bodyweight_g=None if bodyweight is None else int(bodyweight[0]),
+        nutrition=None
+        if nutrition is None
+        else (grams(nutrition[0]), grams(nutrition[1]), grams(nutrition[2])),
+    )
+
+
+def exposure_replaced(
+    connection: sqlite3.Connection, workout_id: str, exercise_id: str
+) -> str | None:
+    """The planned exercise this exercise replaced in that workout, if it was a substitute."""
+    row = connection.execute(
+        "SELECT ps.exercise_id FROM workout_slot_substitution sub "
+        "JOIN planned_exercise_slot ps ON ps.id = sub.slot_id "
+        "WHERE sub.workout_id = ? AND sub.exercise_id = ? ORDER BY ps.position LIMIT 1",
+        (workout_id, exercise_id),
+    ).fetchone()
+    return None if row is None else str(row[0])

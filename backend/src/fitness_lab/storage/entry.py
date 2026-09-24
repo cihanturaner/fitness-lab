@@ -28,12 +28,14 @@ from fitness_lab.domain.models import (
     SetTypeCode,
     Workout,
     WorkoutStatus,
+    create_exercise,
     new_draft_workout,
     new_id,
     utc_now_iso,
 )
+from fitness_lab.domain.substitutes import approved_substitutes
 from fitness_lab.storage import db
-from fitness_lab.storage.exercises import get_exercise
+from fitness_lab.storage.exercises import find_exercise_by_identity, get_exercise, insert_exercise
 from fitness_lab.storage.programs import (
     SlotRow,
     get_active_version,
@@ -100,9 +102,19 @@ class LastPerformance:
 
 
 @dataclass(frozen=True, slots=True)
+class ApprovedOption:
+    """An approved substitute of a slot; ``exercise_id`` once it is an active identity."""
+
+    name: str
+    condition: str | None
+    exercise_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class EntrySlot:
     slot: SlotRow
     substitute_exercise_id: str | None
+    approved: tuple[ApprovedOption, ...] = ()
 
     @property
     def effective_exercise_id(self) -> str:
@@ -551,30 +563,83 @@ def set_slot_exercise(
     *,
     now: str | None = None,
 ) -> None:
-    """Substitute a whole planned slot in this workout; the planned exercise clears it."""
-    stamp = now if now is not None else utc_now_iso()
+    """Substitute a whole planned slot in this workout; the planned exercise clears it.
+
+    Only this workout changes: the planned slot, its program version and every other
+    workout (earlier or later occurrences of the same session) are untouched.
+    """
     with db.immediate_transaction(connection):
-        _require_draft(connection, workout_id)
-        slot = get_slot(connection, slot_id)
-        if slot is None:
-            raise NotFound(f"no planned slot with id {slot_id!r}")
-        origin = get_origin(connection, workout_id)
-        if origin is None or origin.planned_workout_id != slot.planned_workout_id:
-            raise Conflict("that slot does not belong to this workout's planned workout")
-        if exercise_id == slot.exercise_id:
-            connection.execute(
-                "DELETE FROM workout_slot_substitution WHERE workout_id = ? AND slot_id = ?",
-                (workout_id, slot_id),
-            )
-            return
-        _require_exercise(connection, exercise_id)
-        connection.execute(
-            "INSERT INTO workout_slot_substitution (workout_id, planned_workout_id, slot_id, "
-            "exercise_id, created_at_utc, updated_at_utc) VALUES (?, ?, ?, ?, ?, ?) "
-            "ON CONFLICT (workout_id, slot_id) DO UPDATE SET "
-            "exercise_id = excluded.exercise_id, updated_at_utc = excluded.updated_at_utc",
-            (workout_id, slot.planned_workout_id, slot_id, exercise_id, stamp, stamp),
+        slot = _require_slot_of_draft(connection, workout_id, slot_id)
+        _substitute(connection, workout_id, slot, exercise_id, now)
+
+
+def use_approved_substitute(
+    connection: sqlite3.Connection,
+    workout_id: str,
+    slot_id: str,
+    name: str,
+    *,
+    now: str | None = None,
+) -> Exercise:
+    """Perform this slot, in this workout only, as one of its approved substitutes.
+
+    ``name`` must be on the slot's own approved list. The substitute's exercise identity
+    is found by the M1 identity rule (name, no equipment) or created once; a retired identity
+    is refused, never revived. Check, creation and substitution share one transaction.
+    """
+    with db.immediate_transaction(connection):
+        slot = _require_slot_of_draft(connection, workout_id, slot_id)
+        wanted = name.strip().casefold()
+        option = next(
+            (item for item in approved_substitutes(slot.notes) if item.name.casefold() == wanted),
+            None,
         )
+        if option is None:
+            raise ValueError(f"{name!r} is not an approved substitute for this exercise")
+        exercise = find_exercise_by_identity(connection, option.name, None)
+        if exercise is None:
+            exercise = create_exercise(option.name, None, now=now)
+            insert_exercise(connection, exercise)
+        _substitute(connection, workout_id, slot, exercise.id, now)
+    return exercise
+
+
+def _require_slot_of_draft(
+    connection: sqlite3.Connection, workout_id: str, slot_id: str
+) -> SlotRow:
+    _require_draft(connection, workout_id)
+    slot = get_slot(connection, slot_id)
+    if slot is None:
+        raise NotFound(f"no planned slot with id {slot_id!r}")
+    origin = get_origin(connection, workout_id)
+    if origin is None or origin.planned_workout_id != slot.planned_workout_id:
+        raise Conflict("that slot does not belong to this workout's planned workout")
+    return slot
+
+
+def _substitute(
+    connection: sqlite3.Connection,
+    workout_id: str,
+    slot: SlotRow,
+    exercise_id: str,
+    now: str | None,
+) -> None:
+    stamp = now if now is not None else utc_now_iso()
+    slot_id = slot.id
+    if exercise_id == slot.exercise_id:
+        connection.execute(
+            "DELETE FROM workout_slot_substitution WHERE workout_id = ? AND slot_id = ?",
+            (workout_id, slot_id),
+        )
+        return
+    _require_exercise(connection, exercise_id)
+    connection.execute(
+        "INSERT INTO workout_slot_substitution (workout_id, planned_workout_id, slot_id, "
+        "exercise_id, created_at_utc, updated_at_utc) VALUES (?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT (workout_id, slot_id) DO UPDATE SET "
+        "exercise_id = excluded.exercise_id, updated_at_utc = excluded.updated_at_utc",
+        (workout_id, slot.planned_workout_id, slot_id, exercise_id, stamp, stamp),
+    )
 
 
 def _substitutions(connection: sqlite3.Connection, workout_id: str) -> dict[str, str]:
@@ -638,6 +703,23 @@ def load_entry(connection: sqlite3.Connection, workout_id: str) -> EntryAggregat
         return _load_entry(connection, workout_id)
 
 
+def _approved_options(connection: sqlite3.Connection, slot: SlotRow) -> tuple[ApprovedOption, ...]:
+    options: list[ApprovedOption] = []
+    for item in approved_substitutes(slot.notes):
+        exercise = find_exercise_by_identity(connection, item.name, None)
+        if exercise is not None and exercise.id == slot.exercise_id:
+            continue  # the planned exercise itself ("Cable/Machine Lateral Raise")
+        active = exercise is not None and exercise.is_active
+        options.append(
+            ApprovedOption(
+                name=item.name,
+                condition=item.condition,
+                exercise_id=exercise.id if active and exercise is not None else None,
+            )
+        )
+    return tuple(options)
+
+
 def _load_entry(connection: sqlite3.Connection, workout_id: str) -> EntryAggregate:
     workout = _require_workout(connection, workout_id)
     origin = get_origin(connection, workout_id)
@@ -645,7 +727,11 @@ def _load_entry(connection: sqlite3.Connection, workout_id: str) -> EntryAggrega
     if origin is not None:
         substitutes = _substitutions(connection, workout_id)
         slots = tuple(
-            EntrySlot(slot=slot, substitute_exercise_id=substitutes.get(slot.id))
+            EntrySlot(
+                slot=slot,
+                substitute_exercise_id=substitutes.get(slot.id),
+                approved=_approved_options(connection, slot),
+            )
             for slot in list_slots(connection, origin.planned_workout_id)
         )
     sets = list_sets_for_workout(connection, workout_id)

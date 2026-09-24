@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from fitness_lab.domain.models import SetTypeCode
+from fitness_lab.domain.nutrition import MacroTargets
 from fitness_lab.domain.units import format_kg
 from fitness_lab.storage import db, history, tracking
 from fitness_lab.storage.entry import NotFound, add_set, complete, open_planned_workout
@@ -67,7 +68,7 @@ def test_0004_is_additive_over_a_database_with_training_evidence(tmp_path: Path)
 
     result = migrate_to_head(db_path)
 
-    assert result.applied == (4, 5, 6)
+    assert result.applied == (4, 5, 6, 7)
     assert result.snapshot is not None and result.snapshot.name.endswith("-pre-0004.db")
     with db.connection_scope(db_path) as connection:
         after = {
@@ -75,7 +76,13 @@ def test_0004_is_additive_over_a_database_with_training_evidence(tmp_path: Path)
             for table in before
         }
         assert after == before
-        for table in ("bodyweight_entry", "nutrition_day", "calorie_target", "training_block"):
+        for table in (
+            "bodyweight_entry",
+            "nutrition_day",
+            "calorie_target",
+            "macro_target",
+            "training_block",
+        ):
             assert connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0] == 0
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
@@ -205,46 +212,82 @@ def test_an_empty_nutrition_log_is_refused(migrated_db: sqlite3.Connection) -> N
         )
 
 
-# --- calorie target -------------------------------------------------------------------
+# --- macro target ---------------------------------------------------------------------
 
 
-def test_no_calorie_target_until_one_is_set(migrated_db: sqlite3.Connection) -> None:
-    assert tracking.calorie_target_on(migrated_db, "2026-10-01") is None
+def test_no_target_until_one_is_set(migrated_db: sqlite3.Connection) -> None:
+    assert tracking.macro_target_on(migrated_db, "2026-10-01") is None
 
 
 def test_the_target_in_force_is_the_latest_effective_on_or_before_the_date(
     migrated_db: sqlite3.Connection,
 ) -> None:
-    tracking.add_calorie_target(migrated_db, "2026-10-01", 2650, None, now=STAMP)
-    tracking.add_calorie_target(migrated_db, "2026-10-22", 2800, "UNDER_GAIN review", now=STAMP)
-    assert tracking.calorie_target_on(migrated_db, "2026-09-30") is None
-    target = tracking.calorie_target_on(migrated_db, "2026-10-21")
-    assert target is not None and target.calories_kcal == 2650
-    later = tracking.calorie_target_on(migrated_db, "2026-10-22")
-    assert later is not None and later.calories_kcal == 2800
+    tracking.add_macro_target(
+        migrated_db, "2026-10-01", protein_g=150, carbs_g=300, fat_g=70, notes=None
+    )
+    tracking.add_macro_target(
+        migrated_db, "2026-10-22", protein_g=150, carbs_g=340, fat_g=70, notes="review", now=STAMP
+    )
+    assert tracking.macro_target_on(migrated_db, "2026-09-30") is None
+    old = tracking.macro_target_on(migrated_db, "2026-10-21")
+    assert old is not None and old.macros == MacroTargets(150, 300, 70)
+    assert old.macros.calories_kcal == 2430
+    later = tracking.macro_target_on(migrated_db, "2026-10-22")
+    assert later is not None and later.macros.calories_kcal == 2590
 
 
 def test_a_same_day_correction_is_a_new_decision_that_wins(migrated_db: sqlite3.Connection) -> None:
-    tracking.add_calorie_target(migrated_db, "2026-10-01", 2560, None, now=STAMP)
-    tracking.add_calorie_target(
-        migrated_db, "2026-10-01", 2650, "typo", now="2026-09-23T10:05:00+00:00"
+    tracking.add_macro_target(
+        migrated_db, "2026-10-01", protein_g=150, carbs_g=200, fat_g=70, notes=None, now=STAMP
     )
-    target = tracking.calorie_target_on(migrated_db, "2026-10-01")
-    assert target is not None and target.calories_kcal == 2650
-    assert len(tracking.list_calorie_targets(migrated_db)) == 2
+    tracking.add_macro_target(
+        migrated_db,
+        "2026-10-01",
+        protein_g=150,
+        carbs_g=300,
+        fat_g=70,
+        notes="typo",
+        now="2026-09-23T10:05:00+00:00",
+    )
+    target = tracking.macro_target_on(migrated_db, "2026-10-01")
+    assert target is not None and target.macros.carbs_g == 300
+    assert len(tracking.list_macro_targets(migrated_db)) == 2
 
 
-def test_calorie_target_history_is_append_only(migrated_db: sqlite3.Connection) -> None:
-    tracking.add_calorie_target(migrated_db, "2026-10-01", 2650, None)
+def test_macro_target_history_is_append_only(migrated_db: sqlite3.Connection) -> None:
+    tracking.add_macro_target(
+        migrated_db, "2026-10-01", protein_g=150, carbs_g=300, fat_g=70, notes=None
+    )
     with pytest.raises(sqlite3.IntegrityError):
-        migrated_db.execute("UPDATE calorie_target SET calories_kcal = 3000")
+        migrated_db.execute("UPDATE macro_target SET carbs_g = 1")
     with pytest.raises(sqlite3.IntegrityError):
-        migrated_db.execute("DELETE FROM calorie_target")
-    with pytest.raises(ValueError):
-        tracking.add_calorie_target(migrated_db, "2026-10-02", 1000, None)
+        migrated_db.execute("DELETE FROM macro_target")
+    row = tracking.list_macro_targets(migrated_db)[0]
     with pytest.raises(sqlite3.IntegrityError):
         migrated_db.execute(
-            "INSERT INTO calorie_target VALUES ('x', '2026-10-01', 1119, NULL, 'x')"
+            "INSERT OR REPLACE INTO macro_target (id, effective_on, protein_g, carbs_g, fat_g, "
+            "set_at_utc) VALUES (?, '2026-10-01', 1, 1, 1, 'x')",
+            (row.id,),
+        )
+
+
+@pytest.mark.parametrize(
+    ("protein", "carbs", "fat"), [(0, 0, 0), (-1, 300, 70), (150, 1501, 70), (1500, 1500, 1000)]
+)
+def test_an_impossible_target_is_refused(
+    migrated_db: sqlite3.Connection, protein: int, carbs: int, fat: int
+) -> None:
+    with pytest.raises(ValueError):
+        tracking.add_macro_target(
+            migrated_db, "2026-10-01", protein_g=protein, carbs_g=carbs, fat_g=fat, notes=None
+        )
+    assert tracking.list_macro_targets(migrated_db) == ()
+
+
+def test_the_pre_v33_calorie_target_table_is_closed(migrated_db: sqlite3.Connection) -> None:
+    with pytest.raises(sqlite3.IntegrityError, match="closed"):
+        migrated_db.execute(
+            "INSERT INTO calorie_target VALUES ('x', '2026-10-01', 2650, NULL, 'x')"
         )
 
 

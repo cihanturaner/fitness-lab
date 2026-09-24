@@ -1,9 +1,13 @@
 """Nutrition targets and daily-log validity.
 
 Authoritative source: ``programs/advanced-natural-12w-nutrition/artifact/
-locked_nutrition_tracker.json``. Protein and fat are locked. The calorie target is
-unknown until the lifter explicitly sets one — the source forbids inventing maintenance —
-and carbohydrate is the remainder of that target. Nothing here ever changes calories.
+locked_nutrition_tracker.json``. Since V3.3 a target is the lifter's protein, carbohydrate
+and fat in grams; its calories are derived exactly like a logged day's (P x 4 + C x 4 +
+F x 9), so there is no separate calorie target to contradict them. There is no target until
+the lifter records one — the source forbids inventing maintenance. The source's locked
+protein 145 g and fat 60 g are the defaults offered for a first target; before V3.3 a target
+was calories only and carbohydrate was its remainder, ``(kcal - 1120) / 4`` (kept here
+because migration 0007 converts those targets with it). Nothing here ever changes a target.
 """
 
 from __future__ import annotations
@@ -22,14 +26,7 @@ FIXED_PROTEIN_FAT_KCAL = PROTEIN_G_PER_DAY * KCAL_PER_G_PROTEIN + FAT_G_PER_DAY 
 
 MAX_CALORIE_TARGET = 10_000
 MAX_DAY_MACRO_G = 1_500
-
-
-@dataclass(frozen=True, slots=True)
-class NutritionTargets:
-    protein_g: int
-    fat_g: int
-    calories_kcal: int | None
-    carbs_g: int | None
+MAX_TARGET_MACRO_G = 1_500
 
 
 def check_calorie_target(calories_kcal: int) -> int:
@@ -49,13 +46,36 @@ def carbohydrate_target_g(calories_kcal: int) -> int:
     return int(remainder.quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
-def targets_for(calories_kcal: int | None) -> NutritionTargets:
-    return NutritionTargets(
-        protein_g=PROTEIN_G_PER_DAY,
-        fat_g=FAT_G_PER_DAY,
-        calories_kcal=calories_kcal,
-        carbs_g=None if calories_kcal is None else carbohydrate_target_g(calories_kcal),
-    )
+@dataclass(frozen=True, slots=True)
+class MacroTargets:
+    """A daily target: grams of each macronutrient. Its calories are derived, never set."""
+
+    protein_g: int
+    carbs_g: int
+    fat_g: int
+
+    @property
+    def calories_kcal(self) -> int:
+        return (
+            self.protein_g * KCAL_PER_G_PROTEIN
+            + self.carbs_g * KCAL_PER_G_CARBOHYDRATE
+            + self.fat_g * KCAL_PER_G_FAT
+        )
+
+
+def check_macro_targets(*, protein_g: int, carbs_g: int, fat_g: int) -> MacroTargets:
+    """Whole grams, each 0-1500, and a derived energy of 1-10000 kcal."""
+    for name, value in (("protein", protein_g), ("carbs", carbs_g), ("fat", fat_g)):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"the {name} target must be whole grams: {value!r}")
+        if not 0 <= value <= MAX_TARGET_MACRO_G:
+            raise ValueError(f"the {name} target must be 0-{MAX_TARGET_MACRO_G} g: {value}")
+    targets = MacroTargets(protein_g=protein_g, carbs_g=carbs_g, fat_g=fat_g)
+    if not 0 < targets.calories_kcal <= MAX_CALORIE_TARGET:
+        raise ValueError(
+            f"a target's calories must be 1-{MAX_CALORIE_TARGET} kcal: {targets.calories_kcal}"
+        )
+    return targets
 
 
 def check_day_values(

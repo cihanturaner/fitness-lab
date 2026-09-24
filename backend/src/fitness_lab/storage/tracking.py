@@ -1,8 +1,9 @@
 """Daily bodyweight, daily nutrition and calorie-target decisions.
 
 Logging only. Each daily log keeps one row per date: saving again replaces the values
-(a correction) but keeps the first entry time. Calorie targets are the exception — every
-decision is a new append-only row, so the history of targets can never be rewritten.
+(a correction) but keeps the first entry time. Macro targets are the exception — every
+decision is a new append-only, effective-dated row, so the history of targets (and how any
+earlier day is judged) can never be rewritten.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from fitness_lab.domain.models import new_id, utc_now_iso
-from fitness_lab.domain.nutrition import check_calorie_target, check_day_values
+from fitness_lab.domain.nutrition import MacroTargets, check_day_values, check_macro_targets
 from fitness_lab.storage import db
 from fitness_lab.storage.entry import NotFound
 
@@ -39,12 +40,14 @@ class NutritionDayRow:
 
 
 @dataclass(frozen=True, slots=True)
-class CalorieTargetRow:
+class MacroTargetRow:
     id: str
     effective_on: str
-    calories_kcal: int
+    macros: MacroTargets
     notes: str | None
     set_at_utc: str
+    # Pre-V3.3 targets were calories only; this is the number the lifter recorded then.
+    legacy_calories_kcal: int | None
 
 
 def _opt_int(value: object) -> int | None:
@@ -211,60 +214,90 @@ def delete_nutrition_day(connection: sqlite3.Connection, logged_on: str) -> None
         raise NotFound(f"no nutrition logged on {logged_on}")
 
 
-# --- calorie target --------------------------------------------------------------------
+# --- macro target --------------------------------------------------------------------
 
-TARGET_COLUMNS = "id, effective_on, calories_kcal, notes, set_at_utc"
+TARGET_COLUMNS = (
+    "id, effective_on, protein_g, carbs_g, fat_g, notes, set_at_utc, from_calorie_target_id"
+)
 
 
-def _target(row: sqlite3.Row) -> CalorieTargetRow:
-    return CalorieTargetRow(
+def _target(row: sqlite3.Row) -> MacroTargetRow:
+    return MacroTargetRow(
         id=str(row["id"]),
         effective_on=str(row["effective_on"]),
-        calories_kcal=int(row["calories_kcal"]),
+        macros=MacroTargets(
+            protein_g=int(row["protein_g"]),
+            carbs_g=int(row["carbs_g"]),
+            fat_g=int(row["fat_g"]),
+        ),
         notes=_opt_str(row["notes"]),
         set_at_utc=str(row["set_at_utc"]),
+        legacy_calories_kcal=_opt_int(row["legacy_kcal"]),
     )
 
 
-def add_calorie_target(
+TARGET_SELECT = (
+    f"SELECT {', '.join('m.' + c.strip() for c in TARGET_COLUMNS.split(','))}, "
+    "c.calories_kcal AS legacy_kcal FROM macro_target m "
+    "LEFT JOIN calorie_target c ON c.id = m.from_calorie_target_id"
+)
+
+
+def add_macro_target(
     connection: sqlite3.Connection,
     effective_on: str,
-    calories_kcal: int,
-    notes: str | None,
     *,
+    protein_g: int,
+    carbs_g: int,
+    fat_g: int,
+    notes: str | None,
     now: str | None = None,
-) -> CalorieTargetRow:
-    """Append one explicit decision by the lifter. The app never calls this on its own."""
-    check_calorie_target(calories_kcal)
-    target = CalorieTargetRow(
+) -> MacroTargetRow:
+    """Append one explicit target decision by the lifter. The app never calls this itself.
+
+    A target is effective from its date on: earlier days keep the target in force then.
+    """
+    macros = check_macro_targets(protein_g=protein_g, carbs_g=carbs_g, fat_g=fat_g)
+    target = MacroTargetRow(
         id=new_id(),
         effective_on=effective_on,
-        calories_kcal=calories_kcal,
+        macros=macros,
         notes=_clean_notes(notes),
         set_at_utc=now if now is not None else utc_now_iso(),
+        legacy_calories_kcal=None,
     )
     try:
         connection.execute(
-            f"INSERT INTO calorie_target ({TARGET_COLUMNS}) VALUES (?, ?, ?, ?, ?)",
-            (target.id, target.effective_on, target.calories_kcal, target.notes, target.set_at_utc),
+            "INSERT INTO macro_target (id, effective_on, protein_g, carbs_g, fat_g, notes, "
+            "set_at_utc) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                target.id,
+                target.effective_on,
+                macros.protein_g,
+                macros.carbs_g,
+                macros.fat_g,
+                target.notes,
+                target.set_at_utc,
+            ),
         )
     except sqlite3.IntegrityError as exc:
-        raise ValueError(f"invalid calorie target: {exc}") from exc
+        raise ValueError(f"invalid macro target: {exc}") from exc
     return target
 
 
-def calorie_target_on(connection: sqlite3.Connection, day: str) -> CalorieTargetRow | None:
+def macro_target_on(connection: sqlite3.Connection, day: str) -> MacroTargetRow | None:
+    """The target in force on ``day``: the latest effective on or before it."""
     row = connection.execute(
-        f"SELECT {TARGET_COLUMNS} FROM calorie_target WHERE effective_on <= ? "
-        "ORDER BY effective_on DESC, set_at_utc DESC, rowid DESC LIMIT 1",
+        f"{TARGET_SELECT} WHERE m.effective_on <= ? "
+        "ORDER BY m.effective_on DESC, m.set_at_utc DESC, m.rowid DESC LIMIT 1",
         (day,),
     ).fetchone()
     return None if row is None else _target(row)
 
 
-def list_calorie_targets(connection: sqlite3.Connection) -> tuple[CalorieTargetRow, ...]:
+def list_macro_targets(connection: sqlite3.Connection) -> tuple[MacroTargetRow, ...]:
+    """Every recorded target, newest effective date first."""
     rows = connection.execute(
-        f"SELECT {TARGET_COLUMNS} FROM calorie_target "
-        "ORDER BY effective_on DESC, set_at_utc DESC, rowid DESC"
+        f"{TARGET_SELECT} ORDER BY m.effective_on DESC, m.set_at_utc DESC, m.rowid DESC"
     ).fetchall()
     return tuple(_target(row) for row in rows)

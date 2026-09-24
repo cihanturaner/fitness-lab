@@ -178,34 +178,54 @@ def test_nutrition_day_round_trip_and_uncalibrated_targets(client: TestClient) -
         "carbs_g": 290,
         "fat_g": 62,
         "notes": None,
+        "target": None,
     }
-    assert body["targets"] == {
-        "protein_g": 145,
-        "fat_g": 60,
-        "calories_kcal": None,
-        "carbs_g": None,
-        "calorie_target_effective_on": None,
-    }
+    # No target until the lifter records one; the locked protein and fat are only defaults.
+    assert body["target"] is None
+    assert body["defaults"] == {"protein_g": 145, "fat_g": 60}
     assert [day["logged_on"] for day in body["recent"]] == ["2026-10-01"]
 
 
-def test_an_explicit_calorie_target_derives_carbohydrate(client: TestClient) -> None:
+def target(client: TestClient, day: str, protein: int, carbs: int, fat: int) -> dict[str, Any]:
     created = client.post(
-        "/api/nutrition/calorie-targets",
-        json={"effective_on": "2026-10-01", "calories_kcal": 2650},
+        "/api/nutrition/targets",
+        json={"effective_on": day, "protein_g": protein, "carbs_g": carbs, "fat_g": fat},
     )
     assert created.status_code == 201, created.text
+    body: dict[str, Any] = created.json()
+    return body
+
+
+def test_a_macro_target_derives_its_calories(client: TestClient) -> None:
+    created = target(client, "2026-10-01", 150, 300, 70)
+    assert (created["calories_kcal"], created["legacy_calories_kcal"]) == (2430, None)
     before = client.get("/api/nutrition", params={"date": "2026-09-30"}).json()
-    assert before["targets"]["calories_kcal"] is None
+    assert before["target"] is None
     body = client.get("/api/nutrition", params={"date": "2026-10-02"}).json()
-    assert body["targets"] == {
-        "protein_g": 145,
-        "fat_g": 60,
-        "calories_kcal": 2650,
-        "carbs_g": 383,
-        "calorie_target_effective_on": "2026-10-01",
+    assert {
+        key: body["target"][key] for key in ("effective_on", "protein_g", "carbs_g", "fat_g")
+    } == {
+        "effective_on": "2026-10-01",
+        "protein_g": 150,
+        "carbs_g": 300,
+        "fat_g": 70,
     }
-    assert [item["calories_kcal"] for item in body["target_history"]] == [2650]
+    assert body["target"]["calories_kcal"] == 2430
+    assert [item["calories_kcal"] for item in body["target_history"]] == [2430]
+
+
+def test_old_days_keep_the_target_in_force_on_them(client: TestClient) -> None:
+    target(client, "2026-10-01", 150, 300, 70)
+    for day in ("2026-10-03", "2026-10-06"):
+        client.put(f"/api/nutrition/{day}", json={"protein_g": 150, "carbs_g": 280, "fat_g": 70})
+    target(client, "2026-10-05", 150, 340, 70)
+    body = client.get("/api/nutrition", params={"date": "2026-10-06"}).json()
+    assert body["target"]["calories_kcal"] == 2590
+    by_day = {day["logged_on"]: day["target"]["calories_kcal"] for day in body["recent"]}
+    assert by_day == {"2026-10-06": 2590, "2026-10-03": 2430}
+    old = client.get("/api/nutrition", params={"date": "2026-10-03"}).json()
+    assert old["day"]["target"]["carbs_g"] == 300
+    assert old["target"]["carbs_g"] == 300
 
 
 @pytest.mark.parametrize(
@@ -227,11 +247,34 @@ def test_nutrition_refuses_invalid_input(client: TestClient, body: dict[str, obj
     assert client.get("/api/nutrition", params={"date": "2026-10-01"}).json()["day"] is None
 
 
-def test_a_calorie_target_below_protein_and_fat_is_refused(client: TestClient) -> None:
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"effective_on": "2026-10-01", "protein_g": 0, "carbs_g": 0, "fat_g": 0},
+        {"effective_on": "2026-10-01", "protein_g": 150, "carbs_g": 1501, "fat_g": 70},
+        {"effective_on": "2026-10-01", "protein_g": "150", "carbs_g": 300, "fat_g": 70},
+        {"effective_on": "2026-10-01", "protein_g": 150, "carbs_g": 300},
+        # A target is never calories on its own.
+        {"effective_on": "2026-10-01", "calories_kcal": 2430},
+        {
+            "effective_on": "2026-10-01",
+            "protein_g": 150,
+            "carbs_g": 300,
+            "fat_g": 70,
+            "calories_kcal": 2430,
+        },
+    ],
+)
+def test_an_invalid_target_is_refused(client: TestClient, body: dict[str, object]) -> None:
+    assert client.post("/api/nutrition/targets", json=body).status_code == 422
+    assert client.get("/api/nutrition").json()["target_history"] == []
+
+
+def test_the_calorie_only_target_route_is_gone(client: TestClient) -> None:
     response = client.post(
-        "/api/nutrition/calorie-targets", json={"effective_on": "2026-10-01", "calories_kcal": 1000}
+        "/api/nutrition/calorie-targets", json={"effective_on": "2026-10-01", "calories_kcal": 2650}
     )
-    assert response.status_code == 422
+    assert response.status_code in (404, 405)
 
 
 def test_a_nutrition_day_can_be_removed(client: TestClient) -> None:

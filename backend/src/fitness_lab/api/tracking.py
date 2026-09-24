@@ -9,7 +9,7 @@ machine's local day.
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -31,7 +31,7 @@ from fitness_lab.domain.bodyweight import (
     rolling_series,
     summarize,
 )
-from fitness_lab.domain.nutrition import day_calories, targets_for
+from fitness_lab.domain.nutrition import FAT_G_PER_DAY, PROTEIN_G_PER_DAY, day_calories
 from fitness_lab.domain.nutrition_controller import classify_trend, qualified_trend
 from fitness_lab.domain.units import format_kg, g_to_kg
 from fitness_lab.domain.week import (
@@ -422,10 +422,50 @@ class NutritionDayIn(RequestModel):
     notes: str | None = None
 
 
-class CalorieTargetIn(RequestModel):
+class MacroTargetIn(RequestModel):
+    """A target is grams of protein, carbohydrate and fat; its calories are derived."""
+
     effective_on: StrictDate
-    calories_kcal: StrictCount
+    protein_g: StrictCount
+    carbs_g: StrictCount
+    fat_g: StrictCount
     notes: str | None = None
+
+
+class MacroTargetOut(BaseModel):
+    id: str
+    effective_on: str
+    protein_g: int
+    carbs_g: int
+    fat_g: int
+    # Derived: protein x 4 + carbs x 4 + fat x 9. Read-only; never stored.
+    calories_kcal: int
+    # Pre-V3.3 targets only: the calorie number the lifter recorded then (converted by the
+    # source rule protein 145 g, fat 60 g, carbohydrate the remainder).
+    legacy_calories_kcal: int | None
+    notes: str | None
+    set_at_utc: str
+
+    @classmethod
+    def of(cls, row: tracking.MacroTargetRow) -> MacroTargetOut:
+        return cls(
+            id=row.id,
+            effective_on=row.effective_on,
+            protein_g=row.macros.protein_g,
+            carbs_g=row.macros.carbs_g,
+            fat_g=row.macros.fat_g,
+            calories_kcal=row.macros.calories_kcal,
+            legacy_calories_kcal=row.legacy_calories_kcal,
+            notes=row.notes,
+            set_at_utc=row.set_at_utc,
+        )
+
+
+def target_on(
+    targets: Sequence[tracking.MacroTargetRow], day: str
+) -> tracking.MacroTargetRow | None:
+    """The target in force on ``day`` from a newest-first list (list_macro_targets order)."""
+    return next((row for row in targets if row.effective_on <= day), None)
 
 
 class NutritionDayOut(BaseModel):
@@ -438,9 +478,13 @@ class NutritionDayOut(BaseModel):
     carbs_g: int | None
     fat_g: int | None
     notes: str | None
+    # The target in force on this day — an earlier day keeps the target it had then.
+    target: MacroTargetOut | None
 
     @classmethod
-    def of(cls, row: tracking.NutritionDayRow) -> NutritionDayOut:
+    def of(
+        cls, row: tracking.NutritionDayRow, target: tracking.MacroTargetRow | None
+    ) -> NutritionDayOut:
         energy = day_calories(protein_g=row.protein_g, carbs_g=row.carbs_g, fat_g=row.fat_g)
         return cls(
             logged_on=row.logged_on,
@@ -450,41 +494,24 @@ class NutritionDayOut(BaseModel):
             carbs_g=row.carbs_g,
             fat_g=row.fat_g,
             notes=row.notes,
+            target=None if target is None else MacroTargetOut.of(target),
         )
 
 
-class TargetsOut(BaseModel):
+class TargetDefaultsOut(BaseModel):
+    """The locked source's protein and fat, offered when a first target is recorded."""
+
     protein_g: int
     fat_g: int
-    calories_kcal: int | None
-    carbs_g: int | None
-    calorie_target_effective_on: str | None
-
-
-class CalorieTargetOut(BaseModel):
-    id: str
-    effective_on: str
-    calories_kcal: int
-    notes: str | None
-    set_at_utc: str
-
-    @classmethod
-    def of(cls, row: tracking.CalorieTargetRow) -> CalorieTargetOut:
-        return cls(
-            id=row.id,
-            effective_on=row.effective_on,
-            calories_kcal=row.calories_kcal,
-            notes=row.notes,
-            set_at_utc=row.set_at_utc,
-        )
 
 
 class NutritionOut(BaseModel):
     date: str
     day: NutritionDayOut | None
-    targets: TargetsOut
+    target: MacroTargetOut | None
+    defaults: TargetDefaultsOut
     recent: list[NutritionDayOut]
-    target_history: list[CalorieTargetOut]
+    target_history: list[MacroTargetOut]
 
 
 @router.get("/api/nutrition")
@@ -493,24 +520,20 @@ def nutrition(on: OnDate = None) -> NutritionOut:
     first = day - timedelta(days=RECENT_NUTRITION_DAYS - 1)
     with _connection() as connection, db.transaction(connection):
         logged = tracking.get_nutrition_day(connection, day.isoformat())
-        target = tracking.calorie_target_on(connection, day.isoformat())
         recent = tracking.list_nutrition_days(
             connection, first=first.isoformat(), last=day.isoformat()
         )
-        decisions = tracking.list_calorie_targets(connection)
-    targets = targets_for(None if target is None else target.calories_kcal)
+        targets = tracking.list_macro_targets(connection)
+    current = target_on(targets, day.isoformat())
     return NutritionOut(
         date=day.isoformat(),
-        day=None if logged is None else NutritionDayOut.of(logged),
-        targets=TargetsOut(
-            protein_g=targets.protein_g,
-            fat_g=targets.fat_g,
-            calories_kcal=targets.calories_kcal,
-            carbs_g=targets.carbs_g,
-            calorie_target_effective_on=None if target is None else target.effective_on,
-        ),
-        recent=[NutritionDayOut.of(row) for row in reversed(recent)],
-        target_history=[CalorieTargetOut.of(row) for row in decisions],
+        day=None if logged is None else NutritionDayOut.of(logged, current),
+        target=None if current is None else MacroTargetOut.of(current),
+        defaults=TargetDefaultsOut(protein_g=PROTEIN_G_PER_DAY, fat_g=FAT_G_PER_DAY),
+        recent=[
+            NutritionDayOut.of(row, target_on(targets, row.logged_on)) for row in reversed(recent)
+        ],
+        target_history=[MacroTargetOut.of(row) for row in targets],
     )
 
 
@@ -526,7 +549,8 @@ def put_nutrition(day: str, body: NutritionDayIn) -> NutritionDayOut:
             fat_g=body.fat_g,
             notes=body.notes,
         )
-    return NutritionDayOut.of(row)
+        target = tracking.macro_target_on(connection, logged_on)
+    return NutritionDayOut.of(row, target)
 
 
 @router.delete("/api/nutrition/{day}", status_code=204)
@@ -536,13 +560,19 @@ def delete_nutrition(day: str) -> Response:
     return Response(status_code=204)
 
 
-@router.post("/api/nutrition/calorie-targets", status_code=201)
-def add_calorie_target(body: CalorieTargetIn) -> CalorieTargetOut:
+@router.post("/api/nutrition/targets", status_code=201)
+def add_macro_target(body: MacroTargetIn) -> MacroTargetOut:
+    """The lifter's explicit target, effective from its date; earlier days keep theirs."""
     with _connection() as connection:
-        row = tracking.add_calorie_target(
-            connection, body.effective_on.isoformat(), body.calories_kcal, body.notes
+        row = tracking.add_macro_target(
+            connection,
+            body.effective_on.isoformat(),
+            protein_g=body.protein_g,
+            carbs_g=body.carbs_g,
+            fat_g=body.fat_g,
+            notes=body.notes,
         )
-    return CalorieTargetOut.of(row)
+    return MacroTargetOut.of(row)
 
 
 # --- history ---------------------------------------------------------------------------
@@ -559,6 +589,8 @@ class ExposureOut(BaseModel):
     performed_on: str
     performed_time_local: str | None
     planned_workout_name: str | None
+    # When this exercise was performed in place of a planned one in that workout.
+    replaced: ExerciseOut | None
     block_week: int | None
     phase: BlockPhase | None
     sets: list[PerformedSetOut]
@@ -627,6 +659,11 @@ def exercise_history(exercise_id: str) -> ExerciseHistoryOut:
             raise NotFound(f"no exercise with id {exercise_id!r}")
         start = _active_block_start(connection)
         exposures = history.exercise_history(connection, exercise_id)
+        replaced: dict[str, ExerciseOut | None] = {}
+        for item in exposures:
+            planned_id = history.exposure_replaced(connection, item.workout_id, exercise_id)
+            planned = None if planned_id is None else get_exercise(connection, planned_id)
+            replaced[item.workout_id] = None if planned is None else ExerciseOut.of(planned)
         # Each exposure is numbered in the block of its own program version, so activating
         # a later program (or its block) never renumbers earlier training.
         blocks = {
@@ -643,6 +680,7 @@ def exercise_history(exercise_id: str) -> ExerciseHistoryOut:
                 performed_on=item.performed_on,
                 performed_time_local=item.performed_time_local,
                 planned_workout_name=item.planned_workout_name,
+                replaced=replaced[item.workout_id],
                 block_week=None if own is None else block_week(own[0], performed_on),
                 phase=None if own is None else block_phase(own[0], own[1], performed_on),
                 sets=[PerformedSetOut.of(performed) for performed in item.sets],
@@ -694,3 +732,153 @@ def recent_training(limit: int = 3) -> list[RecentSessionOut]:
         )
         for item in sessions
     ]
+
+
+# --- day-by-day history (V3.3) -----------------------------------------------------------
+
+
+class DayExerciseOut(BaseModel):
+    exercise: ExerciseOut
+    # The planned exercise this one replaced in this workout (a substitution), if any.
+    planned_exercise: ExerciseOut | None
+    sets: list[PerformedSetOut]
+
+
+class DayWorkoutOut(BaseModel):
+    workout_id: str
+    performed_time_local: str | None
+    planned_workout_name: str | None
+    planned_work_sets: int | None
+    actual_work_sets: int
+    # Fewer non-warm-up sets recorded than planned (totals only, never set by set).
+    shortened: bool
+    exercises: list[DayExerciseOut]
+
+
+class DayNutritionOut(BaseModel):
+    calories_kcal: int
+    calories_complete: bool
+    protein_g: int | None
+    carbs_g: int | None
+    fat_g: int | None
+    # The target in force on that date, not today's.
+    target: MacroTargetOut | None
+
+
+class HistoryDayOut(BaseModel):
+    date: str
+    workouts: list[DayWorkoutOut]
+    bodyweight_kg: str | None
+    nutrition: DayNutritionOut | None
+
+
+class HistoryDaysOut(BaseModel):
+    days: list[HistoryDayOut]
+    # Pass as ?before= to read the next, older page; None when there is nothing older.
+    next_before: str | None
+
+
+HistoryKind = Literal["all", "training", "bodyweight", "nutrition"]
+
+
+@router.get("/api/history/days")
+def history_days(
+    kind: HistoryKind = "all",
+    before: str | None = None,
+    limit: int = 21,
+) -> HistoryDaysOut:
+    """A newest-first timeline: one entry per date holding training, bodyweight or nutrition.
+
+    Training is complete workouts only; a date shows only what was recorded on it.
+    """
+    kinds = history.TIMELINE_KINDS if kind == "all" else (kind,)
+    before = None if before is None else _day(before).isoformat()
+    size = max(1, min(limit, 90))
+    with _connection() as connection, db.transaction(connection):
+        dates = history.timeline_dates(connection, kinds, before=before, limit=size + 1)
+        page = dates[:size]
+        days = [history.timeline_day(connection, day, kinds) for day in page]
+        targets = tracking.list_macro_targets(connection)
+        exercise_ids = {
+            exercise_id
+            for day in days
+            for workout in day.workouts
+            for item in workout.exercises
+            for exercise_id in (item.exercise_id, item.planned_exercise_id)
+            if exercise_id is not None
+        }
+        exercises = {
+            exercise_id: found
+            for exercise_id in exercise_ids
+            if (found := get_exercise(connection, exercise_id)) is not None
+        }
+        planned_ids = {
+            workout.planned_workout_id
+            for day in days
+            for workout in day.workouts
+            if workout.planned_workout_id is not None
+        }
+        planned_counts = {
+            planned_id: history.planned_work_set_count(connection, planned_id)
+            for planned_id in planned_ids
+        }
+        actual_counts = {
+            workout.workout_id: history.work_set_count(connection, workout.workout_id)
+            for day in days
+            for workout in day.workouts
+        }
+
+    def shaped_workout(workout: history.DayWorkout) -> DayWorkoutOut:
+        planned = (
+            None
+            if workout.planned_workout_id is None
+            else planned_counts[workout.planned_workout_id]
+        )
+        actual = actual_counts[workout.workout_id]
+        return DayWorkoutOut(
+            workout_id=workout.workout_id,
+            performed_time_local=workout.performed_time_local,
+            planned_workout_name=workout.planned_workout_name,
+            planned_work_sets=planned,
+            actual_work_sets=actual,
+            shortened=planned is not None and actual < planned,
+            exercises=[
+                DayExerciseOut(
+                    exercise=ExerciseOut.of(exercises[item.exercise_id]),
+                    planned_exercise=None
+                    if item.planned_exercise_id is None or item.planned_exercise_id not in exercises
+                    else ExerciseOut.of(exercises[item.planned_exercise_id]),
+                    sets=[PerformedSetOut.of(performed) for performed in item.sets],
+                )
+                for item in workout.exercises
+                if item.exercise_id in exercises
+            ],
+        )
+
+    def shaped_nutrition(day: history.TimelineDay) -> DayNutritionOut | None:
+        if day.nutrition is None:
+            return None
+        protein, carbs, fat = day.nutrition
+        energy = day_calories(protein_g=protein, carbs_g=carbs, fat_g=fat)
+        target = target_on(targets, day.day)
+        return DayNutritionOut(
+            calories_kcal=energy.calories_kcal,
+            calories_complete=energy.complete,
+            protein_g=protein,
+            carbs_g=carbs,
+            fat_g=fat,
+            target=None if target is None else MacroTargetOut.of(target),
+        )
+
+    return HistoryDaysOut(
+        days=[
+            HistoryDayOut(
+                date=day.day,
+                workouts=[shaped_workout(workout) for workout in day.workouts],
+                bodyweight_kg=None if day.bodyweight_g is None else _kg(day.bodyweight_g),
+                nutrition=shaped_nutrition(day),
+            )
+            for day in days
+        ],
+        next_before=page[-1] if len(dates) > size else None,
+    )

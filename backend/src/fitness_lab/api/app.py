@@ -11,6 +11,7 @@ different worker threads.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import sqlite3
 from collections.abc import AsyncIterator, Iterator
@@ -27,6 +28,7 @@ from fitness_lab import __version__
 from fitness_lab.api.review import router as review_router
 from fitness_lab.api.schemas import (
     ActiveProgramOut,
+    ApprovedSubstituteIn,
     CompleteOut,
     CreateWorkoutIn,
     EntryOut,
@@ -170,7 +172,11 @@ def create_app() -> FastAPI:
             version = programs.get_active_version(connection)
             if version is None:
                 return ActiveProgramOut(
-                    version=None, activated_at_utc=None, notes_text=None, planned_workouts=[]
+                    version=None,
+                    activated_at_utc=None,
+                    notes_text=None,
+                    notes_sha256=None,
+                    planned_workouts=[],
                 )
             _, notes_text = programs.read_program_texts(connection, version.id)
             planned = [
@@ -185,6 +191,9 @@ def create_app() -> FastAPI:
                 version=ProgramVersionOut.of(version),
                 activated_at_utc=programs.get_activated_at(connection),
                 notes_text=notes_text,
+                notes_sha256=None
+                if notes_text is None
+                else hashlib.sha256(notes_text.encode("utf-8")).hexdigest(),
                 planned_workouts=planned,
             )
 
@@ -333,8 +342,16 @@ def create_app() -> FastAPI:
 
     @app.put("/api/workouts/{workout_id}/slots/{slot_id}/exercise")
     def substitute(workout_id: str, slot_id: str, body: SlotExerciseIn) -> EntryOut:
+        """Change the exercise of one slot for this workout only (the plan is untouched)."""
         with _connection() as connection:
             entry.set_slot_exercise(connection, workout_id, slot_id, body.exercise_id)
+            return _entry_out(connection, workout_id)
+
+    @app.put("/api/workouts/{workout_id}/slots/{slot_id}/approved-substitute")
+    def approved_substitute(workout_id: str, slot_id: str, body: ApprovedSubstituteIn) -> EntryOut:
+        """Perform the slot as one of its approved substitutes, for this workout only."""
+        with _connection() as connection:
+            entry.use_approved_substitute(connection, workout_id, slot_id, body.name)
             return _entry_out(connection, workout_id)
 
     # --- exercises --------------------------------------------------------------------------

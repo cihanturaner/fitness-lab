@@ -35,10 +35,17 @@ def weigh(client: TestClient, first: date, last: date, per_day_g: float) -> None
 def block(client: TestClient, seeded: dict[str, Any], db_file: Path) -> dict[str, Any]:
     with db.connection_scope(db_file) as connection:
         set_block_start(connection, seeded["version"], START.isoformat())
-    client.post(
-        "/api/nutrition/calorie-targets",
-        json={"effective_on": "2026-09-18", "calories_kcal": 2650, "notes": "calibration"},
+    response = client.post(
+        "/api/nutrition/targets",
+        json={
+            "effective_on": "2026-09-18",
+            "protein_g": 150,
+            "carbs_g": 300,
+            "fat_g": 70,
+            "notes": "calibration",
+        },
     )
+    assert response.status_code == 201, response.text  # 150 x 4 + 300 x 4 + 70 x 9 = 2430 kcal
     return seeded
 
 
@@ -101,21 +108,38 @@ def test_under_gain_is_applied_only_by_an_explicit_choice(
     assert current["trend"]["pct_bw_per_week"] == "0.07"
     assert current["trend"]["weigh_ins"] == 14
     assert (current["status"], current["decision_due"]) == ("UNDER_GAIN", True)
-    assert (current["recommended_delta_kcal"], current["recommended_target_kcal"]) == (150, 2800)
-    assert current["recommended_carbs_g"] == 420
+    # +150 kcal moves carbohydrate only (source: primary_macro_adjusted), +38 g half-up.
+    assert (current["recommended_delta_kcal"], current["recommended_target_kcal"]) == (150, 2582)
+    assert current["current_macros"] == {
+        "protein_g": 150,
+        "carbs_g": 300,
+        "fat_g": 70,
+        "calories_kcal": 2430,
+    }
+    assert current["recommended_macros"] == {
+        "protein_g": 150,
+        "carbs_g": 338,
+        "fat_g": 70,
+        "calories_kcal": 2582,
+    }
+    assert current["recommended_carbs_g"] == 338
     # Reading the review never changes the target.
     assert (
-        client.get("/api/nutrition", params={"date": sunday(3)}).json()["targets"]["calories_kcal"]
-        == 2650
+        client.get("/api/nutrition", params={"date": sunday(3)}).json()["target"]["calories_kcal"]
+        == 2430
     )
 
     applied = decide(client, sunday(3), 3, "APPLIED", "UNDER_GAIN", 150)
     assert applied[0] == 201, applied
     decision = applied[1]
-    assert (decision["user_choice"], decision["new_calorie_target_kcal"]) == ("APPLIED", 2800)
+    assert (decision["user_choice"], decision["new_calorie_target_kcal"]) == ("APPLIED", 2582)
+    assert decision["new_target"]["carbs_g"] == 338
     targets = client.get("/api/nutrition", params={"date": sunday(3)}).json()
-    assert (targets["targets"]["calories_kcal"], targets["targets"]["carbs_g"]) == (2800, 420)
-    assert [item["calories_kcal"] for item in targets["target_history"]] == [2800, 2650]
+    assert (targets["target"]["calories_kcal"], targets["target"]["carbs_g"]) == (2582, 338)
+    assert [item["calories_kcal"] for item in targets["target_history"]] == [2582, 2430]
+    # The day before the decision keeps the target it had.
+    before = client.get("/api/nutrition", params={"date": sunday(3)[:8] + "17"}).json()
+    assert before["target"]["calories_kcal"] == 2430
 
     after = review(client, sunday(3))
     assert (after["review"]["already_decided"], after["review"]["decision_due"]) == (True, False)
@@ -129,6 +153,36 @@ def test_under_gain_is_applied_only_by_an_explicit_choice(
     assert decide(client, sunday(3), 3, "KEPT", "UNDER_GAIN", 150)[0] == 409
 
 
+def test_apply_records_exactly_the_macros_that_were_shown(
+    client: TestClient, block: dict[str, Any]
+) -> None:
+    weigh(client, START - timedelta(days=7), date.fromisoformat(sunday(3)), 7.2)
+    shown = review(client, sunday(3))["review"]["recommended_macros"]
+    # A manual target with the same calories but other macros lands before Apply is pressed.
+    same_kcal = client.post(
+        "/api/nutrition/targets",
+        json={"effective_on": sunday(3), "protein_g": 160, "carbs_g": 290, "fat_g": 70},
+    )
+    assert same_kcal.status_code == 201
+    body = {
+        "date": sunday(3),
+        "block_week": 3,
+        "choice": "APPLIED",
+        "expected_status": "UNDER_GAIN",
+        "expected_delta_kcal": 150,
+        "expected_target_kcal": 2582,
+        "expected_macros": {key: shown[key] for key in ("protein_g", "carbs_g", "fat_g")},
+    }
+    stale = client.post("/api/nutrition/review/decision", json=body)
+    assert stale.status_code == 409, stale.text
+    fresh = review(client, sunday(3))["review"]["recommended_macros"]
+    assert (fresh["protein_g"], fresh["carbs_g"], fresh["calories_kcal"]) == (160, 328, 2582)
+    body["expected_macros"] = {key: fresh[key] for key in ("protein_g", "carbs_g", "fat_g")}
+    applied = client.post("/api/nutrition/review/decision", json=body)
+    assert applied.status_code == 201, applied.text
+    assert applied.json()["new_target"]["carbs_g"] == 328
+
+
 def test_keeping_records_the_decision_without_a_target(
     client: TestClient, block: dict[str, Any]
 ) -> None:
@@ -137,7 +191,7 @@ def test_keeping_records_the_decision_without_a_target(
     assert kept[0] == 201, kept
     assert kept[1]["new_calorie_target_kcal"] is None
     history = client.get("/api/nutrition", params={"date": sunday(3)}).json()["target_history"]
-    assert [item["calories_kcal"] for item in history] == [2650]
+    assert [item["calories_kcal"] for item in history] == [2430]
 
 
 def test_apply_is_refused_when_the_target_shown_is_stale(
@@ -215,7 +269,7 @@ def test_two_failed_increases_open_the_gate_and_an_audit_decides(
         "UNDER_GAIN",
         150,
     )
-    assert cleared["review"]["recommended_target_kcal"] == 3100
+    assert cleared["review"]["recommended_target_kcal"] == 2886  # 2430 + 3 x 38 g carbs
     assert [item["result"] for item in cleared["gates"]] == ["GENUINE_UNDERFEEDING_CONFIRMED"]
 
 
