@@ -57,7 +57,8 @@ export type SelectedWorkout = {
   status: DayStatus;
   statusLabel: string;
   metaLabel: string;
-  focusLabel: string;
+  /** Null when no source states the workout's focus. */
+  focusLabel: string | null;
   progress: { value: number; label: string; percentLabel: string } | null;
   planAccessibilityLabel: string;
 };
@@ -161,6 +162,11 @@ function sessionFacts(facts: TrainingFacts, date: IsoDate, workout: ProgramWorko
   };
 }
 
+function focusLabel(facts: TrainingFacts, workout: ProgramWorkout): string | null {
+  const groups = facts.focus[workout.key];
+  return groups?.length ? groups.map((m) => MUSCLE_LABEL[m]).join(' · ') : null;
+}
+
 function hasProgress(status: DayStatus): boolean {
   return status === 'in-progress' || status === 'done' || status === 'shortened';
 }
@@ -242,7 +248,7 @@ function buildSelected(
     status,
     statusLabel: STATUS_LABEL[status],
     metaLabel: `${plural(workout.exercises.length, 'exercise')} · ${plural(session.plannedWorkSets, 'work set')} · ${minutes}`,
-    focusLabel: workout.focus.map((m) => MUSCLE_LABEL[m]).join(' · '),
+    focusLabel: focusLabel(facts, workout),
     progress: hasProgress(status)
       ? {
           value: progress,

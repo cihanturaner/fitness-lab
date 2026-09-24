@@ -29,9 +29,15 @@ const week2: RecordedSession[] = homeFixture.week
     completed: s.completed,
   }));
 
+// The only stated focus is M1 Home's, for today's workout; it is reused as is.
+const todayName = homeFixture.week.find((s) => s.date === homeFixture.today)?.workoutName;
+const focus: TrainingFacts['focus'] =
+  todayName && homeFixture.todayWorkout ? { [workoutKey(todayName)]: homeFixture.todayWorkout.focus } : {};
+
 export const trainingFixture: TrainingFacts = {
   today: homeFixture.today,
   block: homeFixture.block ? { start: homeFixture.block.start, weeks: homeFixture.block.weeks } : null,
   program: programFixture,
   sessions: [...week1, ...week2],
+  focus,
 };

@@ -165,6 +165,21 @@ describe('buildTrainingView (other days and weeks)', () => {
     });
   });
 
+  it('shows no focus for workouts without a source focus, never an inferred one', () => {
+    const labels = ['2026-10-12', '2026-10-13', '2026-10-15', '2026-10-16'].map((date) => {
+      const view = planner(trainingFixture, { week: 3, date });
+      return view.selected.kind === 'workout' ? [view.selected.name, view.selected.focusLabel] : null;
+    });
+    expect(labels).toEqual([
+      ['Upper A', null],
+      ['Lower A', null],
+      ['Upper B', 'Back · Chest · Shoulders · Triceps · Biceps'],
+      ['Lower B', null],
+    ]);
+    const none = planner({ ...trainingFixture, focus: {} }, start);
+    expect(none.selected).toMatchObject({ name: 'Upper B', focusLabel: null });
+  });
+
   it('never presents a shortened session as done', () => {
     const view = planner(trainingFixture, { week: 1, date: '2026-10-02' });
     expect(view.selected).toMatchObject({

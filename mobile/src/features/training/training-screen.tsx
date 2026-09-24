@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -26,9 +26,26 @@ export function TrainingScreen({ facts }: { facts: TrainingFacts }) {
     [facts, selection],
   );
 
+  // Entering Training (from Home's workout CTA or the tab bar) always lands on today in the
+  // current block week. Only coming back from this screen's own plan preview keeps the week
+  // being browsed.
+  const returningFromPlan = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (returningFromPlan.current) {
+        returningFromPlan.current = false;
+        return;
+      }
+      setSelection(initialSelection(facts));
+    }, [facts]),
+  );
+
   const goToWeek = (week: number) => setSelection(selectWeek(facts, week));
   const select = (date: string) => setSelection((s) => (s ? { week: s.week, date } : s));
-  const openPlan = (date: string) => router.push({ pathname: '/plan/[date]', params: { date } });
+  const openPlan = (date: string) => {
+    returningFromPlan.current = true;
+    router.push({ pathname: '/plan/[date]', params: { date } });
+  };
 
   // Same frame as Home: the top inset is on a non-scrolling view, so the scroll viewport
   // itself starts below the status bar and nothing scrolls under it.

@@ -45,9 +45,11 @@ export function SelectedSession({ selected, onViewPlan }: Props) {
       <Text variant="heroTitle" accessibilityRole="header" style={styles.title}>
         {selected.name}
       </Text>
-      <Text variant="body" tone="muted" style={styles.focus}>
-        {selected.focusLabel}
-      </Text>
+      {selected.focusLabel ? (
+        <Text variant="body" tone="muted" style={styles.focus}>
+          {selected.focusLabel}
+        </Text>
+      ) : null}
       <Text variant="caption" tone="muted" style={styles.meta}>
         {selected.metaLabel}
       </Text>

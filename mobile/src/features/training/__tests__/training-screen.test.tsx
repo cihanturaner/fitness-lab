@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import { trainingFixture } from '@/data/fixtures/training';
 
@@ -8,7 +8,21 @@ import { TrainingScreen } from '../training-screen';
 
 const mockRouter = { push: jest.fn(), navigate: jest.fn() };
 
-jest.mock('expo-router', () => ({ useRouter: () => mockRouter, Stack: { Screen: () => null } }));
+// useFocusEffect runs on mount like the real one; `mockFocus.run()` re-focuses the screen
+// the way returning to the Training tab (e.g. from Home's workout CTA) does.
+const mockFocus: { run: () => void } = { run: () => {} };
+
+jest.mock('expo-router', () => {
+  const { useEffect } = jest.requireActual<typeof import('react')>('react');
+  return {
+    useRouter: () => mockRouter,
+    Stack: { Screen: () => null },
+    useFocusEffect: (effect: () => void) => {
+      mockFocus.run = effect;
+      useEffect(effect, [effect]);
+    },
+  };
+});
 jest.mock(
   'react-native-safe-area-context',
   () => jest.requireActual<{ default: unknown }>('react-native-safe-area-context/jest/mock').default,
@@ -53,6 +67,43 @@ describe('TrainingScreen', () => {
     expect(screen.getByText('Shortened')).toBeOnTheScreen();
 
     await fireEvent.press(screen.getByRole('button', { name: 'Back to this week' }));
+    expect(screen.getByText('Week 2 of 12')).toBeOnTheScreen();
+  });
+});
+
+describe('TrainingScreen entry', () => {
+  const todayTab = 'Thursday 8 October, today: Upper B, in progress';
+
+  it('lands on the current week and today when entered again (Home → Training), even after browsing', async () => {
+    await render(<TrainingScreen facts={trainingFixture} />);
+
+    for (const week of [3, 4, 5]) {
+      await fireEvent.press(screen.getByRole('button', { name: `Next week, week ${week}` }));
+    }
+    expect(screen.getByText('Week 5 of 12')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('tab', { name: 'Tuesday 27 October: Lower A, planned' }));
+
+    // Leaving for Home and tapping its workout CTA re-focuses Training.
+    await act(async () => mockFocus.run());
+
+    expect(screen.getByText('Week 2 of 12')).toBeOnTheScreen();
+    expect(screen.getByText('This week')).toBeOnTheScreen();
+    expect(screen.getByRole('tab', { name: todayTab })).toBeSelected();
+    expect(screen.getByRole('header', { name: 'Upper B' })).toBeOnTheScreen();
+    expect(screen.getByText('9 of 21 work sets')).toBeOnTheScreen();
+  });
+
+  it('keeps the browsed week when coming back from its own plan preview', async () => {
+    await render(<TrainingScreen facts={trainingFixture} />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Previous week, week 1' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'View plan, Upper B, Thursday 1 October' }));
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/plan/[date]', params: { date: '2026-10-01' } });
+    await act(async () => mockFocus.run()); // back from the plan
+
+    expect(screen.getByText('Week 1 of 12')).toBeOnTheScreen();
+    // The next entry from elsewhere resets again.
+    await act(async () => mockFocus.run());
     expect(screen.getByText('Week 2 of 12')).toBeOnTheScreen();
   });
 });

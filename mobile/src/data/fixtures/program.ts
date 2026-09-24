@@ -4,8 +4,8 @@ import type { ProgramFacts } from '../training-facts';
  * The locked 12-week program, transcribed mechanically from
  * programs/advanced-natural-12w/package/program.json (names, order, rep ranges, RIR) with
  * rest, failure and marker taken from each slot's notes. `training-fixture.test.ts` checks
- * it against the package, so it cannot drift. `focus` summarises each workout's exercises
- * for display (the source has no per-session muscle list); Upper B's matches M1 Home.
+ * it against the package, so it cannot drift. The package has no muscle focus, so none is
+ * stated here.
  */
 export const programFixture: ProgramFacts = {
   name: '12-Week Advanced Natural Hypertrophy + Strength',
@@ -16,7 +16,6 @@ export const programFixture: ProgramFacts = {
       name: 'Upper A',
       weekday: 1,
       estimatedMinutes: { min: 85, max: 105 },
-      focus: ['chest', 'back', 'shoulders', 'triceps', 'biceps'],
       exercises: [
         {
           name: 'Smith Flat Bench Press',
@@ -88,7 +87,6 @@ export const programFixture: ProgramFacts = {
       name: 'Lower A',
       weekday: 2,
       estimatedMinutes: { min: 75, max: 90 },
-      focus: ['quads', 'hamstrings', 'glutes', 'calves', 'abs'],
       exercises: [
         {
           name: 'Smith High-Bar Squat',
@@ -139,7 +137,6 @@ export const programFixture: ProgramFacts = {
       name: 'Upper B',
       weekday: 4,
       estimatedMinutes: { min: 80, max: 95 },
-      focus: ['back', 'chest', 'shoulders', 'triceps', 'biceps'],
       exercises: [
         {
           name: 'Neutral-Grip Lat Pulldown',
@@ -204,7 +201,6 @@ export const programFixture: ProgramFacts = {
       name: 'Lower B',
       weekday: 5,
       estimatedMinutes: { min: 75, max: 90 },
-      focus: ['quads', 'glutes', 'hamstrings', 'calves', 'abs'],
       exercises: [
         {
           name: 'Hack Squat',

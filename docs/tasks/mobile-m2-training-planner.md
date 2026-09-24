@@ -18,8 +18,9 @@ Fixture data only. Home, `web/` and `backend/` untouched.
   `programs/advanced-natural-12w/package/program.json` (names, order, reps, RIR per set) with
   rest / failure / marker from each slot's notes; a test compares it with the package field by
   field. Exercise names are the package's (e.g. "Cable Lateral Raise" for the
-  Cable/Machine slot). `focus` summarises each workout's exercises (the source has no
-  per-session muscle list); Upper B's equals M1 Home's.
+  Cable/Machine slot). No muscle focus is authored: the package has none. `TrainingFacts.focus`
+  holds only M1 Home's existing Upper B focus (reused as is); other workouts show no focus
+  line (repair, `M2 FINAL REPAIR`).
 - D3 **Home agreement.** The Training fixture takes `today`, the block and week 2's records
   from the Home fixture itself (Thu 8 Oct, week 2 of 12, Upper B 9 of 21). Week 1 adds Upper B
   done and Lower B shortened (16 of 19). Tests assert Home and Training agree.
@@ -31,6 +32,9 @@ Fixture data only. Home, `web/` and `backend/` untouched.
 - D6 **No logging.** The selected-session card's one action is "View plan", which pushes the
   stack route `plan/[date]` (native header, back to Training). The plan screen has no inputs
   or buttons. No Start / Continue in Training.
+- D8 **Entry resets the week.** Entering Training (Home's workout CTA or the tab bar) lands on
+  today in the current block week (`useFocusEffect`); only returning from Training's own plan
+  preview keeps the browsed week. Home is unchanged.
 - D7 **Layout.** Title + block week, week navigator (‹ range ›, "Back to this week" when away),
   7-day selector (filled = selected, ring = today, dot = status, dash = rest, dimmed = outside),
   the selected day (tall card for a workout, small card for rest/outside), then one Sessions
@@ -51,7 +55,7 @@ Fixture data only. Home, `web/` and `backend/` untouched.
 ## Verification (2026-09-24, Linux cloud container)
 
 - `npm run typecheck` pass (also with typed routes generated) · `npm run lint` pass, 0
-  warnings · `npm test` 8 suites, 82 tests pass.
+  warnings · `npm test` 8 suites, 87 tests pass (after the repair).
 - `npx expo export --platform ios`: iOS Hermes bundle builds (2.5 MB).
 - Visual QA: Metro web + Playwright/Chromium at 430×932 (59/34 pt insets simulated) and
   375×667 (20/0): Training top / scrolled / bottom, rest day, week 1, week 12, plan top/bottom,
@@ -69,5 +73,3 @@ Fixture data only. Home, `web/` and `backend/` untouched.
 - Start / continue a workout, set logging (lb · reps · RIR), complete / reopen / discard,
   change exercise, per-exercise recorded progress in the plan.
 - Persistence (expo-sqlite) behind `loadHomeFacts` / `loadTrainingFacts`; a real clock.
-- The selected week survives tab switches (the tab stays mounted); Home → Training does not
-  reset it. Revisit when Training gains a workout flow.

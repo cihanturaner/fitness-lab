@@ -30,7 +30,6 @@ export type ProgramWorkout = {
   /** ISO weekday the weekly template places it on: Monday = 1 … Sunday = 7. */
   weekday: number;
   estimatedMinutes: { min: number; max: number };
-  focus: readonly MuscleGroup[];
   exercises: readonly PlannedExercise[];
 };
 
@@ -59,4 +58,9 @@ export type TrainingFacts = {
   block: { start: IsoDate; weeks: number } | null;
   program: ProgramFacts;
   sessions: readonly RecordedSession[];
+  /**
+   * Muscle focus by workout key, only where an existing source states one. A workout
+   * without an entry has no focus; it is never inferred from exercise names.
+   */
+  focus: Readonly<Record<string, readonly MuscleGroup[]>>;
 };

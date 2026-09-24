@@ -59,6 +59,18 @@ describe('program fixture fidelity', () => {
   });
 });
 
+describe('muscle focus is never invented', () => {
+  it('states no focus in the program (the package has none)', () => {
+    expect(pkg.workouts.some((w) => 'focus' in w || 'muscles' in w)).toBe(false);
+    for (const w of programFixture.workouts) expect('focus' in w).toBe(false);
+  });
+
+  it('reuses only Home’s existing focus, for Upper B, and nothing else', () => {
+    expect(Object.keys(trainingFixture.focus)).toEqual(['upper_b']);
+    expect(trainingFixture.focus.upper_b).toBe(homeFixture.todayWorkout?.focus);
+  });
+});
+
 describe('training fixture agrees with Home', () => {
   it('shares today and the block', () => {
     expect(trainingFixture.today).toBe(homeFixture.today);
@@ -76,7 +88,7 @@ describe('training fixture agrees with Home', () => {
     const upperB = programFixture.workouts.find((w) => w.name === 'Upper B');
     const next = homeFixture.todayWorkout?.nextExercise;
     expect(upperB?.exercises.length).toBe(homeFixture.todayWorkout?.exerciseCount);
-    expect(upperB?.focus).toEqual(homeFixture.todayWorkout?.focus);
+    expect(trainingFixture.focus.upper_b).toEqual(homeFixture.todayWorkout?.focus);
     // 9 recorded sets = the first three exercises (3 + 3 + 3); the 4th is next.
     expect(upperB?.exercises[3].name).toBe(next?.name);
     expect(upperB?.exercises[3].sets.length).toBe(next?.setCount);
