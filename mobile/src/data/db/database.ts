@@ -14,8 +14,10 @@ export interface Db {
   all<T>(sql: string, params?: readonly SqlValue[]): Promise<T[]>;
   first<T>(sql: string, params?: readonly SqlValue[]): Promise<T | null>;
   /**
-   * Runs `work` in one transaction — all of it is kept, or none of it. Transactions are
-   * serialised; a transaction started inside another joins it.
+   * Every write goes through here (repositories never write outside it). Runs `work` in one
+   * transaction — all of it is kept, or none of it. Transactions are
+   * queued one after another, so two taps never interleave. Never start a transaction from
+   * inside another one (it would wait for itself); repositories call this only at the top.
    */
   transaction<T>(work: () => Promise<T>): Promise<T>;
 }
@@ -26,11 +28,8 @@ export interface Db {
  */
 export function transactional(exec: (sql: string) => Promise<void>) {
   let tail: Promise<unknown> = Promise.resolve();
-  let depth = 0;
   return async function transaction<T>(work: () => Promise<T>): Promise<T> {
-    if (depth > 0) return work();
     const run = async () => {
-      depth++;
       await exec('BEGIN IMMEDIATE');
       try {
         const result = await work();
@@ -39,8 +38,6 @@ export function transactional(exec: (sql: string) => Promise<void>) {
       } catch (error) {
         await exec('ROLLBACK');
         throw error;
-      } finally {
-        depth--;
       }
     };
     const next = tail.then(run, run);

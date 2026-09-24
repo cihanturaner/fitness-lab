@@ -66,9 +66,14 @@ export function WorkoutScreen({ date, workoutId }: Props) {
   // With nothing opened by the lifter, the next planned set's row is open.
   const current = open ?? (editable && view.next ? { slotKey: view.next.slotKey, row: { kind: 'new' as const }, tapped: false } : null);
 
+  // Every action reports a failure on screen instead of failing silently.
   const run = async (work: () => Promise<unknown>) => {
     setNotice(null);
-    await work();
+    try {
+      await work();
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'That did not work; nothing was changed.');
+    }
   };
 
   const start = () =>
@@ -95,17 +100,18 @@ export function WorkoutScreen({ date, workoutId }: Props) {
       confirmLabel: 'Delete',
       destructive: true,
       onConfirm: () => {
-        void write((db, now) => deleteSet(db, row.setId, now)).then(() => setOpen(null));
+        void run(() => write((db, now) => deleteSet(db, row.setId, now)).then(() => setOpen(null)));
       },
     });
 
   const complete = async () => {
     if (id === null) return;
-    const finish = async () => {
-      const result = await write((db, now) => completeWorkout(db, id, now));
-      if (!result.ok) setNotice(result.blockers.map((b) => BLOCKER_TEXT[b]).join(' '));
-      setOpen(null);
-    };
+    const finish = () =>
+      run(async () => {
+        const result = await write((db, now) => completeWorkout(db, id, now));
+        if (!result.ok) setNotice(result.blockers.map((b) => BLOCKER_TEXT[b]).join(' '));
+        setOpen(null);
+      });
     if (view.blockers.length) {
       setNotice(view.blockers.map((b) => BLOCKER_TEXT[b]).join(' '));
       return;
@@ -128,7 +134,7 @@ export function WorkoutScreen({ date, workoutId }: Props) {
       message: 'The workout becomes a draft again. Nothing recorded changes until you edit it.',
       confirmLabel: 'Reopen',
       onConfirm: () => {
-        if (id !== null) void write((db, now) => reopenWorkout(db, id, now));
+        if (id !== null) void run(() => write((db, now) => reopenWorkout(db, id, now)));
       },
     });
 
@@ -140,9 +146,11 @@ export function WorkoutScreen({ date, workoutId }: Props) {
       destructive: true,
       onConfirm: () => {
         if (id === null) return;
-        void write((db, now) => discardWorkout(db, id, now)).then(() => {
-          if (router.canGoBack()) router.back();
-        });
+        void run(() =>
+          write((db, now) => discardWorkout(db, id, now)).then(() => {
+            if (router.canGoBack()) router.back();
+          }),
+        );
       },
     });
 
@@ -191,7 +199,7 @@ export function WorkoutScreen({ date, workoutId }: Props) {
             </Text>
           ) : null}
           {view.mode === 'plan' && view.canStart ? (
-            <HeroButton label="Start workout" icon="play" accessibilityLabel={`Start workout, ${view.name}`} onPress={() => void start()} />
+            <HeroButton label="Start workout" icon="play" accessibilityLabel={`Start workout, ${view.name}`} onPress={start} />
           ) : null}
         </Card>
 
@@ -250,7 +258,7 @@ export function WorkoutScreen({ date, workoutId }: Props) {
               label="Finish workout"
               icon="check"
               accessibilityLabel={`Finish workout, ${view.progress.label}`}
-              onPress={() => void complete()}
+              onPress={complete}
             />
             <Pressable onPress={discard} accessibilityRole="button" style={styles.quiet}>
               <Text variant="label" tone="warn">

@@ -38,7 +38,10 @@ export function SetEntry({ number, exerciseName, initial, hints, mode, autoFocus
   const focused = useRef<'load' | 'reps' | 'rir'>('load');
   const accessory = `set-entry-${exerciseName}-${number}`.replace(/[^a-zA-Z0-9-]/g, '');
 
+  // A second tap before the first save finishes must not log the set twice.
+  const inFlight = useRef(false);
   const submit = async () => {
+    if (inFlight.current) return;
     const parsed = parseSetText(text);
     if (!parsed.ok) {
       setError(parsed.error);
@@ -49,11 +52,13 @@ export function SetEntry({ number, exerciseName, initial, hints, mode, autoFocus
     }
     setError(null);
     setSaving(true);
+    inFlight.current = true;
     try {
       await onSubmit(parsed.values);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this set.');
     } finally {
+      inFlight.current = false;
       setSaving(false);
     }
   };

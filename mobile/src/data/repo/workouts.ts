@@ -93,7 +93,7 @@ export async function workoutById(db: Db, id: number): Promise<WorkoutRecord | n
 export async function workoutForDay(db: Db, date: IsoDate, workoutKey: string): Promise<WorkoutRecord | null> {
   const row = await db.first<WorkoutRow>(
     `SELECT * FROM workout WHERE performed_on = ? AND workout_key = ?
-     ORDER BY status = 'draft' DESC, updated_at DESC, id DESC LIMIT 1`,
+     ORDER BY status = 'draft' DESC, entered_at DESC, id DESC LIMIT 1`,
     [date, workoutKey],
   );
   return row ? toRecord(row) : null;
@@ -331,10 +331,9 @@ export async function completeWorkout(db: Db, workoutId: number, now: string): P
 
 /** Complete → draft. Nothing else changes: sets, placements and changes stay as they were. */
 export async function reopenWorkout(db: Db, workoutId: number, now: string): Promise<void> {
-  const r = await db.run("UPDATE workout SET status = 'draft', updated_at = ? WHERE id = ? AND status = 'complete'", [
-    now,
-    workoutId,
-  ]);
+  const r = await db.transaction(() =>
+    db.run("UPDATE workout SET status = 'draft', updated_at = ? WHERE id = ? AND status = 'complete'", [now, workoutId]),
+  );
   if (r.changes !== 1) throw new NotFoundError('Only a completed workout can be reopened.');
 }
 
@@ -398,7 +397,9 @@ export async function changeExercise(
 
     const { bySlot } = groupSets(session.slots, session.sets);
     for (const set of bySlot.get(slotKey) ?? []) {
-      if (set.exerciseId === performed) continue;
+      // Only sets recorded in this slot move; a set with no recorded placement keeps
+      // falling to the first slot of its exercise, as on the desktop.
+      if (set.exerciseId === performed || set.placement === undefined) continue;
       await db.run('DELETE FROM performed_set_slot WHERE set_id = ?', [set.id]);
       await db.run('INSERT INTO performed_set_slot (set_id, workout_id, slot_key) VALUES (?, ?, NULL)', [
         set.id,

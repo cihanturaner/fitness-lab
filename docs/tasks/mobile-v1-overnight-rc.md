@@ -139,6 +139,7 @@ is real from the start; the M6 commit adds migrations tests, cold-restart and th
 | `225e09d` | Visual consistency pass |
 | `8d93a93` | Jest per-test budget 20 s (cold-cache first test) |
 | `553a4ec` | Day rollover while the app stays open |
+| `9c41a64` | Ledger: commit list |
 
 ## DONE criteria
 
@@ -157,7 +158,14 @@ The mission's 30-point RC definition; status in "RC checklist" below.
 
 ## Blockers
 
-(none)
+- RC review blocker B1 (fixed): overlapping writes could join another write's open
+  transaction (shared depth counter) and be rolled back with it; plain writes did not queue;
+  double taps could save a set twice. Fix: every repository write goes through the
+  transaction queue, no joining; in-flight guards on set entry and on hero buttons
+  (Start / Finish). Regression test fails on the old code, passes on the fix.
+- Reviewer's temporary probe `mobile/src/__race_tmp.test.ts` was swept into `553a4ec` by
+  `git add -A` while it existed for about a second; removed in the fix commit (no history
+  rewrite).
 
 ## Physical iPhone verification needed
 

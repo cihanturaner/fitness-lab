@@ -16,13 +16,13 @@ export async function bodyweightBetween(db: Db, from: IsoDate, to: IsoDate): Pro
 
 /** Records the day's weigh-in in integer grams; a second entry for the date replaces it. */
 export async function saveBodyweight(db: Db, date: IsoDate, grams: number, now: string): Promise<void> {
-  await db.run(
+  await db.transaction(() => db.run(
     `INSERT INTO bodyweight_entry (measured_on, bodyweight_g, entered_at, updated_at) VALUES (?, ?, ?, ?)
      ON CONFLICT (measured_on) DO UPDATE SET bodyweight_g = excluded.bodyweight_g, updated_at = excluded.updated_at`,
     [date, grams, now, now],
-  );
+  ));
 }
 
 export async function deleteBodyweight(db: Db, date: IsoDate): Promise<void> {
-  await db.run('DELETE FROM bodyweight_entry WHERE measured_on = ?', [date]);
+  await db.transaction(() => db.run('DELETE FROM bodyweight_entry WHERE measured_on = ?', [date]));
 }

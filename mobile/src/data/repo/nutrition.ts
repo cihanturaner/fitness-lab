@@ -29,15 +29,15 @@ export async function nutritionDaysBetween(db: Db, from: IsoDate, to: IsoDate): 
 /** Records a day's macros (replacing that day's log); with nothing recorded, removes the day. */
 export async function saveNutritionDay(db: Db, date: IsoDate, grams: MacroGrams, now: string): Promise<void> {
   if (grams.protein === null && grams.carbs === null && grams.fat === null) {
-    await db.run('DELETE FROM nutrition_day WHERE logged_on = ?', [date]);
+    await db.transaction(() => db.run('DELETE FROM nutrition_day WHERE logged_on = ?', [date]));
     return;
   }
-  await db.run(
+  await db.transaction(() => db.run(
     `INSERT INTO nutrition_day (logged_on, protein_g, carbs_g, fat_g, entered_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT (logged_on) DO UPDATE SET protein_g = excluded.protein_g, carbs_g = excluded.carbs_g,
        fat_g = excluded.fat_g, updated_at = excluded.updated_at`,
     [date, grams.protein, grams.carbs, grams.fat, now, now],
-  );
+  ));
 }
 
 type TargetRow = {
@@ -72,9 +72,11 @@ export async function addMacroTarget(
   target: MacroTarget & { effectiveOn: IsoDate; notes: string | null },
   now: string,
 ): Promise<number> {
-  const r = await db.run(
-    'INSERT INTO macro_target (effective_on, protein_g, carbs_g, fat_g, notes, set_at) VALUES (?, ?, ?, ?, ?, ?)',
-    [target.effectiveOn, target.protein, target.carbs, target.fat, target.notes, now],
+  const r = await db.transaction(() =>
+    db.run(
+      'INSERT INTO macro_target (effective_on, protein_g, carbs_g, fat_g, notes, set_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [target.effectiveOn, target.protein, target.carbs, target.fat, target.notes, now],
+    ),
   );
   return r.lastInsertRowId;
 }

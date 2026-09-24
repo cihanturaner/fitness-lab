@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { StyleSheet } from 'react-native';
 
 import { color, radius, shadow, space } from '@/theme/tokens';
@@ -10,7 +11,8 @@ type Props = {
   label: string;
   icon: IconName;
   accessibilityLabel: string;
-  onPress: () => void;
+  /** A returned promise keeps the button inert until it settles (no double submits). */
+  onPress: () => void | Promise<unknown>;
   /** `primary` is the screen's one dominant emerald action; `secondary` is a quiet outline. */
   emphasis?: 'primary' | 'secondary';
 };
@@ -18,9 +20,20 @@ type Props = {
 /** The full-width call to action anchored at the bottom of a hero card. */
 export function HeroButton({ label, icon, accessibilityLabel, onPress, emphasis = 'primary' }: Props) {
   const primary = emphasis === 'primary';
+  const busy = useRef(false);
+  const press = () => {
+    if (busy.current) return;
+    const result = onPress();
+    if (result instanceof Promise) {
+      busy.current = true;
+      void result.finally(() => {
+        busy.current = false;
+      });
+    }
+  };
   return (
     <Pressable
-      onPress={onPress}
+      onPress={press}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       style={[styles.button, primary ? styles.primary : styles.secondary]}>

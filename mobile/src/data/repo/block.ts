@@ -12,9 +12,9 @@ export async function blockStart(db: Db, programKey: string): Promise<IsoDate | 
 
 /** Sets (or moves) the block start. Recorded workouts keep their dates; only week numbers follow. */
 export async function setBlockStart(db: Db, programKey: string, start: IsoDate, now: string): Promise<void> {
-  await db.run(
+  await db.transaction(() => db.run(
     `INSERT INTO training_block (program_key, start_on, set_at) VALUES (?, ?, ?)
      ON CONFLICT (program_key) DO UPDATE SET start_on = excluded.start_on, set_at = excluded.set_at`,
     [programKey, start, now],
-  );
+  ));
 }

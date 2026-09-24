@@ -121,6 +121,42 @@ describe('workout lifecycle', () => {
     expect((await loadSession(db, first.workout.id)).sets).toEqual([]);
   });
 
+  it('a double tap on Start creates one draft, and concurrent writes never interleave', async () => {
+    const db = await openTestDatabase();
+    const tick = () => new Promise((r) => setTimeout(r, 0));
+    const first = openWorkout(db, '2026-10-08', upperB, now());
+    await tick(); // the second tap lands while the first is mid-write
+    const [a, b] = await Promise.all([first, openWorkout(db, '2026-10-08', upperB, now())]);
+    expect(a.workout.id).toBe(b.workout.id);
+    expect([a.created, b.created].sort()).toEqual([false, true]);
+    expect(await db.all('SELECT id FROM workout')).toHaveLength(1);
+    const one = addSet(db, a.workout.id, { slotKey: 'upper_b.01' }, { loadG: 1_000, reps: 5, rir: 2 }, now());
+    await tick();
+    await Promise.all([one, addSet(db, a.workout.id, { slotKey: 'upper_b.01' }, { loadG: 1_000, reps: 6, rir: 2 }, now())]);
+    expect(await db.all('SELECT set_order, reps FROM performed_set ORDER BY set_order')).toEqual([
+      { set_order: 1, reps: 5 },
+      { set_order: 2, reps: 6 },
+    ]);
+  });
+
+  it('a write that overlaps a failing transaction is queued, not rolled back with it', async () => {
+    const db = await openTestDatabase();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const failing = db.transaction(async () => {
+      await db.run('INSERT INTO bodyweight_entry VALUES (?, ?, NULL, ?, ?)', ['2026-10-01', 80_000, now(), now()]);
+      await gate;
+      throw new Error('import failed');
+    });
+    await new Promise((r) => setTimeout(r, 0)); // the transaction is open now
+    const overlapping = saveBodyweight(db, '2026-10-08', 82_400, now());
+    await new Promise((r) => setTimeout(r, 0));
+    release();
+    await expect(failing).rejects.toThrow('import failed');
+    await overlapping;
+    expect(await bodyweightBetween(db, '2026-10-01', '2026-10-31')).toEqual([{ date: '2026-10-08', grams: 82_400 }]);
+  });
+
   it('logs sets in their slots, updates and deletes them, renumbering densely', async () => {
     const db = await openTestDatabase();
     const { workout } = await openWorkout(db, '2026-10-08', upperB, now());
@@ -216,6 +252,15 @@ describe('slot identity: duplicate exercises stay independent', () => {
     expect(await db.all('SELECT * FROM workout_slot_substitution')).toEqual([]);
     expect(session.slots[0].changed).toBe(false);
     expect(grouped.extra.map((g) => g.sets.map((s) => s.loadG))).toEqual([[11_000], [20_000]]);
+  });
+
+  it('a set with no recorded placement is left alone by a change (as on the desktop)', async () => {
+    const db = await openTestDatabase();
+    const { workout } = await openWorkout(db, '2026-10-08', upperB, now());
+    const setId = await addSet(db, workout.id, { slotKey: 'upper_b.05' }, { loadG: 9_000, reps: 15, rir: 1 }, now());
+    await db.run('DELETE FROM performed_set_slot WHERE set_id = ?', [setId]); // as imported from before 0008
+    await changeExercise(db, workout.id, 'upper_b.05', 'Machine Lateral Raise', now());
+    expect(await db.all('SELECT * FROM performed_set_slot WHERE set_id = ?', [setId])).toEqual([]);
   });
 
   it('the change is for this workout only: the next occurrence opens on the planned exercise', async () => {
