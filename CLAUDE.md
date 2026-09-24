@@ -38,7 +38,10 @@ Dependency direction is one-way:
 
 ## Invariants
 
-- Units are kilograms. There is no lb/kg conversion system.
+- Bodyweight is kilograms. Every workout load is entered and shown in POUNDS (at most
+  0.01 lb) and stored as integer grams (`load_g`, `target_load_g`: a physical mass, so no
+  recorded set is ever reinterpreted). The one conversion is `domain/units.py` (lb↔g, exact
+  Decimal, 453.59237 g/lb) at the API boundary (`load_lb`); there is no selectable unit system.
 - `planned` is not `performed`. They are distinct concepts and must stay separately modelled.
 - `performed_at` is not `entered_at`. Both are recorded; neither substitutes for the other.
 - SQLite database files are never committed to git.
@@ -47,8 +50,12 @@ Dependency direction is one-way:
 - Imported program content is append-only (trigger-enforced); at most one version is active.
 - Development, tests and E2E never use `data/fitness_lab.db`; always a scratch
   `FITNESS_LAB_DB`.
-- Bodyweight is exact integer grams, one entry per date. Nutrition is one log per date
-  (integer kcal and grams). Protein 145 g and fat 60 g are locked; the calorie target is
+- Bodyweight is exact integer grams, one entry per date. Nutrition is one log per date of
+  integer macro grams. A day's calories are never entered or stored: they are derived,
+  protein × 4 + carbs × 4 + fat × 9 (`domain/nutrition.day_calories`; an unrecorded macro
+  adds nothing and the day is marked incomplete). Calories typed before V3.1 are kept in the
+  closed, append-only `nutrition_entered_calories` table (migration 0006). Protein 145 g and
+  fat 60 g are locked; the calorie target is
   unknown until the lifter records one (append-only `calorie_target`), and carbohydrate
   is then (calories - 1120) / 4. The app never sets or changes calories itself.
 - A workout row in the UI is not a set until the lifter saves it; its set type is never
@@ -65,11 +72,14 @@ Dependency direction is one-way:
   weigh-ins per 7-day half, "sustained" = two consecutive weekly trends above 0.25, gate
   reliability checks) are documented in the V3 spec and must stay fixed for a block.
 
-Current design: `docs/superpowers/specs/2026-09-23-v3-final-product-completeness.md` (V3:
+Current design: `docs/superpowers/specs/2026-09-24-v3-1-units-macros-premium-ui.md` (V3.1:
+pound loads, macro-derived calories, the emerald visual language and motion system — it
+supersedes V2.1's visual tokens; follow it for any UI change) over
+`docs/superpowers/specs/2026-09-23-v3-final-product-completeness.md` (V3:
 block phases, week navigation, shortened sessions, History by set, nutrition controller,
 Settings, source-fidelity declarations) over
-`docs/superpowers/specs/2026-09-23-v2-1-product-polish.md` (V2.1 visual
-contract: tokens, type scale, shell, per-screen hierarchy — follow it for any UI change) over
+`docs/superpowers/specs/2026-09-23-v2-1-product-polish.md` (V2.1: per-screen hierarchy and
+copy rules; its grey tokens are superseded by V3.1) over
 `docs/superpowers/specs/2026-09-23-v2-product-ux-note.md` (V2: Week,
 Workout, Bodyweight, Nutrition, History), on top of
 `docs/superpowers/specs/2026-09-23-m2-planned-program-workflow-design.md` (M2) and the M1
@@ -166,8 +176,9 @@ Frontend (from `web/`):
 
 End-to-end (from `e2e/`) — seeds fresh scratch databases with the locked program and
 starts the real launcher on port 8710 (V1 journey; 8711 for the restart test) and 8712
-(V2 daily-use journey, its own database, block started two Mondays ago) and 8713 (V3
-completeness journey, its own database, block started three Mondays ago); it ignores
+(V2 daily-use journey, its own database, block started two Mondays ago), 8713 (V3
+completeness journey, its own database, block started three Mondays ago) and 8714 (V3.1
+pounds / macros / reduced-motion journey, its own database); it ignores
 `FITNESS_LAB_DB` and never reuses a running server:
 
     npx playwright test

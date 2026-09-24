@@ -33,7 +33,7 @@ async function savedRows(card: Locator): Promise<string[]> {
   const result: string[] = []
   for (let index = 0; index < (await rows.count()); index += 1) {
     const row = rows.nth(index)
-    const load = await row.getByRole('textbox', { name: /^Load in kg/ }).inputValue()
+    const load = await row.getByRole('textbox', { name: /^Load in lb/ }).inputValue()
     const reps = await row.getByRole('textbox', { name: /^Reps/ }).inputValue()
     const rir = await row.getByRole('textbox', { name: /^RIR/ }).inputValue()
     result.push(`${load}×${reps}@${rir}`)
@@ -88,7 +88,7 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
   }
 
   // Keyboard: load, Tab, reps, Tab, RIR, Tab (the first row asks for its type once), Tab.
-  await squat.getByRole('textbox', { name: 'Load in kg, new set 1' }).click()
+  await squat.getByRole('textbox', { name: 'Load in lb, new set 1' }).click()
   await page.keyboard.type('100')
   await page.keyboard.press('Tab')
   await page.keyboard.type('8')
@@ -100,7 +100,7 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
   await page.keyboard.press('Tab')
   await expect.poll(() => savedRows(squat)).toEqual(['100×8@2'])
   // The next row starts with the previous load (selected) and type; Tab keeps the load.
-  const load2 = squat.getByRole('textbox', { name: 'Load in kg, new set 2' })
+  const load2 = squat.getByRole('textbox', { name: 'Load in lb, new set 2' })
   await expect(load2).toBeFocused()
   await expect(load2).toHaveValue('100')
   await page.keyboard.press('Tab')
@@ -109,7 +109,7 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
   await page.keyboard.type('2')
   await page.keyboard.press('Tab')
   await expect.poll(() => savedRows(squat)).toEqual(['100×8@2', '100×7@2'])
-  await expect(squat.getByRole('textbox', { name: 'Load in kg, new set 3' })).toBeFocused()
+  await expect(squat.getByRole('textbox', { name: 'Load in lb, new set 3' })).toBeFocused()
   await page.keyboard.type('102.5')
   await page.keyboard.press('Tab')
   await page.keyboard.type('6')
@@ -123,17 +123,17 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
     db(
       `SELECT group_concat(load_g || 'x' || reps || '@' || rir || ':' || set_type, ' ') FROM (SELECT * FROM performed_set WHERE workout_id = '${workoutId}' ORDER BY set_order)`,
     ),
-  ).toBe('100000x8@2:working 100000x7@2:working 102500x6@1:working')
+  ).toBe('45359x8@2:working 45359x7@2:working 46493x6@1:working') // pounds, stored as whole grams
 
   // An invalid value is never saved silently.
   const rdl = block(page, 'lower_a.02')
-  await rdl.getByRole('textbox', { name: 'Load in kg, new set 1' }).fill('80.12345')
+  await rdl.getByRole('textbox', { name: 'Load in lb, new set 1' }).fill('80.12345')
   await rdl.getByRole('textbox', { name: 'Reps, new set 1' }).fill('10')
   await rdl.getByRole('combobox', { name: 'Set type, new set 1' }).selectOption('working')
   await rdl.getByRole('textbox', { name: 'Reps, new set 1' }).press('Enter')
   await expect(rdl.getByRole('alert')).toContainText('Not saved')
   expect(db(`SELECT count(*) FROM performed_set WHERE workout_id = '${workoutId}'`)).toBe('3')
-  await rdl.getByRole('textbox', { name: 'Load in kg, new set 1' }).fill('80')
+  await rdl.getByRole('textbox', { name: 'Load in lb, new set 1' }).fill('80')
   await rdl.getByRole('textbox', { name: 'Reps, new set 1' }).press('Enter')
   await expect.poll(() => savedRows(rdl)).toEqual(['80×10@'])
 
@@ -174,7 +174,7 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
   await page.getByRole('button', { name: 'Start Lower A again' }).click()
   await expect(page.getByRole('heading', { name: 'Lower A', level: 1 })).toBeVisible()
   await expect(block(page, 'lower_a.01').getByTestId('last-performance')).toContainText(
-    'Last 100×8@2 · 100×7@2 · 102.5×7@1',
+    'Last (lb) 100×8@2 · 100×7@2 · 102.5×7@1',
   )
   const secondId = /#\/workouts\/([a-f0-9]+)$/.exec(page.url())?.[1] ?? ''
   expect(db(`SELECT count(*) FROM performed_set WHERE workout_id = '${secondId}'`)).toBe('0')
@@ -246,22 +246,26 @@ test('nutrition: log a day, refresh, locked targets, uncalibrated calories, expl
   await expect(page.getByTestId('nut-target-calories')).toHaveText('Calorie target not calibrated yet.')
   await expect(page.getByTestId('nut-target-carbs')).toHaveText('Follows the calorie target.')
 
-  await page.getByRole('textbox', { name: 'Calories kcal' }).fill('2410')
+  // Calories are never typed: they follow live from the macros (Atwater 4 / 4 / 9).
+  await expect(page.getByRole('textbox', { name: /calories/i })).toHaveCount(0)
+  await page.getByRole('textbox', { name: 'Fat g' }).fill('10')
+  await expect(page.getByTestId('nut-live-kcal')).toHaveText('90 kcal')
   await page.getByRole('textbox', { name: 'Protein g' }).fill('150')
   await page.getByRole('textbox', { name: 'Carbs g' }).fill('290')
   await page.getByRole('textbox', { name: 'Fat g' }).fill('62')
+  await expect(page.getByTestId('nut-live-kcal')).toHaveText('2318 kcal')
   await page.getByRole('button', { name: 'Save day' }).click()
   await expect(page.getByRole('status')).toContainText('Saved')
 
   await page.reload()
-  await expect(page.getByRole('textbox', { name: 'Calories kcal' })).toHaveValue('2410')
+  await expect(page.getByRole('region', { name: 'Targets' })).toContainText('2318')
   await expect(page.getByRole('textbox', { name: 'Protein g' })).toHaveValue('150')
   await expect(page.getByRole('textbox', { name: 'Carbs g' })).toHaveValue('290')
   await expect(page.getByRole('textbox', { name: 'Fat g' })).toHaveValue('62')
   await expect(page.getByTestId('nut-target-calories')).toHaveText('Calorie target not calibrated yet.')
   expect(
-    db(`SELECT calories_kcal || '/' || protein_g || '/' || carbs_g || '/' || fat_g FROM nutrition_day WHERE logged_on = '${isoDaysAgo(0)}'`),
-  ).toBe('2410/150/290/62')
+    db(`SELECT protein_g || '/' || carbs_g || '/' || fat_g FROM nutrition_day WHERE logged_on = '${isoDaysAgo(0)}'`),
+  ).toBe('150/290/62')
   expect(db('SELECT count(*) FROM calorie_target')).toBe('0')
 
   await page.goto('/')
@@ -281,7 +285,7 @@ test('nutrition: log a day, refresh, locked targets, uncalibrated calories, expl
   await page.screenshot({ path: '../artifacts/v2-nutrition-1440x900.png' })
 })
 
-test('history: chronological kg/reps/RIR per exercise, week by week', async ({ page }) => {
+test('history: chronological lb/reps/RIR per exercise, week by week', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('home-recent')).toContainText('Smith High-Bar Squat')
   await expect(page.getByTestId('home-recent')).toContainText('100×8@2 · 100×7@2 · 102.5×7@1')
@@ -291,16 +295,16 @@ test('history: chronological kg/reps/RIR per exercise, week by week', async ({ p
   const rows = page.getByTestId('history-exposure')
   await expect(rows).toHaveCount(1)
   await expect(rows.first().getByTestId('history-set')).toHaveText([
-    '100 kg × 8 @ RIR 2',
-    '100 kg × 7 @ RIR 2',
-    '102.5 kg × 7 @ RIR 1',
+    '100 lb × 8 @ RIR 2',
+    '100 lb × 7 @ RIR 2',
+    '102.5 lb × 7 @ RIR 1',
   ])
   await expect(rows.first()).toContainText('Lower A')
   // Week column: today is in week 3 of the block.
   await expect(rows.first().getByTestId('history-week')).toHaveText('3')
 
   await page.getByRole('navigation', { name: 'Exercises' }).getByRole('link', { name: /Romanian Deadlift/ }).click()
-  await expect(page.getByTestId('history-exposure').first().getByTestId('history-set')).toHaveText(['80 kg × 10'])
+  await expect(page.getByTestId('history-exposure').first().getByTestId('history-set')).toHaveText(['80 lb × 10'])
   await page.screenshot({ path: '../artifacts/v2-history-1440x900.png' })
   await page.goto('/')
   await expect(page.getByTestId('block-week')).toBeVisible()

@@ -29,7 +29,7 @@ async function addSet(card: Locator, load: string, reps: string, rir: string) {
   const row = card.getByTestId('new-set-row').first()
   const type = row.getByRole('combobox', { name: /^Set type/ })
   if ((await type.inputValue()) === '') await type.selectOption('working')
-  await row.getByRole('textbox', { name: /^Load in kg/ }).fill(load)
+  await row.getByRole('textbox', { name: /^Load in lb/ }).fill(load)
   await row.getByRole('textbox', { name: /^Reps/ }).fill(reps)
   await row.getByRole('textbox', { name: /^RIR/ }).fill(rir)
   const before = await card.getByTestId('set-row').count()
@@ -43,7 +43,7 @@ async function actualRows(card: Locator): Promise<string[][]> {
   for (let index = 0; index < (await rows.count()); index += 1) {
     const row = rows.nth(index)
     result.push([
-      await row.getByRole('textbox', { name: /^Load in kg/ }).inputValue(),
+      await row.getByRole('textbox', { name: /^Load in lb/ }).inputValue(),
       await row.getByRole('textbox', { name: /^Reps/ }).inputValue(),
       await row.getByRole('textbox', { name: /^RIR/ }).inputValue(),
     ])
@@ -116,7 +116,7 @@ test('actual sets are entered, survive a reload, and can be edited, reordered an
   await addSet(bench, '82.5', '5', '2')
   await addSet(bench, '80', '7', '1')
   expect(sql("SELECT group_concat(load_g || 'x' || reps || '@' || rir, ' ') FROM (SELECT * FROM performed_set ORDER BY set_order)")).toBe(
-    '82500x6@2 82500x5@2 80000x7@1',
+    '37421x6@2 37421x5@2 36287x7@1', // pounds, stored as whole grams
   )
 
   await page.reload()
@@ -247,7 +247,7 @@ test('the next occurrence starts empty and shows the last exact performance', as
   expect(count('performed_set', `workout_id = '${secondId}'`)).toBe(0)
   const last = slot(page, 'upper_a.01').getByTestId('last-performance')
   await expect(last).toContainText('Upper A')
-  await expect(last).toContainText('Last 82.5×6@2 · 82.5×5@2')
+  await expect(last).toContainText('Last (lb) 82.5×6@2 · 82.5×5@2')
   // The previous occurrence's substitution does not carry over.
   await expect(slot(page, 'upper_a.06')).toHaveAttribute('aria-label', 'Cable Lateral Raise')
   await expect(slot(page, 'upper_a.06').getByTestId('last-performance')).toHaveCount(0)

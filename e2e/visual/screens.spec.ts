@@ -36,26 +36,26 @@ type Entry = {
   exercises: Record<string, { name: string }>
 }
 
-/** A plausible working load for an exercise of the locked program, by its name. */
+/** A plausible working load in POUNDS for an exercise of the locked program, by its name. */
 function baseLoad(name: string): number {
   const table: [RegExp, number][] = [
-    [/squat/i, 100],
-    [/deadlift|rdl/i, 110],
-    [/bench|chest press/i, 80],
-    [/incline/i, 70],
-    [/leg press/i, 180],
-    [/row/i, 70],
-    [/pulldown|pull-down|pull up|pullup/i, 65],
-    [/shoulder press|overhead/i, 50],
-    [/lateral/i, 12],
-    [/curl/i, 16],
-    [/extension|pushdown/i, 40],
-    [/calf/i, 90],
-    [/fly|pec/i, 45],
-    [/lunge|split/i, 24],
-    [/hip thrust/i, 120],
+    [/squat/i, 225],
+    [/deadlift|rdl/i, 245],
+    [/bench|chest press/i, 185],
+    [/incline/i, 155],
+    [/leg press/i, 400],
+    [/row/i, 155],
+    [/pulldown|pull-down|pull up|pullup/i, 145],
+    [/shoulder press|overhead/i, 110],
+    [/lateral/i, 25],
+    [/curl/i, 35],
+    [/extension|pushdown/i, 90],
+    [/calf/i, 200],
+    [/fly|pec/i, 100],
+    [/lunge|split/i, 50],
+    [/hip thrust/i, 265],
   ]
-  return table.find(([pattern]) => pattern.test(name))?.[1] ?? 40
+  return table.find(([pattern]) => pattern.test(name))?.[1] ?? 90
 }
 
 const round = (value: number, step: number) => Math.round(value / step) * step
@@ -69,13 +69,13 @@ async function logSession(api: APIRequestContext, plannedId: string, date: strin
   for (const slot of slots) {
     const name = entry.exercises[slot.effective_exercise_id]?.name ?? ''
     const base = baseLoad(name)
-    const step = base >= 40 ? 2.5 : 1
+    const step = base >= 90 ? 5 : 2.5
     const load = round(base * (1 + 0.025 * (week - 1)), step)
-    if (base >= 60) {
+    if (base >= 130) {
       await json(api, 'POST', `/api/workouts/${opened.workout_id}/sets`, {
         exercise_id: slot.effective_exercise_id,
         set_type: 'warmup',
-        load_kg: String(round(load * 0.6, 2.5)),
+        load_lb: String(round(load * 0.6, 5)),
         reps: 8,
         rir: null,
       })
@@ -87,7 +87,7 @@ async function logSession(api: APIRequestContext, plannedId: string, date: strin
       await json(api, 'POST', `/api/workouts/${opened.workout_id}/sets`, {
         exercise_id: slot.effective_exercise_id,
         set_type: set.set_type,
-        load_kg: String(set.set_type === 'backoff' ? round(load * 0.85, step) : load),
+        load_lb: String(set.set_type === 'backoff' ? round(load * 0.85, step) : load),
         reps,
         rir: set.target_rir_min ?? 2,
       })
@@ -135,8 +135,8 @@ async function seedFull(): Promise<{ completed: string | null; draft: string | n
   })
   for (let ago = 13; ago >= 1; ago -= 1) {
     if (ago === 6) continue
+    // Macros only: the server derives each day's calories from them.
     await json(api, 'PUT', `/api/nutrition/${daysAgo(ago)}`, {
-      calories_kcal: 2780 + Math.round(Math.sin(ago) * 160),
       protein_g: 142 + Math.round(Math.cos(ago) * 9),
       carbs_g: 440 + Math.round(Math.sin(ago * 0.7) * 35),
       fat_g: 58 + Math.round(Math.sin(ago * 1.3) * 7),
@@ -144,7 +144,6 @@ async function seedFull(): Promise<{ completed: string | null; draft: string | n
     })
   }
   await json(api, 'PUT', `/api/nutrition/${today}`, {
-    calories_kcal: 1840,
     protein_g: 112,
     carbs_g: 236,
     fat_g: 41,
@@ -156,7 +155,8 @@ async function seedFull(): Promise<{ completed: string | null; draft: string | n
 
 async function shoot(page: Page, name: string, fullPage = false) {
   await page.waitForLoadState('networkidle')
-  await page.waitForTimeout(150)
+  // Let the entrance, ring and chart motion settle before the frame is taken.
+  await page.waitForTimeout(1400)
   const { width, height } = page.viewportSize() ?? { width: 0, height: 0 }
   await page.screenshot({ path: `${OUT}/${name}-${width}x${height}.png`, fullPage })
 }

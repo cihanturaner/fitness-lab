@@ -14,6 +14,8 @@ export const DB_PATH = scratch('FITNESS_LAB_E2E_DB')
 export const DB_PATH_V2 = scratch('FITNESS_LAB_E2E_DB_V2')
 /** The V3 completeness journey's own scratch database. */
 export const DB_PATH_V3 = scratch('FITNESS_LAB_E2E_DB_V3')
+/** The V3.1 journey's own scratch database. */
+export const DB_PATH_V31 = scratch('FITNESS_LAB_E2E_DB_V31')
 
 /** Query the SQLite file directly, bypassing the app, so assertions check persisted truth. */
 export function sql(query: string, dbPath: string = DB_PATH): string {

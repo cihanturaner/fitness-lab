@@ -36,7 +36,7 @@ const WEEK3_SUNDAY = shift(START, 20)
 
 async function logOneBenchSet(page: Page) {
   const bench = page.getByTestId('slot-upper_a.01')
-  await bench.getByRole('textbox', { name: 'Load in kg, new set 1' }).fill('80')
+  await bench.getByRole('textbox', { name: 'Load in lb, new set 1' }).fill('80')
   await bench.getByRole('textbox', { name: 'Reps, new set 1' }).fill('8')
   await bench.getByRole('textbox', { name: 'RIR, new set 1' }).fill('2')
   await bench.getByRole('combobox', { name: 'Set type, new set 1' }).selectOption('working')
@@ -93,7 +93,7 @@ test('a past week is one click away, and a shortened session is confirmed and sh
   await page.getByRole('navigation', { name: 'Exercises' }).getByRole('link', { name: /Smith Flat Bench Press/ }).click()
   const exposure = page.getByTestId('history-exposure').first()
   await expect(exposure.getByTestId('history-week')).toHaveText('3')
-  await expect(exposure.getByTestId('history-set')).toHaveText(['80 kg × 8 @ RIR 2'])
+  await expect(exposure.getByTestId('history-set')).toHaveText(['80 lb × 8 @ RIR 2'])
 })
 
 test('the block start is set in the app; days before it are pre-block', async ({ page }) => {
