@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react'
-import { ChevronDown, ChevronUp, MessageSquareText, Plus, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, MessageSquareText, Plus, X } from 'lucide-react'
 import type { PerformedSet, PlannedSet, SetFields, SetType } from '@/api/types'
 import { compactSet, formatReps, formatRir } from '@/lib/format'
 import { markUnsaved, useUnsavedKey } from '@/lib/unsaved'
@@ -23,7 +23,7 @@ const TYPE_OPTIONS: { code: SetType; label: string }[] = [
 const validLoad = (text: string) => parseLoad(text).ok
 const validReps = (text: string) => parseCount(text, { allowNegative: false }).ok
 const validRir = (text: string) => parseCount(text, { allowNegative: true }).ok
-const LOAD_HINT = 'kilograms with up to 3 decimals, e.g. 82.5'
+const LOAD_HINT = 'pounds with up to 2 decimals, e.g. 185 or 72.5'
 const COUNT_HINT = 'a whole number'
 
 const selectClass =
@@ -32,7 +32,7 @@ const selectClass =
   'focus-visible:ring-ring/40 disabled:opacity-100 aria-invalid:border-destructive aria-invalid:bg-destructive/5'
 
 const iconButton =
-  'inline-flex size-7 items-center justify-center rounded-md text-muted-foreground ' +
+  'press inline-flex size-7 items-center justify-center rounded-md text-muted-foreground ' +
   'hover:bg-sunken hover:text-foreground disabled:opacity-30 [&_svg]:size-3.5'
 
 function TypeSelect({
@@ -95,6 +95,7 @@ function SavedRow({
   allSets,
   locked,
   actions,
+  fresh,
 }: {
   performed: PerformedSet
   index: number
@@ -102,6 +103,8 @@ function SavedRow({
   allSets: PerformedSet[]
   locked: boolean
   actions: SetActions
+  /** Saved during this visit: it settles in with a brief emerald confirmation. */
+  fresh: boolean
 }) {
   const label = `set ${index + 1}`
   const [noteOpen, setNoteOpen] = useState(false)
@@ -115,15 +118,30 @@ function SavedRow({
 
   return (
     <>
-      <tr data-testid="set-row" className={`group/row ${performed.set_type === 'warmup' ? '[&_input]:text-muted-foreground' : ''}`}>
-        <td className={`num text-[13px] ${performed.set_type === 'warmup' ? 'text-faint' : 'text-muted-foreground'}`}>
-          {index + 1}
+      <tr
+        data-testid="set-row"
+        className={`group/row ${fresh ? 'just-saved' : ''} ${performed.set_type === 'warmup' ? '[&_input]:text-muted-foreground' : ''}`}
+      >
+        <td className="rounded-l-[10px]">
+          {/* Saved evidence: the set number settles into a filled emerald dot. */}
+          <span
+            className={`num relative flex size-6 items-center justify-center rounded-full text-[12px] font-semibold ${
+              performed.set_type === 'warmup' ? 'bg-sunken text-faint' : 'bg-emerald-100 text-emerald-800'
+            } ${fresh ? 'pop-in' : ''}`}
+          >
+            {index + 1}
+            {fresh && (
+              <span aria-hidden className="confirm absolute inset-0 flex items-center justify-center rounded-full bg-emerald-600 text-white">
+                <Check className="size-3.5" strokeWidth={3} />
+              </span>
+            )}
+          </span>
         </td>
         <td>
           <CommitInput
-            label={`Load in kg, ${label}`}
+            label={`Load in lb, ${label}`}
             context={exerciseName}
-            value={performed.load_kg ?? ''}
+            value={performed.load_lb ?? ''}
             inputMode="decimal"
             disabled={locked}
             isValid={validLoad}
@@ -131,7 +149,7 @@ function SavedRow({
             dense
             onCommit={(text) => {
               const parsed = parseLoad(text)
-              return parsed.ok ? actions.patch(performed.id, { load_kg: parsed.value }) : Promise.resolve(false)
+              return parsed.ok ? actions.patch(performed.id, { load_lb: parsed.value }) : Promise.resolve(false)
             }}
           />
         </td>
@@ -170,7 +188,7 @@ function SavedRow({
             onChange={(code) => void actions.patch(performed.id, { set_type: code })}
           />
         </td>
-        <td className="text-right whitespace-nowrap">
+        <td className="rounded-r-[10px] text-right whitespace-nowrap">
           {!locked && (
             <span className="inline-flex opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100">
               <button
@@ -331,7 +349,7 @@ function PendingRow({
     const parsedLoad = parseLoad(load)
     const parsedReps = parseCount(reps, { allowNegative: false })
     const parsedRir = parseCount(rir, { allowNegative: true })
-    if (!parsedLoad.ok) return setProblem('Not saved: load must be kilograms, e.g. 82.5.')
+    if (!parsedLoad.ok) return setProblem('Not saved: load must be pounds, e.g. 185 or 72.5.')
     if (!parsedReps.ok || parsedReps.value === null) return setProblem('Not saved: enter reps.')
     if (!parsedRir.ok) return setProblem('Not saved: RIR must be a whole number.')
     if (type === '') return setProblem('Not saved: choose the set type (Work, Warm or Back).')
@@ -342,7 +360,7 @@ function PendingRow({
     const saved = await actions
       .add(exerciseId, {
         set_type: type,
-        load_kg: parsedLoad.value,
+        load_lb: parsedLoad.value,
         reps: parsedReps.value,
         rir: parsedRir.value,
         notes: null,
@@ -400,14 +418,24 @@ function PendingRow({
 
   return (
     <>
-      <tr ref={rowRef} data-testid="new-set-row" onBlur={onBlur} aria-busy={saving || undefined}>
-        <td className="num text-[13px] text-faint">{number}</td>
+      <tr
+        ref={rowRef}
+        data-testid="new-set-row"
+        onBlur={onBlur}
+        aria-busy={saving || undefined}
+        className="group/pending transition-colors [&:focus-within>td]:bg-emerald-50 [&>td]:transition-colors [&>td]:duration-200"
+      >
+        <td className="rounded-l-[10px]">
+          <span className="num flex size-6 items-center justify-center rounded-full border border-dashed border-faint/70 text-[12px] font-medium text-faint transition-colors group-focus-within/pending:border-emerald-600 group-focus-within/pending:bg-card group-focus-within/pending:text-emerald-700">
+            {number}
+          </span>
+        </td>
         <td>
           <input
             ref={loadRef}
-            aria-label={`Load in kg, ${label}`}
+            aria-label={`Load in lb, ${label}`}
             inputMode="decimal"
-            placeholder={planned?.target_load_kg ?? ''}
+            placeholder={planned?.target_load_lb ?? ''}
             autoFocus={autoFocus}
             aria-invalid={(problem !== null && !validLoad(load)) || undefined}
             onFocus={(event) => load !== '' && load === carriedLoad && event.currentTarget.select()}
@@ -445,7 +473,7 @@ function PendingRow({
             }}
           />
         </td>
-        <td className="pr-1 text-right text-[12px] text-muted-foreground">{saving ? 'Saving…' : ''}</td>
+        <td className="rounded-r-[10px] pr-1 text-right text-[12px] font-medium text-emerald-700">{saving ? 'Saving…' : ''}</td>
       </tr>
       {problem && (
         <tr>
@@ -482,23 +510,25 @@ export function SetGrid({
 }) {
   const worked = sets.filter((recorded) => recorded.set_type !== 'warmup').length
   const lastSaved = sets.at(-1)
+  // Sets already on record when the grid opened; any other saved set is fresh this visit.
+  const [initial] = useState(() => new Set(sets.map((performed) => performed.id)))
   const [pending, setPending] = useState<{ key: number; carry: Carry; focus: boolean }[]>(() => {
     if (locked) return []
     const count = Math.max(planned.length - worked, sets.length === 0 ? 1 : 0)
-    const carry: Carry = { load: lastSaved?.load_kg ?? '', type: lastSaved?.set_type ?? '' }
+    const carry: Carry = { load: lastSaved?.load_lb ?? '', type: lastSaved?.set_type ?? '' }
     return Array.from({ length: count }, () => ({ key: nextPendingKey++, carry, focus: false }))
   })
 
   const addRow = () => {
-    const last = pending.at(-1)?.carry ?? { load: lastSaved?.load_kg ?? '', type: lastSaved?.set_type ?? '' }
+    const last = pending.at(-1)?.carry ?? { load: lastSaved?.load_lb ?? '', type: lastSaved?.set_type ?? '' }
     setPending((rows) => [...rows, { key: nextPendingKey++, carry: last, focus: true }])
   }
 
   return (
     <div>
-      <table className="w-full max-w-[30rem] table-fixed border-separate border-spacing-x-1 border-spacing-y-[2px]" aria-label={`Sets, ${exerciseName}`}>
+      <table className="w-full max-w-[31rem] table-fixed border-separate border-spacing-x-0 border-spacing-y-[3px]" aria-label={`Sets, ${exerciseName}`}>
         <colgroup>
-          <col className="w-7" />
+          <col className="w-9" />
           <col className="w-[5.25rem]" />
           <col className="w-[4.25rem]" />
           <col className="w-[3.75rem]" />
@@ -508,7 +538,9 @@ export function SetGrid({
         <thead>
           <tr className="text-left text-[12px] text-muted-foreground">
             <th className="pb-1 font-medium">Set</th>
-            <th className="pr-2 pb-1 text-right font-medium">kg</th>
+            <th className="pr-2 pb-1 text-right font-medium">
+              <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 font-semibold text-emerald-800">lb</span>
+            </th>
             <th className="pr-2 pb-1 text-right font-medium">Reps</th>
             <th className="pr-2 pb-1 text-right font-medium">RIR</th>
             <th className="pb-1 pl-2 font-medium">Type</th>
@@ -525,6 +557,7 @@ export function SetGrid({
               allSets={allSets}
               locked={locked}
               actions={actions}
+              fresh={!initial.has(performed.id)}
             />
           ))}
           {!locked &&
@@ -556,7 +589,7 @@ export function SetGrid({
       {!locked && (
         <button
           type="button"
-          className="mt-1 ml-8 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] font-medium text-muted-foreground hover:bg-sunken hover:text-foreground"
+          className="press mt-1.5 ml-7 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold text-emerald-700 hover:bg-emerald-50"
           aria-label={`Add set, ${exerciseName}`}
           onClick={addRow}
         >

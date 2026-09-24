@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { fetchHealth, fetchPingDb, type HealthResponse, type PingDbResponse } from '@/api/m0'
 import { BodyweightScreen } from '@/features/bodyweight/BodyweightScreen'
 import { EntryScreen } from '@/features/entry/EntryScreen'
@@ -59,12 +59,12 @@ function SystemStatus() {
     <details ref={panel} className="group relative">
       <summary
         aria-label="Local server status"
-        className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:bg-sunken hover:text-foreground [&::-webkit-details-marker]:hidden"
+        className="press flex cursor-pointer list-none items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover:bg-sunken hover:text-foreground [&::-webkit-details-marker]:hidden"
       >
         <span className={`size-1.5 rounded-full ${tone}`} aria-hidden />
         {summary}
       </summary>
-      <div className="absolute right-0 z-30 mt-2 w-72 animate-in rounded-lg border border-border bg-popover p-3 text-[12px] leading-[18px] shadow-[0_8px_24px_-8px_rgb(22_25_28/0.18)] fade-in slide-in-from-top-1 duration-150">
+      <div className="absolute right-0 z-30 mt-2 w-72 animate-in rounded-[14px] bg-popover p-3.5 text-[12px] leading-[18px] shadow-[var(--shadow-raised)] fade-in slide-in-from-top-1 duration-150">
         {system.state === 'checking' && <p className="text-muted-foreground">Checking the local server…</p>}
         {system.state === 'error' && (
           <p className="text-destructive">Local server unreachable: {system.message}</p>
@@ -91,13 +91,15 @@ function SystemStatus() {
 }
 
 function Mark() {
-  // Two plates on a bar: the product mark, drawn, not an icon-font glyph.
+  // Two plates on a bar, drawn white on an emerald tile: the product mark, not an icon glyph.
   return (
-    <svg viewBox="0 0 20 20" className="size-5" aria-hidden>
-      <rect x="1" y="4" width="4" height="12" rx="1.5" fill="currentColor" />
-      <rect x="15" y="4" width="4" height="12" rx="1.5" fill="currentColor" />
-      <rect x="5" y="9" width="10" height="2" rx="1" fill="currentColor" opacity="0.55" />
-    </svg>
+    <span className="flex size-8 items-center justify-center rounded-[10px] bg-gradient-to-br from-emerald-600 to-emerald-800 text-white shadow-[0_1px_2px_rgb(15_63_48/0.3),inset_0_1px_0_rgb(255_255_255/0.18)]">
+      <svg viewBox="0 0 20 20" className="size-[18px]" aria-hidden>
+        <rect x="1" y="4" width="4" height="12" rx="1.5" fill="currentColor" />
+        <rect x="15" y="4" width="4" height="12" rx="1.5" fill="currentColor" />
+        <rect x="5" y="9" width="10" height="2" rx="1" fill="currentColor" opacity="0.7" />
+      </svg>
+    </span>
   )
 }
 
@@ -108,6 +110,54 @@ const NAV: { label: string; href: string; routes: Route['name'][] }[] = [
   { label: 'History', href: '#/history', routes: ['history', 'sessions'] },
   { label: 'Settings', href: '#/settings', routes: ['settings'] },
 ]
+
+/** A pill navigation whose emerald indicator slides to the active screen. */
+function MainNav({ active }: { active: Route['name'] }) {
+  const list = useRef<HTMLDivElement>(null)
+  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null)
+  const current = NAV.findIndex((item) => item.routes.includes(active))
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const link = list.current?.querySelector<HTMLElement>('[aria-current="page"]')
+      setIndicator(link ? { left: link.offsetLeft, width: link.offsetWidth } : null)
+    }
+    measure()
+    // Webfonts can change the pill widths after the first layout.
+    void document.fonts?.ready.then(measure)
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [current])
+
+  return (
+    <nav aria-label="Main" className="flex items-center">
+      <div ref={list} className="relative flex items-center gap-0.5 rounded-full bg-sunken/80 p-1 shadow-[inset_0_0_0_1px_rgb(16_52_38/0.05)]">
+        {indicator && (
+          <span
+            aria-hidden
+            className="absolute top-1 bottom-1 rounded-full bg-gradient-to-b from-emerald-600 to-emerald-700 shadow-[0_1px_2px_rgb(15_63_48/0.3),0_6px_14px_-6px_rgb(27_104_79/0.6)] transition-[left,width] duration-300 ease-[var(--ease-out)]"
+            style={{ left: indicator.left, width: indicator.width }}
+          />
+        )}
+        {NAV.map((item, index) => {
+          const isActive = index === current
+          return (
+            <a
+              key={item.href}
+              href={item.href}
+              aria-current={isActive ? 'page' : undefined}
+              className={`press relative z-10 flex h-8 items-center rounded-full px-3.5 text-[14px] font-medium transition-colors duration-200 ${
+                isActive ? 'text-white' : 'text-muted-foreground hover:text-foreground'
+              } ${isActive && !indicator ? 'bg-emerald-700' : ''}`}
+            >
+              {item.label}
+            </a>
+          )
+        })}
+      </div>
+    </nav>
+  )
+}
 
 function Screen({ route }: { route: Route }) {
   switch (route.name) {
@@ -133,41 +183,21 @@ export default function App() {
   useEffect(installUnloadGuard, [])
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex h-14 w-full max-w-[1360px] items-stretch gap-10 px-10">
-          <a href="#/" className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em]">
+    <div className="flex min-h-screen flex-col text-foreground">
+      <header className="sticky top-0 z-20 border-b border-white/60 bg-white/65 shadow-[0_1px_0_rgb(16_52_38/0.04),0_8px_24px_-18px_rgb(16_52_38/0.25)] backdrop-blur-xl backdrop-saturate-150">
+        <div className="mx-auto flex h-16 w-full max-w-[1360px] items-center gap-8 px-10">
+          <a href="#/" className="flex items-center gap-2.5 text-[16px] font-semibold tracking-[-0.02em]">
             <Mark />
             Fitness Lab
           </a>
-          <nav aria-label="Main" className="flex items-stretch gap-1">
-            {NAV.map((item) => {
-              const active = item.routes.includes(route.name)
-              return (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  aria-current={active ? 'page' : undefined}
-                  className={`relative flex items-center px-3 text-[14px] font-medium transition-colors ${
-                    active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {item.label}
-                  <span
-                    aria-hidden
-                    className={`absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-foreground transition-opacity ${active ? 'opacity-100' : 'opacity-0'}`}
-                  />
-                </a>
-              )
-            })}
-          </nav>
+          <MainNav active={route.name} />
           <div className="ml-auto flex items-center gap-3">
-            <span className="num text-[13px] text-muted-foreground">{formatShortDate(localDate())}</span>
+            <span className="num text-[13px] font-medium text-muted-foreground">{formatShortDate(localDate())}</span>
             <SystemStatus />
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-[1360px] flex-1 px-10 pt-8 pb-16">
+      <main className="mx-auto w-full max-w-[1360px] flex-1 px-10 pt-9 pb-20">
         <Screen route={route} />
       </main>
     </div>

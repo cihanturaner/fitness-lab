@@ -23,7 +23,7 @@ function performed(order: number, exerciseId: string): PerformedSet {
     exercise_id: exerciseId,
     set_order: order,
     set_type: 'working',
-    load_kg: '80',
+    load_lb: '80',
     reps: 5,
     rir: 2,
     notes: null,

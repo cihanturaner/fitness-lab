@@ -12,15 +12,15 @@ function planned(reps_min: number, reps_max: number | null, rir: [number, number
     reps_max,
     target_rir_min: rir?.[0] ?? null,
     target_rir_max: rir?.[1] ?? null,
-    target_load_kg: load,
+    target_load_lb: load,
     notes: null,
   }
 }
 
 describe('notebook formatting', () => {
-  it('writes a set as kg×reps@RIR', () => {
-    expect(compactSet({ load_kg: '82.5', reps: 6, rir: 2 })).toBe('82.5×6@2')
-    expect(compactSet({ load_kg: null, reps: 10, rir: null })).toBe('–×10')
+  it('writes a set as lb×reps@RIR', () => {
+    expect(compactSet({ load_lb: '82.5', reps: 6, rir: 2 })).toBe('82.5×6@2')
+    expect(compactSet({ load_lb: null, reps: 10, rir: null })).toBe('–×10')
   })
 
   it('summarises a prescription on one line', () => {
@@ -28,7 +28,7 @@ describe('notebook formatting', () => {
       '3 × 5–8 · RIR 2 / 2 / 1',
     )
     expect(targetSummary([planned(8, 12, [0, 1]), planned(8, 12, [0, 1])])).toBe('2 × 8–12 · RIR 0–1')
-    expect(targetSummary([planned(10, null, null, '60'), planned(10, null, null, '60')])).toBe('2 × 10+ · 60 kg')
+    expect(targetSummary([planned(10, null, null, '60'), planned(10, null, null, '60')])).toBe('2 × 10+ · 60 lb')
   })
 
   it('always signs a change', () => {

@@ -13,6 +13,8 @@ export interface TrendSeries {
   dashed?: boolean
   /** Write the line's last value at its end. */
   endLabel?: boolean
+  /** A soft wash of the line's colour beneath it (the one signal series only). */
+  area?: boolean
   values: (number | null)[]
   /** Optional text per point, drawn above line markers (e.g. reps). */
   pointLabels?: (string | null)[]
@@ -50,6 +52,7 @@ export function TrendChart({
   const [width, setWidth] = useState(640)
   const [hover, setHover] = useState<number | null>(null)
   const clipId = useId()
+  const areaId = useId()
   const observer = useRef<ResizeObserver | null>(null)
   const measure = (node: HTMLDivElement | null) => {
     observer.current?.disconnect()
@@ -96,6 +99,27 @@ export function TrendChart({
     return d
   }
 
+  /** The closed shape under each continuous run of a line, down to the plot's floor. */
+  const areaPath = (items: (number | null)[]) => {
+    let d = ''
+    let run: [number, number][] = []
+    const flush = () => {
+      if (run.length > 1) {
+        const [firstX] = run[0] as [number, number]
+        const [lastX] = run.at(-1) as [number, number]
+        const floor = (PAD.top + plotH).toFixed(1)
+        d += `M${firstX.toFixed(1)},${floor}` + run.map(([px, py]) => `L${px.toFixed(1)},${py.toFixed(1)}`).join('') + `L${lastX.toFixed(1)},${floor}Z`
+      }
+      run = []
+    }
+    items.forEach((value, index) => {
+      if (value === null) return flush()
+      run.push([x(index), y(value)])
+    })
+    flush()
+    return d
+  }
+
   const onMove = (event: PointerEvent<SVGRectElement>) => {
     const box = event.currentTarget.getBoundingClientRect()
     const ratio = (event.clientX - box.left) / box.width
@@ -131,13 +155,17 @@ export function TrendChart({
       <div ref={measure} className="relative w-full">
         <svg width="100%" height={height} role="img" aria-label={label} className="num">
           <defs>
+            <linearGradient id={areaId} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="var(--emerald-500)" stopOpacity={0.2} />
+              <stop offset="100%" stopColor="var(--emerald-500)" stopOpacity={0} />
+            </linearGradient>
             <clipPath id={clipId}>
               <rect x={PAD.left - 8} y={PAD.top - 8} width={plotW + 16} height={plotH + 16} />
             </clipPath>
           </defs>
           {scale.ticks.map((tick) => (
             <g key={tick}>
-              <line x1={PAD.left} x2={PAD.left + plotW} y1={y(tick)} y2={y(tick)} stroke="var(--border)" strokeWidth={1} />
+              <line x1={PAD.left} x2={PAD.left + plotW} y1={y(tick)} y2={y(tick)} stroke="var(--border)" strokeWidth={1} strokeDasharray="2 4" />
               <text x={PAD.left - 10} y={y(tick)} dy="0.32em" textAnchor="end" className="fill-muted-foreground text-[11px]">
                 {tick}
               </text>
@@ -159,9 +187,13 @@ export function TrendChart({
           <g clipPath={`url(#${clipId})`}>
             {series.map((item) => (
               <g key={item.label}>
+                {item.kind === 'line' && item.area && <path d={areaPath(item.values)} fill={`url(#${areaId})`} className="fade-late" />}
                 {item.kind === 'line' && (
                   <path
                     d={path(item.values)}
+                    // Solid lines draw themselves in once; a dashed reference line just appears.
+                    pathLength={item.dashed ? undefined : 1}
+                    className={item.dashed ? undefined : 'draw'}
                     fill="none"
                     stroke={item.color}
                     strokeWidth={item.dashed ? 1.25 : 2.5}
@@ -170,15 +202,18 @@ export function TrendChart({
                     strokeLinecap="round"
                   />
                 )}
-                {item.kind === 'dots' &&
-                  item.values.map((value, index) =>
-                    value === null ? null : <circle key={index} cx={x(index)} cy={y(value)} r={2.75} fill={item.color} />,
-                  )}
+                {item.kind === 'dots' && (
+                  <g className="fade-late">
+                    {item.values.map((value, index) =>
+                      value === null ? null : <circle key={index} cx={x(index)} cy={y(value)} r={2.75} fill={item.color} />,
+                    )}
+                  </g>
+                )}
                 {item.kind === 'line' &&
                   item.markers &&
                   item.values.map((value, index) =>
                     value === null ? null : (
-                      <g key={index}>
+                      <g key={index} className="fade-late">
                         <circle cx={x(index)} cy={y(value)} r={4} fill={item.color} stroke="var(--card)" strokeWidth={2} />
                         {item.pointLabels?.[index] && (
                           <text x={x(index)} y={y(value) - 10} textAnchor="middle" className="fill-foreground text-[11px] font-medium">
@@ -198,9 +233,9 @@ export function TrendChart({
               const value = item.values[at]
               if (at < 0 || value === null || value === undefined) return null
               return (
-                <g key={item.label}>
-                  <circle cx={x(at)} cy={y(value)} r={3.5} fill={item.color} stroke="var(--card)" strokeWidth={1.5} />
-                  <text x={x(at) + 8} y={y(value)} dy="0.32em" className="text-[12px] font-semibold" fill={item.color}>
+                <g key={item.label} className="fade-late">
+                  <circle cx={x(at)} cy={y(value)} r={5} fill={item.color} stroke="var(--card)" strokeWidth={2.5} />
+                  <text x={x(at) + 10} y={y(value)} dy="0.32em" className="text-[13px] font-semibold" fill={item.color}>
                     {value.toFixed(2)}
                   </text>
                 </g>
@@ -222,7 +257,7 @@ export function TrendChart({
         {hover !== null && dates[hover] && (
           <div
             role="tooltip"
-            className="pointer-events-none absolute top-2 min-w-32 rounded-md border border-border bg-popover px-2.5 py-1.5 text-[12px] shadow-[0_6px_16px_-6px_rgb(22_25_28/0.2)]"
+            className="pointer-events-none absolute top-2 min-w-36 animate-in rounded-[12px] bg-popover px-3 py-2 text-[12px] shadow-[var(--shadow-raised)] fade-in duration-150"
             style={{ left: Math.min(x(hover) + 10, width - 160) }}
           >
             <p className="font-medium">{formatShortDate(dates[hover])}</p>

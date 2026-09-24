@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Nutrition } from '@/api/types'
@@ -32,19 +32,60 @@ describe('NutritionScreen', () => {
     const date = await screen.findByLabelText('Nutrition date')
     await user.clear(date)
     await user.type(date, '2026-09-01')
-    await user.type(screen.getByRole('textbox', { name: 'Calories kcal' }), '2410')
+    // Calories are never typed: there is no field for them.
+    expect(screen.queryByRole('textbox', { name: /calories/i })).not.toBeInTheDocument()
     await user.type(screen.getByRole('textbox', { name: 'Protein g' }), '150')
     await user.type(screen.getByRole('textbox', { name: 'Fat g' }), '62')
+    // 150 x 4 + 62 x 9, live, before anything is saved.
+    expect(screen.getByTestId('nut-live-kcal')).toHaveTextContent('1158 kcal')
     await user.click(screen.getByRole('button', { name: 'Save day' }))
     await waitFor(() =>
       expect(calls.find((call) => call.method === 'PUT')?.body).toEqual({
-        calories_kcal: 2410,
         protein_g: 150,
         carbs_g: null,
         fat_g: 62,
         notes: null,
       }),
     )
+  })
+
+  it('computes calories live from the macros as they are typed and edited', async () => {
+    fakeApi({
+      'GET /api/nutrition': () => ({ body: EMPTY }),
+      'GET /api/nutrition/review': () => ({ body: REVIEW }),
+    })
+    const user = userEvent.setup()
+    render(<NutritionScreen />)
+    const live = await screen.findByTestId('nut-live-kcal')
+    expect(live).toHaveTextContent('0 kcal')
+    await user.type(screen.getByRole('textbox', { name: 'Fat g' }), '10')
+    expect(live).toHaveTextContent('90 kcal')
+    await user.type(screen.getByRole('textbox', { name: 'Protein g' }), '10')
+    expect(live).toHaveTextContent('130 kcal')
+    await user.type(screen.getByRole('textbox', { name: 'Carbs g' }), '10')
+    expect(live).toHaveTextContent('170 kcal')
+    // An edit re-derives: 76 P, 210 C, 70 F is 304 + 840 + 630.
+    for (const [name, value] of [['Protein g', '76'], ['Carbs g', '210'], ['Fat g', '70']] as const) {
+      await user.clear(screen.getByRole('textbox', { name }))
+      await user.type(screen.getByRole('textbox', { name }), value)
+    }
+    expect(live).toHaveTextContent('1774 kcal')
+    expect(screen.getByText('304 + 840 + 630 kcal')).toBeInTheDocument()
+    await user.clear(screen.getByRole('textbox', { name: 'Fat g' }))
+    await user.type(screen.getByRole('textbox', { name: 'Fat g' }), '0')
+    expect(live).toHaveTextContent('1144 kcal')
+  })
+
+  it('shows a logged day with the calories derived from its macros', async () => {
+    fakeApi({
+      'GET /api/nutrition': () => ({ body: NUTRITION }),
+      'GET /api/nutrition/review': () => ({ body: REVIEW }),
+    })
+    render(<NutritionScreen />)
+    const recent = await screen.findByRole('region', { name: 'Recent days' })
+    const row = within(recent).getAllByTestId('nut-day')[0]
+    expect(row).toHaveTextContent('2318')
+    expect(screen.getByRole('region', { name: 'Targets' })).toHaveTextContent('2318')
   })
 
   it('refuses decimals and empty days', async () => {

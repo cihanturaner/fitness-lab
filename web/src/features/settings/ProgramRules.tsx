@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { parseProgramNotes } from './programNotes'
 
@@ -39,30 +39,55 @@ function Value({ value }: { value: unknown }): ReactNode {
   )
 }
 
+/** One rule section: a button that opens its body with a short height-and-fade motion. */
+function RuleSection({ title, children }: { title: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const body = useId()
+  return (
+    <div className="px-5 py-1 text-[13px] leading-5">
+      <h4>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={body}
+          className="press flex w-full items-center gap-2 rounded-lg py-2.5 text-left font-semibold hover:text-emerald-800"
+          onClick={() => setOpen((value) => !value)}
+        >
+          <ChevronRight
+            className={`size-4 text-emerald-700 transition-transform duration-200 ease-[var(--ease-out)] ${open ? 'rotate-90' : ''}`}
+            aria-hidden
+          />
+          {title}
+        </button>
+      </h4>
+      {/* Closed content stays in the document (searchable, readable) but out of the tab order. */}
+      <div id={body} className="accordion-body" data-open={open} inert={!open}>
+        <div>
+          <div className="flex flex-col gap-3 pt-1 pb-3 pl-6">{children}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ProgramRules({ notes }: { notes: string }) {
   const sections = parseProgramNotes(notes)
   return (
-    <div className="flex flex-col divide-y divide-border rounded-[10px] border border-border bg-card">
+    <div className="flex flex-col divide-y divide-border overflow-hidden rounded-[16px] bg-sunken/60 shadow-[inset_0_0_0_1px_var(--border)]">
       {sections.map((section) => (
-        <details key={section.title} className="group px-5 py-3 text-[13px] leading-5">
-          <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium [&::-webkit-details-marker]:hidden">
-            <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden />
-            {section.title}
-          </summary>
-          <div className="mt-3 flex flex-col gap-3 pb-1 pl-5">
-            {section.blocks.map((block, index) =>
-              block.kind === 'json' ? (
-                <Value key={index} value={block.value} />
-              ) : (
-                <ul key={index} className="flex flex-col gap-1">
-                  {block.lines.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              ),
-            )}
-          </div>
-        </details>
+        <RuleSection key={section.title} title={section.title}>
+          {section.blocks.map((block, index) =>
+            block.kind === 'json' ? (
+              <Value key={index} value={block.value} />
+            ) : (
+              <ul key={index} className="flex flex-col gap-1">
+                {block.lines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            ),
+          )}
+        </RuleSection>
       ))}
     </div>
   )

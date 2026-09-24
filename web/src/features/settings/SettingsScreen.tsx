@@ -22,7 +22,7 @@ const BACKUP_KIND: Record<Backup['kind'], string> = {
 
 function Section({ title, children, aside }: { title: string; children: React.ReactNode; aside?: React.ReactNode }) {
   return (
-    <section aria-label={title} className="grid gap-4 border-t border-border pt-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
+    <section aria-label={title} className="surface grid gap-5 p-7 lg:grid-cols-[18rem_minmax(0,1fr)]">
       <div className="flex flex-col gap-1">
         <h2 className="t-section">{title}</h2>
         {aside && <div className="t-micro">{aside}</div>}
@@ -115,7 +115,7 @@ function BlockSettings({ loaded, onSaved }: { loaded: Loaded; onSaved: () => Pro
             }}
           />
         </label>
-        <Button type="submit" className="h-9" isDisabled={start === current}>
+        <Button type="submit" className="h-9 px-4" isDisabled={start === current}>
           Save start date
         </Button>
       </form>
@@ -160,7 +160,7 @@ function Backups({ backups, onSaved }: { backups: Backup[]; onSaved: () => Promi
       aside="A backup is a verified full copy of the database in data/snapshots/ on this machine. Copies are also taken automatically before updates and deletions."
     >
       <div className="flex flex-wrap items-center gap-3">
-        <Button className="h-9 gap-1.5" isDisabled={busy} onPress={() => void backup()}>
+        <Button className="h-9 gap-1.5 px-4" isDisabled={busy} onPress={() => void backup()}>
           <HardDriveDownload aria-hidden />
           Back up now
         </Button>
@@ -181,7 +181,7 @@ function Backups({ backups, onSaved }: { backups: Backup[]; onSaved: () => Promi
       ) : (
         <table className="num w-full max-w-2xl text-[13px]">
           <thead className="text-left text-[12px] text-muted-foreground">
-            <tr className="border-b border-border-strong">
+            <tr className="border-b border-border">
               <th className="py-2 pr-4 font-medium">When (UTC)</th>
               <th className="py-2 pr-4 font-medium">Kind</th>
               <th className="py-2 text-right font-medium">Size</th>
@@ -232,7 +232,7 @@ export function SettingsScreen() {
   }
   const version = loaded.program.version
   return (
-    <div className="flex flex-col gap-8">
+    <div className="enter flex flex-col gap-5">
       <PageHeader title="Settings" meta="Everything here stays on this machine." />
       <BlockSettings loaded={loaded} onSaved={load} />
       <Section title="Calorie target" aside="Recorded on the Nutrition screen, where every target and its reason stay listed.">

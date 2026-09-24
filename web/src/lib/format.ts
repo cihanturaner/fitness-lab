@@ -32,9 +32,9 @@ export function setTypeLabel(code: string | null): string {
   return code === null ? 'Unclassified' : (SET_TYPE_LABELS[code] ?? code)
 }
 
-/** "80 kg × 5 @ 2" with explicit gaps where nothing was recorded. */
+/** "185 lb × 5 @ 2" with explicit gaps where nothing was recorded. */
 export function describeSet(performed: PerformedSet): string {
-  const load = performed.load_kg === null ? 'no load' : `${performed.load_kg} kg`
+  const load = performed.load_lb === null ? 'no load' : `${performed.load_lb} lb`
   const reps = performed.reps === null ? '? reps' : `${performed.reps}`
   const rir = performed.rir === null ? '' : ` @ RIR ${performed.rir}`
   return `${load} × ${reps}${rir}`
@@ -46,9 +46,9 @@ export function formatDate(isoDate: string): string {
   return `${WEEKDAYS[date.getDay()]?.slice(0, 3)} ${date.getDate()} ${MONTHS[date.getMonth()]?.slice(0, 3)} ${date.getFullYear()}`
 }
 
-/** "80×7@2" — the notebook shorthand. Unrecorded load is "–", unrecorded RIR is left off. */
-export function compactSet(performed: Pick<PerformedSet, 'load_kg' | 'reps' | 'rir'>): string {
-  const load = performed.load_kg ?? '–'
+/** "185×7@2" (pounds) — the notebook shorthand. Unrecorded load is "–", unrecorded RIR is left off. */
+export function compactSet(performed: Pick<PerformedSet, 'load_lb' | 'reps' | 'rir'>): string {
+  const load = performed.load_lb ?? '–'
   const reps = performed.reps === null ? '?' : String(performed.reps)
   return performed.rir === null ? `${load}×${reps}` : `${load}×${reps}@${performed.rir}`
 }
@@ -64,9 +64,9 @@ export function targetSummary(sets: PlannedSet[]): string {
     const shown = rirs.map((rir) => rir ?? '–')
     parts.push(`RIR ${same(shown) ? shown[0] : shown.join(' / ')}`)
   }
-  const loads = sets.map((planned) => planned.target_load_kg ?? '–')
-  if (sets.some((planned) => planned.target_load_kg !== null)) {
-    parts.push(`${same(loads) ? loads[0] : loads.join(' / ')} kg`)
+  const loads = sets.map((planned) => planned.target_load_lb ?? '–')
+  if (sets.some((planned) => planned.target_load_lb !== null)) {
+    parts.push(`${same(loads) ? loads[0] : loads.join(' / ')} lb`)
   }
   const types = sets.map((planned) => planned.set_type)
   if (types.some((type) => type !== 'working')) {

@@ -116,7 +116,7 @@ function GateAuditForm({
   }
 
   return (
-    <fieldset aria-label="Diagnostic gate audit" className="flex flex-col gap-3 rounded-lg border border-warn/40 bg-warn-surface p-4 text-[13px]">
+    <fieldset aria-label="Diagnostic gate audit" className="flex flex-col gap-3 rounded-[16px] border border-warn/25 bg-warn-surface p-4 text-[13px]">
       <legend className="px-1 font-medium">Audit before continuing</legend>
       <p className="text-muted-foreground">
         Two +150 kcal corrections in a row did not bring the trend into the band. Answer every check; only reliable inputs
@@ -133,7 +133,7 @@ function GateAuditForm({
                   type="button"
                   role="radio"
                   aria-checked={answers[name] === value}
-                  className={`rounded-md border px-2.5 py-0.5 text-[12px] font-medium ${
+                  className={`press rounded-full border px-2.5 py-0.5 text-[12px] font-semibold ${
                     answers[name] === value ? 'border-foreground bg-card' : 'border-border-strong text-muted-foreground hover:bg-card'
                   }`}
                   onClick={() => setAnswers((current) => ({ ...current, [name]: value }))}
@@ -149,7 +149,7 @@ function GateAuditForm({
         Note (optional)
         <input
           aria-label="Audit note"
-          className="h-9 rounded-md border border-input bg-card px-2.5 text-[14px] text-foreground"
+          className="h-9 rounded-[10px] border border-border-strong bg-card px-2.5 text-[14px] text-foreground"
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
         />
@@ -158,7 +158,7 @@ function GateAuditForm({
         <Button className="h-9" isDisabled={!reliable} onPress={() => void record('GENUINE_UNDERFEEDING_CONFIRMED')}>
           Underfeeding confirmed
         </Button>
-        <Button variant="outline" className="h-9 border-border-strong bg-card" isDisabled={!answered} onPress={() => void record('INPUTS_UNRELIABLE')}>
+        <Button variant="outline" className="h-9" isDisabled={!answered} onPress={() => void record('INPUTS_UNRELIABLE')}>
           Inputs unreliable
         </Button>
       </div>
@@ -237,7 +237,7 @@ export function WeeklyReview({
 
   const review = data.review
   const frame = (children: React.ReactNode) => (
-    <section aria-label="Weekly review" className="flex flex-col gap-4 rounded-[10px] border border-border bg-card p-6">
+    <section aria-label="Weekly review" className="surface flex flex-col gap-4 p-7">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="t-section">Weekly review</h2>
         <span className="t-micro">Decision support from the locked plan · the app never changes calories itself</span>
@@ -295,7 +295,7 @@ export function WeeklyReview({
         <dd data-testid="review-status" className="flex flex-wrap items-center gap-2">
           <span className="font-semibold">{status}</span>
           <span className="text-muted-foreground">{STATUS_TEXT[status]}</span>
-          {heuristic && <span className="rounded bg-sunken px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">HEURISTIC</span>}
+          {heuristic && <span className="rounded-full bg-sunken px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">HEURISTIC</span>}
           {status === 'OVER_GAIN' && review.sustained !== null && (
             <span className="text-muted-foreground">· {review.sustained ? 'sustained' : 'not yet sustained'}</span>
           )}
@@ -327,7 +327,7 @@ export function WeeklyReview({
             </Button>
           )}
           {canKeep && (
-            <Button variant="outline" className="h-9 border-border-strong bg-card" isDisabled={busy} onPress={() => void decide('KEPT')}>
+            <Button variant="outline" className="h-9" isDisabled={busy} onPress={() => void decide('KEPT')}>
               Keep current
             </Button>
           )}
@@ -354,7 +354,7 @@ export function WeeklyReview({
       {data.weeks.length > 0 && (
         <table className="num w-full text-[13px]" aria-label="Weekly reviews">
           <thead className="text-left text-[12px] text-muted-foreground">
-            <tr className="border-b border-border-strong">
+            <tr className="border-b border-border">
               <th className="py-2 pr-3 font-medium">Week</th>
               <th className="py-2 pr-3 font-medium">Ends</th>
               <th className="py-2 pr-3 text-right font-medium">7-day avg · kg</th>
@@ -366,7 +366,7 @@ export function WeeklyReview({
           </thead>
           <tbody>
             {data.weeks.map((row) => (
-              <tr key={row.block_week} data-testid="review-week" className="border-b border-border">
+              <tr key={row.block_week} data-testid="review-week" className="border-b border-border transition-colors duration-150 last:border-b-0 hover:bg-emerald-50/50">
                 <td className="py-1.5 pr-3">{row.block_week}</td>
                 <td className="py-1.5 pr-3">{formatShortDate(row.week_end)}</td>
                 <td className="py-1.5 pr-3 text-right">

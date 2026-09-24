@@ -52,6 +52,17 @@
     --color-warn: var(--warn);
     --color-series-trend: var(--series-trend);
     --color-series-daily: var(--series-daily);
+    --color-emerald-900: var(--emerald-900);
+    --color-emerald-800: var(--emerald-800);
+    --color-emerald-700: var(--emerald-700);
+    --color-emerald-600: var(--emerald-600);
+    --color-emerald-500: var(--emerald-500);
+    --color-emerald-300: var(--emerald-300);
+    --color-emerald-100: var(--emerald-100);
+    --color-emerald-50: var(--emerald-50);
+    --color-macro-protein: var(--macro-protein);
+    --color-macro-carbs: var(--macro-carbs);
+    --color-macro-fat: var(--macro-fat);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -62,56 +73,76 @@
 }
 
 :root {
-    /* Fitness Lab V2.1: a quiet training notebook. Neutral paper, graphite ink, one
-       slate-blue for what was PLANNED; performed numbers are always full ink. Status hues
-       (done, draft) are small signals, never fills. Contrast checked on --background and
-       --card: --muted-foreground >= 5.3:1, --faint >= 3.6:1 (placeholders and non-essential marks only). */
-    --background: #f4f4f1;
-    --foreground: #16191c;
+    /* Fitness Lab V3.1: premium consumer training. A mint-tinted paper with a faint emerald
+       wash, white cards that float on soft green-tinted shadows (no grey outlines), deep
+       green-black ink and ONE accent family: emerald. What was PLANNED stays a quiet
+       steel-blue; performed numbers are full ink. Contrast checked on --background and
+       --card: --muted-foreground >= 5.2:1, --faint >= 3.3:1 (placeholders and
+       non-essential marks only), white on --primary 6.4:1. */
+    --background: #edf3ef;
+    --foreground: #0f1f19;
     --card: #ffffff;
-    --card-foreground: #16191c;
+    --card-foreground: #0f1f19;
     --popover: #ffffff;
-    --popover-foreground: #16191c;
-    --primary: #16191c;
+    --popover-foreground: #0f1f19;
+    --primary: #1b684f;
     --primary-foreground: #ffffff;
-    --secondary: #ebebe7;
-    --secondary-foreground: #16191c;
-    --muted: #eeeeea;
-    --muted-foreground: #5c6268;
-    --faint: #7d8389;
-    --accent: #ebebe7;
-    --accent-foreground: #16191c;
-    --destructive: #a5341f;
-    --border: #e2e2dd;
-    --border-strong: #cfcfc9;
-    --input: #868b90; /* field edges: >= 3:1 on paper and card (WCAG 1.4.11) */
-    --ring: #2f5d86;
-    --sunken: #efefeb;
-    --plan: #2f5d86;
-    --plan-surface: #eef3f8;
-    --plan-rule: #a9bdd0;
-    --ok: #2b6a47;
-    --ok-surface: #ecf4ef;
-    --warn: #93600f;
-    --warn-surface: #fbf3e4;
-    /* Chart series, validated (lightness, chroma, CVD, contrast) on the card surface. */
-    --series-trend: #2f5d86;
-    --series-daily: #a3aab0;
-    --series-target: #93600f;
-    --chart-1: #2f5d86;
-    --chart-2: #5c6268;
-    --chart-3: #a9bdd0;
-    --chart-4: #2b6a47;
-    --chart-5: #93600f;
-    --radius: 0.625rem;
-    --sidebar: #efefeb;
-    --sidebar-foreground: #16191c;
-    --sidebar-primary: #16191c;
+    --secondary: #e3eee8;
+    --secondary-foreground: #0f1f19;
+    --muted: #e6efea;
+    --muted-foreground: #53645c;
+    --faint: #788a81;
+    --accent: #e3eee8;
+    --accent-foreground: #0f1f19;
+    --destructive: #b23a24;
+    --border: #e1eae5;
+    --border-strong: #cad8d0;
+    --input: #83958c; /* field edges: >= 3:1 on card (WCAG 1.4.11) */
+    --ring: #1b684f;
+    --sunken: #f2f7f4;
+    --plan: #3a6680;
+    --plan-surface: #ebf2f5;
+    --plan-rule: #b5ccd8;
+    --ok: #17744f;
+    --ok-surface: #e0f1e7;
+    --warn: #9a620c;
+    --warn-surface: #fbf0dc;
+    /* The one emerald family, deepest to palest. */
+    --emerald-900: #0f3f30;
+    --emerald-800: #145740;
+    --emerald-700: #1b684f;
+    --emerald-600: #23805f;
+    --emerald-500: #2f9a72;
+    --emerald-300: #8fd0b2;
+    --emerald-100: #dcf0e5;
+    --emerald-50: #eef8f2;
+    /* Macronutrients: distinct but of one family of earth tones around the emerald. */
+    --macro-protein: #1d7a58;
+    --macro-carbs: #b0842c;
+    --macro-fat: #3e6e9b;
+    /* Chart series, validated on the card surface. */
+    --series-trend: #1b684f;
+    --series-daily: #a7b8b0;
+    --series-target: #9a620c;
+    --chart-1: #1b684f;
+    --chart-2: #53645c;
+    --chart-3: #8fd0b2;
+    --chart-4: #3e6e9b;
+    --chart-5: #b0842c;
+    /* Depth: green-tinted, layered, never a flat grey drop. */
+    --shadow-card: 0 1px 2px rgb(16 52 38 / 0.05), 0 6px 18px -8px rgb(16 52 38 / 0.10), 0 18px 40px -24px rgb(16 52 38 / 0.14);
+    --shadow-raised: 0 2px 4px rgb(16 52 38 / 0.06), 0 12px 28px -10px rgb(16 52 38 / 0.16), 0 28px 56px -28px rgb(16 52 38 / 0.20);
+    --shadow-glow: 0 0 0 3px rgb(35 128 95 / 0.16), 0 14px 32px -14px rgb(27 104 79 / 0.38);
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --radius: 0.75rem;
+    --sidebar: #edf3ef;
+    --sidebar-foreground: #0f1f19;
+    --sidebar-primary: #1b684f;
     --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #ebebe7;
-    --sidebar-accent-foreground: #16191c;
-    --sidebar-border: #e2e2dd;
-    --sidebar-ring: #2f5d86;
+    --sidebar-accent: #e3eee8;
+    --sidebar-accent-foreground: #0f1f19;
+    --sidebar-border: #e1eae5;
+    --sidebar-ring: #1b684f;
 }
 
 .dark {
@@ -153,7 +184,13 @@
     @apply border-border outline-ring/50;
     }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    /* The atmosphere: a faint emerald light from the top left over mint paper. */
+    background:
+      radial-gradient(1100px 520px at 8% -8%, rgb(47 154 114 / 0.13), transparent 62%),
+      radial-gradient(900px 480px at 100% -12%, rgb(143 208 178 / 0.20), transparent 60%),
+      var(--background);
+    background-attachment: fixed;
     }
   html {
     @apply font-sans;
@@ -193,23 +230,170 @@
     outline-offset: 2px;
   }
   @media (prefers-reduced-motion: reduce) {
-    * {
+    *,
+    *::before,
+    *::after {
       transition-duration: 0ms !important;
       animation-duration: 0ms !important;
+      animation-delay: 0ms !important;
+      scroll-behavior: auto !important;
     }
   }
 }
 
 @layer components {
-  /* The type scale (px): title 28/32, metric 32/36 (hero 44/48), section 15/20,
-     body 14/20, meta 13/18, micro 12/16. Nothing smaller than 12. */
-  .t-title { font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: -0.02em; }
-  .t-hero { font-size: 44px; line-height: 48px; font-weight: 500; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
-  .t-metric { font-size: 32px; line-height: 36px; font-weight: 500; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
-  .t-stat { font-size: 20px; line-height: 24px; font-weight: 500; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
-  .t-section { font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  /* The type scale (px): title 30/36, hero 52/56, metric 34/38, stat 22/28, section 15/20,
+     body 14/20, meta 13/18, micro 12/16. Nothing smaller than 12. Numbers are set heavier
+     and tighter than words, in tabular figures: they are what this product is read for. */
+  .t-title { font-size: 30px; line-height: 36px; font-weight: 650; letter-spacing: -0.025em; }
+  .t-hero { font-size: 52px; line-height: 56px; font-weight: 650; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+  .t-metric { font-size: 34px; line-height: 38px; font-weight: 650; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; }
+  .t-stat { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
+  .t-section { font-size: 15px; line-height: 20px; font-weight: 650; letter-spacing: -0.012em; }
   .t-body { font-size: 14px; line-height: 20px; }
   .t-meta { font-size: 13px; line-height: 18px; color: var(--muted-foreground); }
   .t-micro { font-size: 12px; line-height: 16px; color: var(--muted-foreground); }
-  .t-unit { font-size: 14px; line-height: 20px; font-weight: 400; letter-spacing: 0; color: var(--muted-foreground); }
+  .t-unit { font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0; color: var(--muted-foreground); }
+
+  /* Surfaces. A card floats on the paper by shadow alone; a well sits inside a card. */
+  .surface {
+    background: var(--card);
+    border-radius: 22px;
+    box-shadow: var(--shadow-card);
+  }
+  .well {
+    background: var(--sunken);
+    border-radius: 14px;
+  }
+  /* Interactive surfaces rise a little under the pointer or the keyboard. */
+  .lift {
+    transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
+  }
+  .lift:hover,
+  .lift:focus-within {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-raised);
+  }
+  /* A tactile press for every button-like control. */
+  .press {
+    transition: transform 120ms var(--ease-out), background-color 150ms, box-shadow 150ms, color 150ms;
+  }
+  .press:active {
+    transform: scale(0.97);
+  }
+  /* The one bold surface: today's session. */
+  .hero-surface {
+    color: #fff;
+    border-radius: 26px;
+    background:
+      radial-gradient(640px 280px at 100% 0%, rgb(143 208 178 / 0.30), transparent 65%),
+      radial-gradient(420px 240px at 0% 100%, rgb(15 63 48 / 0.55), transparent 70%),
+      linear-gradient(135deg, var(--emerald-800) 0%, var(--emerald-700) 45%, var(--emerald-600) 100%);
+    box-shadow: 0 2px 4px rgb(15 63 48 / 0.12), 0 22px 48px -20px rgb(15 63 48 / 0.55);
+  }
+
+  /* --- motion ----------------------------------------------------------------------- */
+
+  /* One orchestrated entrance per screen: its direct children rise in, 45 ms apart. */
+  .enter > * {
+    animation: rise 320ms var(--ease-out) both;
+  }
+  .enter > :nth-child(2) { animation-delay: 45ms; }
+  .enter > :nth-child(3) { animation-delay: 90ms; }
+  .enter > :nth-child(4) { animation-delay: 135ms; }
+  .enter > :nth-child(5) { animation-delay: 180ms; }
+  .enter > :nth-child(n + 6) { animation-delay: 220ms; }
+
+  /* A bar that fills from its left edge when it first appears; later changes glide. */
+  .fill-in {
+    transform-origin: left center;
+    animation: fill-in 650ms var(--ease-out) both;
+    transition: width 450ms var(--ease-out), background-color 300ms;
+  }
+
+  /* A just-saved set: a brief emerald wash that settles into the row. */
+  .just-saved > td {
+    animation: saved-wash 1100ms var(--ease-out) both;
+  }
+  .pop-in {
+    animation: pop-in 260ms var(--ease-out) both;
+  }
+  /* A check that appears over a saved set's number, holds, then gives the number back. */
+  .confirm {
+    animation: confirm 1400ms var(--ease-out) both;
+  }
+
+  /* A ring's arc sweeps in from zero, then glides between values. */
+  .ring-arc {
+    animation: ring-in 800ms var(--ease-out) both;
+    transition: stroke-dashoffset 500ms var(--ease-out);
+  }
+
+  .ring-segment {
+    animation: segment-in 800ms var(--ease-out) both;
+    transition: stroke-dasharray 500ms var(--ease-out), stroke-dashoffset 500ms var(--ease-out);
+  }
+
+  /* A chart's lines draw themselves once; points fade in after. */
+  .draw {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: draw 900ms var(--ease-out) 80ms forwards;
+  }
+  .fade-late {
+    animation: fade 400ms ease-out 350ms both;
+  }
+
+  /* An accordion: rows animate between 0fr and 1fr, content stays in the document. */
+  .accordion-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 240ms var(--ease-out), opacity 200ms ease-out;
+    opacity: 0;
+  }
+  .accordion-body[data-open='true'] {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  .accordion-body > * {
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fill-in {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes saved-wash {
+  0% { background-color: rgb(47 154 114 / 0.20); }
+  100% { background-color: transparent; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes ring-in {
+  from { stroke-dashoffset: var(--ring-c); }
+}
+@keyframes confirm {
+  0% { opacity: 0; transform: scale(0.5); }
+  14% { opacity: 1; transform: scale(1.08); }
+  24% { transform: scale(1); }
+  72% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes segment-in {
+  from { stroke-dasharray: 0 var(--ring-c); }
+}
+@keyframes draw {
+  to { stroke-dashoffset: 0; }
 }

@@ -27,7 +27,8 @@ export interface PerformedSet {
   exercise_id: string
   set_order: number
   set_type: SetType | null
-  load_kg: string | null
+  /** Pounds, as the server renders the stored grams ("225", "72.75"). */
+  load_lb: string | null
   reps: number | null
   rir: number | null
   notes: string | null
@@ -53,7 +54,7 @@ export interface PlannedSet {
   reps_max: number | null
   target_rir_min: number | null
   target_rir_max: number | null
-  target_load_kg: string | null
+  target_load_lb: string | null
   notes: string | null
 }
 
@@ -157,7 +158,7 @@ export interface CompleteResult {
 
 export interface SetFields {
   set_type?: SetType | null
-  load_kg?: string | null
+  load_lb?: string | null
   reps?: number | null
   rir?: number | null
   notes?: string | null
@@ -260,7 +261,10 @@ export interface Bodyweight {
 
 export interface NutritionDay {
   logged_on: string
-  calories_kcal: number | null
+  /** Derived by the server: protein × 4 + carbs × 4 + fat × 9. Never entered. */
+  calories_kcal: number
+  /** False when a macro is unrecorded: the total covers the recorded macros only. */
+  calories_complete: boolean
   protein_g: number | null
   carbs_g: number | null
   fat_g: number | null
@@ -292,7 +296,6 @@ export interface Nutrition {
 }
 
 export interface NutritionFields {
-  calories_kcal: number | null
   protein_g: number | null
   carbs_g: number | null
   fat_g: number | null

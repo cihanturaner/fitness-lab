@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, MouseEvent, ReactNode } from 'react'
+import type { CSSProperties, InputHTMLAttributes, MouseEvent, ReactNode } from 'react'
 import { AlertCircle, CalendarDays, CheckCircle2, Info, type LucideIcon } from 'lucide-react'
 import { formatShortDate } from '@/lib/format'
 
@@ -59,8 +59,8 @@ export function EmptyState({
 }) {
   return (
     <div className={`flex flex-col items-center justify-center gap-3 px-6 py-8 text-center ${className}`}>
-      <span className="flex size-10 items-center justify-center rounded-full bg-sunken text-muted-foreground">
-        <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
+      <span className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-700 shadow-[inset_0_0_0_1px_rgb(27_104_79/0.08)]">
+        <Icon className="size-5" strokeWidth={1.75} aria-hidden />
       </span>
       <div className="flex max-w-sm flex-col gap-1">
         <p className="t-body font-medium">{title}</p>
@@ -76,7 +76,7 @@ export function Skeleton({ label, blocks = ['h-8 w-72', 'h-28', 'h-56'] }: { lab
   return (
     <div role="status" aria-label={label} className="flex animate-in flex-col gap-6 fade-in duration-300">
       {blocks.map((block, index) => (
-        <div key={index} className={`animate-pulse rounded-[10px] bg-sunken ${block}`} />
+        <div key={index} className={`animate-pulse rounded-[22px] bg-card/70 ${block}`} />
       ))}
       <span className="sr-only">{label}</span>
     </div>
@@ -85,8 +85,8 @@ export function Skeleton({ label, blocks = ['h-8 w-72', 'h-28', 'h-56'] }: { lab
 
 const CALLOUT = {
   error: { icon: AlertCircle, className: 'border-destructive/30 bg-destructive/5 text-destructive' },
-  ok: { icon: CheckCircle2, className: 'border-ok/25 bg-ok-surface text-ok' },
-  warn: { icon: AlertCircle, className: 'border-warn/25 bg-warn-surface text-warn' },
+  ok: { icon: CheckCircle2, className: 'border-ok/20 bg-ok-surface text-ok' },
+  warn: { icon: AlertCircle, className: 'border-warn/20 bg-warn-surface text-warn' },
   info: { icon: Info, className: 'border-plan-rule/60 bg-plan-surface text-plan' },
 } as const
 
@@ -109,7 +109,7 @@ export function Callout({
     <div
       role={role}
       data-testid={testId}
-      className={`flex animate-in gap-2.5 rounded-lg border px-3.5 py-2.5 fade-in duration-200 ${className}`}
+      className={`flex animate-in gap-2.5 rounded-[14px] border px-4 py-3 fade-in slide-in-from-top-1 duration-200 ${className}`}
     >
       <Icon className="mt-0.5 size-4 shrink-0" strokeWidth={2} aria-hidden />
       <div className="flex min-w-0 flex-col gap-1 text-[13px] leading-[18px]">
@@ -131,7 +131,7 @@ export function LoadError({ what, detail, onRetry }: { what: string; detail: str
       <p className="t-micro">{detail}</p>
       <button
         type="button"
-        className="rounded-md border border-border-strong bg-card px-3 py-1.5 text-[13px] font-medium hover:bg-sunken"
+        className="press rounded-[10px] border border-border-strong bg-card px-3 py-1.5 text-[13px] font-medium hover:bg-sunken"
         onClick={onRetry ?? (() => window.location.reload())}
       >
         Try again
@@ -142,10 +142,15 @@ export function LoadError({ what, detail, onRetry }: { what: string; detail: str
 
 /** A small status signal: a dot and a word. */
 export function StatusDot({ tone, children }: { tone: 'ok' | 'warn' | 'muted' | 'plan'; children: ReactNode }) {
-  const dot = { ok: 'bg-ok', warn: 'bg-warn', muted: 'bg-faint', plan: 'bg-plan' }[tone]
-  const text = { ok: 'text-ok', warn: 'text-warn', muted: 'text-muted-foreground', plan: 'text-plan' }[tone]
+  const dot = { ok: 'bg-ok', warn: 'bg-emerald-500', muted: 'bg-faint', plan: 'bg-plan' }[tone]
+  const text = {
+    ok: 'bg-emerald-100 text-emerald-800',
+    warn: 'border border-dashed border-emerald-600/60 bg-emerald-50 text-emerald-800',
+    muted: 'bg-sunken text-muted-foreground',
+    plan: 'bg-plan-surface text-plan',
+  }[tone]
   return (
-    <span className={`inline-flex items-center gap-1.5 text-[13px] font-medium ${text}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${text}`}>
       <span className={`size-1.5 rounded-full ${dot}`} aria-hidden />
       {children}
     </span>
@@ -153,22 +158,34 @@ export function StatusDot({ tone, children }: { tone: 'ok' | 'warn' | 'muted' | 
 }
 
 /**
- * Logged against a known target: a thin bar whose fill is the logged share (capped at the
- * track), with a tick at the target. Only ever drawn when the target is known.
+ * Logged against a known target: a bar whose fill is the logged share (capped at the
+ * track), with a tick at the target. Only ever drawn when the target is known. The fill
+ * grows in from the left when it first appears and glides when the value changes.
  */
-export function Meter({ value, target, height = 6 }: { value: number | null; target: number; height?: number }) {
+export function Meter({
+  value,
+  target,
+  height = 6,
+  color,
+}: {
+  value: number | null
+  target: number
+  height?: number
+  /** A CSS colour for the fill; default: emerald, deepening once the target is met. */
+  color?: string
+}) {
   // The track spans 0–125 % of target so "over" is visible past the tick.
   const span = target * 1.25
   const share = value === null ? 0 : Math.min(value / span, 1)
   const met = value !== null && value >= target
   return (
     <div className="relative w-full" style={{ height }} aria-hidden>
-      <div className="absolute inset-0 rounded-full bg-sunken" />
+      <div className="absolute inset-0 rounded-full bg-sunken shadow-[inset_0_1px_1px_rgb(16_52_38/0.06)]" />
       <div
-        className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ease-out ${met ? 'bg-foreground' : 'bg-plan'}`}
-        style={{ width: `${share * 100}%` }}
+        className={`fill-in absolute inset-y-0 left-0 rounded-full ${color ? '' : met ? 'bg-emerald-700' : 'bg-gradient-to-r from-emerald-600 to-emerald-500'}`}
+        style={{ width: `${share * 100}%`, background: color }}
       />
-      <div className="absolute -inset-y-[3px] w-px bg-foreground/60" style={{ left: `${(1 / 1.25) * 100}%` }} />
+      <div className="absolute -inset-y-[3px] w-[2px] rounded-full bg-foreground/45" style={{ left: `${(1 / 1.25) * 100}%` }} />
     </div>
   )
 }
@@ -201,15 +218,15 @@ export function DateField({
 }) {
   return (
     <span
-      className={`relative inline-flex h-9 items-center gap-2 rounded-md border px-2.5 text-[14px] transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/40 ${
+      className={`relative inline-flex h-9 items-center gap-2 rounded-[10px] border px-2.5 text-[14px] transition-[border-color,box-shadow,background-color] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/15 ${
         input.disabled
           ? 'border-transparent px-0'
           : quiet
             ? 'border-transparent hover:border-border-strong hover:bg-card'
-            : 'border-input bg-card hover:border-border-strong'
+            : 'border-border-strong bg-card shadow-[0_1px_2px_rgb(16_52_38/0.05)] hover:border-input'
       } ${className}`}
     >
-      {!input.disabled && <CalendarDays className="size-4 shrink-0 text-faint" aria-hidden />}
+      {!input.disabled && <CalendarDays className="size-4 shrink-0 text-emerald-700/70" aria-hidden />}
       <span aria-hidden className="num whitespace-nowrap">
         {/^\d{4}-\d{2}-\d{2}$/.test(value) ? formatShortDate(value) : 'Pick a date'}
       </span>
@@ -224,5 +241,87 @@ export function DateField({
         className="absolute inset-0 h-full w-full cursor-pointer opacity-0 outline-none disabled:cursor-default [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"
       />
     </span>
+  )
+}
+
+/**
+ * A radial progress ring: the share of `max` reached, capped at a full circle. The arc grows
+ * in when it first appears and glides when the value changes (reduced motion: instant).
+ */
+export function ProgressRing({
+  value,
+  max,
+  size = 120,
+  stroke = 10,
+  track = 'var(--sunken)',
+  color = 'var(--emerald-600)',
+  children,
+  label,
+  segments,
+}: {
+  value: number
+  max: number | null
+  size?: number
+  stroke?: number
+  track?: string
+  color?: string
+  children?: ReactNode
+  label?: string
+  /** Parts of the value in their own colours (e.g. calories by macro), drawn end to end. */
+  segments?: { value: number; color: string }[]
+}) {
+  const radius = (size - stroke) / 2
+  const circumference = 2 * Math.PI * radius
+  const share = max === null || max <= 0 ? 0 : Math.max(0, Math.min(value / max, 1))
+  // Segment arcs share the filled length in proportion; 2 px gaps keep the parts legible.
+  const filled = circumference * share
+  const parts = (segments ?? []).filter((part) => part.value > 0)
+  const partsTotal = parts.reduce((sum, part) => sum + part.value, 0)
+  let cursor = 0
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }} role={label ? 'img' : undefined} aria-label={label}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90" aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={track} strokeWidth={stroke} />
+        {segments !== undefined &&
+          share > 0 &&
+          parts.map((part) => {
+            const length = partsTotal > 0 ? (filled * part.value) / partsTotal : 0
+            const start = cursor
+            cursor += length
+            const gap = parts.length > 1 ? Math.min(2, length / 2) : 0
+            return (
+              <circle
+                key={part.color}
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                fill="none"
+                stroke={part.color}
+                strokeWidth={stroke}
+                strokeDasharray={`${Math.max(length - gap, 0)} ${circumference}`}
+                strokeDashoffset={-start}
+                className="ring-segment"
+                style={{ '--ring-c': `${circumference}px` } as CSSProperties}
+              />
+            )
+          })}
+        {segments === undefined && share > 0 && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke={color}
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={circumference * (1 - share)}
+            className="ring-arc"
+            style={{ '--ring-c': `${circumference}px` } as CSSProperties}
+          />
+        )}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">{children}</div>
+    </div>
   )
 }

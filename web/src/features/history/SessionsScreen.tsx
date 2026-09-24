@@ -44,14 +44,14 @@ export function SessionsScreen() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="enter flex flex-col gap-8">
       <PageHeader title="History">
         <HistoryTabs current="sessions" />
       </PageHeader>
       {error && <LoadError what="sessions" detail={error} />}
       {!recent && !error && <Skeleton label="Loading sessions…" blocks={['h-72']} />}
       {recent && recent.length === 0 && (
-        <div className="rounded-[10px] border border-dashed border-border-strong bg-card/50 py-8">
+        <div className="surface py-8">
           <EmptyState
             icon={ListChecks}
             title="Nothing recorded yet."
@@ -66,7 +66,7 @@ export function SessionsScreen() {
         </div>
       )}
       {recent && recent.length > 0 && (
-        <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+        <div className="surface overflow-hidden">
           <table className="num w-full text-[14px]">
             <thead className="text-left text-[12px] text-muted-foreground">
               <tr className="border-b border-border">
@@ -74,13 +74,13 @@ export function SessionsScreen() {
                 <th className={`py-2.5 font-medium ${start ? '' : 'pl-5'}`}>Date</th>
                 <th className="py-2.5 pr-4 font-medium">Session</th>
                 <th className="py-2.5 pr-4 font-medium">Status</th>
-                <th className="py-2.5 pr-4 text-right font-medium">Working sets · recorded / planned</th>
+                <th className="py-3 pr-4 text-right font-medium">Working sets · recorded / planned</th>
                 <th className="w-32" />
               </tr>
             </thead>
             <tbody>
               {recent.map((workout) => (
-                <tr key={workout.id} data-testid="recent-workout" className="border-b border-border last:border-b-0 hover:bg-sunken/40">
+                <tr key={workout.id} data-testid="recent-workout" className="border-b border-border transition-colors duration-150 last:border-b-0 hover:bg-emerald-50/50">
                   {start && <td className="py-2.5 pl-5 text-muted-foreground">{weekLabel(workout.performed_on)}</td>}
                   <td className={`py-2.5 whitespace-nowrap ${start ? '' : 'pl-5'}`}>
                     {formatShortDate(workout.performed_on)}
@@ -88,7 +88,7 @@ export function SessionsScreen() {
                       <span className="text-muted-foreground"> {workout.performed_time_local}</span>
                     )}
                   </td>
-                  <td className="py-2.5 pr-4 font-medium">{workout.origin_name ?? 'Unplanned'}</td>
+                  <td className="py-2.5 pr-4 font-semibold">{workout.origin_name ?? 'Unplanned'}</td>
                   <td className="py-2.5 pr-4">
                     {workout.status === 'complete' ? <StatusDot tone="ok">Complete</StatusDot> : <StatusDot tone="warn">Draft</StatusDot>}
                   </td>
@@ -99,14 +99,14 @@ export function SessionsScreen() {
                         {' '}
                         / {workout.planned_work_sets}
                         {workout.status === 'complete' && workout.work_set_count < workout.planned_work_sets && (
-                          <span className="ml-1.5 text-[12px] text-muted-foreground">shortened</span>
+                          <span className="ml-1.5 rounded-full bg-warn-surface px-2 py-0.5 text-[11px] font-semibold text-warn">shortened</span>
                         )}
                       </span>
                     )}
                   </td>
                   <td className="py-2.5 pr-5 text-right">
                     <a
-                      className="inline-flex items-center gap-0.5 text-[13px] font-medium text-muted-foreground hover:text-foreground"
+                      className="press inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[13px] font-semibold text-emerald-700 hover:bg-emerald-50"
                       href={workoutHref(workout.id)}
                     >
                       {workout.status === 'complete' ? 'View' : 'Continue'}

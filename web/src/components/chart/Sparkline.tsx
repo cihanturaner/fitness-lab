@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 
 /**
  * A word-sized trend: faint daily points and a stronger line (e.g. the 7-day average), with
@@ -20,6 +20,7 @@ export function Sparkline({
   label: string
 }) {
   const [width, setWidth] = useState(200)
+  const gradient = useId()
   const observer = useRef<ResizeObserver | null>(null)
   const measure = (node: HTMLDivElement | null) => {
     observer.current?.disconnect()
@@ -43,27 +44,62 @@ export function Sparkline({
   const y = (value: number) => pad + (1 - (value - low) / (high - low)) * (height - pad * 2)
 
   let d = ''
-  let pen = false
+  let area = ''
+  let segment: string[] = []
+  const closeSegment = () => {
+    if (segment.length > 1) {
+      const first = segment[0]?.split(',')[0]
+      const last = segment.at(-1)?.split(',')[0]
+      area += `M${first},${height}L${segment.join('L')}L${last},${height}Z`
+    }
+    segment = []
+  }
   line.forEach((value, index) => {
     if (value === null) {
-      pen = false
+      if (segment.length > 0) closeSegment()
       return
     }
-    d += `${pen ? 'L' : 'M'}${x(index).toFixed(1)},${y(value).toFixed(1)}`
-    pen = true
+    const point = `${x(index).toFixed(1)},${y(value).toFixed(1)}`
+    d += `${segment.length > 0 ? 'L' : 'M'}${point}`
+    segment.push(point)
   })
+  closeSegment()
   const lastIndex = line.findLastIndex((value) => value !== null)
   const last = lastIndex >= 0 ? line[lastIndex] : null
 
   return (
     <div ref={measure} className="w-full">
       <svg width="100%" height={height} role="img" aria-label={label}>
+        <defs>
+          <linearGradient id={gradient} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="var(--emerald-500)" stopOpacity={0.22} />
+            <stop offset="100%" stopColor="var(--emerald-500)" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        {area && <path d={area} fill={`url(#${gradient})`} className="fade-late" />}
         {points.map((value, index) =>
           value === null ? null : <circle key={index} cx={x(index)} cy={y(value)} r={1.75} fill="var(--series-daily)" />,
         )}
-        <path d={d} fill="none" stroke="var(--series-trend)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <path
+          d={d}
+          pathLength={1}
+          className="draw"
+          fill="none"
+          stroke="var(--series-trend)"
+          strokeWidth={2.25}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
         {last !== null && last !== undefined && (
-          <circle cx={x(lastIndex)} cy={y(last)} r={3} fill="var(--series-trend)" stroke="var(--card)" strokeWidth={1.5} />
+          <circle
+            cx={x(lastIndex)}
+            cy={y(last)}
+            r={3.5}
+            fill="var(--series-trend)"
+            stroke="var(--card)"
+            strokeWidth={2}
+            className="fade-late"
+          />
         )}
       </svg>
     </div>

@@ -12,7 +12,7 @@ function performed(order: number, overrides: Partial<PerformedSet> = {}): Perfor
     exercise_id: 'bench',
     set_order: order,
     set_type: 'working',
-    load_kg: '82.5',
+    load_lb: '82.5',
     reps: 6,
     rir: 2,
     notes: null,
@@ -55,7 +55,7 @@ describe('EntryScreen — one compact block per exercise', () => {
     const block = await screen.findByTestId('slot-upper_a.01')
     expect(within(block).getAllByText('Smith Flat Bench Press')).toHaveLength(1)
     expect(within(block).getByTestId('target')).toHaveTextContent('Target 2 × 5–8 · RIR 2 / 0–1')
-    expect(within(block).getByTestId('last-performance')).toHaveTextContent('Last 80×6@2')
+    expect(within(block).getByTestId('last-performance')).toHaveTextContent('Last (lb) 80×6@2')
     expect(within(block).queryByText(/Planned/)).not.toBeInTheDocument()
     expect(screen.getByTestId('workout-status')).toHaveTextContent('Draft')
   })
@@ -75,7 +75,7 @@ describe('EntryScreen — one compact block per exercise', () => {
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
     expect(within(block).getAllByTestId('new-set-row')).toHaveLength(2)
-    expect(within(block).getByRole('textbox', { name: 'Load in kg, new set 1' })).toHaveValue('')
+    expect(within(block).getByRole('textbox', { name: 'Load in lb, new set 1' })).toHaveValue('')
     expect(within(block).getByRole('textbox', { name: 'Reps, new set 1' })).toHaveAttribute('placeholder', '5–8')
     expect(within(block).getByRole('textbox', { name: 'RIR, new set 2' })).toHaveAttribute('placeholder', '0–1')
     expect(server.calls.some((call) => call.method !== 'GET')).toBe(false)
@@ -89,7 +89,7 @@ describe('EntryScreen — one compact block per exercise', () => {
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
 
-    await user.type(within(block).getByRole('textbox', { name: 'Load in kg, new set 1' }), '82,5')
+    await user.type(within(block).getByRole('textbox', { name: 'Load in lb, new set 1' }), '82,5')
     await user.type(within(block).getByRole('textbox', { name: 'Reps, new set 1' }), '6')
     await user.type(within(block).getByRole('textbox', { name: 'RIR, new set 1' }), '2')
     await user.selectOptions(within(block).getByRole('combobox', { name: 'Set type, new set 1' }), 'working')
@@ -99,7 +99,7 @@ describe('EntryScreen — one compact block per exercise', () => {
       expect(posts(server.calls)[0]?.body).toEqual({
         exercise_id: 'bench',
         set_type: 'working',
-        load_kg: '82.5',
+        load_lb: '82.5',
         reps: 6,
         rir: 2,
         notes: null,
@@ -116,7 +116,7 @@ describe('EntryScreen — one compact block per exercise', () => {
     const block = await screen.findByTestId('slot-upper_a.01')
     // Saved set 1 was a working set: the pending row offers that type, so Tab skips it.
     expect(within(block).getByRole('combobox', { name: 'Set type, new set 2' })).toHaveValue('working')
-    const load = within(block).getByRole('textbox', { name: 'Load in kg, new set 2' })
+    const load = within(block).getByRole('textbox', { name: 'Load in lb, new set 2' })
 
     await user.click(load)
     await user.keyboard('85{Tab}5{Tab}1')
@@ -127,7 +127,7 @@ describe('EntryScreen — one compact block per exercise', () => {
       expect(posts(server.calls)[0]?.body).toEqual({
         exercise_id: 'bench',
         set_type: 'working',
-        load_kg: '85',
+        load_lb: '85',
         reps: 5,
         rir: 1,
         notes: null,
@@ -147,17 +147,17 @@ describe('EntryScreen — one compact block per exercise', () => {
   })
 
   it('starts a new row with the previous set’s load and type, never the plan’s', async () => {
-    serve(entryFixture({ sets: [performed(1, { set_type: 'warmup', load_kg: '40' })] }))
+    serve(entryFixture({ sets: [performed(1, { set_type: 'warmup', load_lb: '40' })] }))
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
     expect(within(block).getByRole('combobox', { name: 'Set type, new set 2' })).toHaveValue('warmup')
-    expect(within(block).getByRole('textbox', { name: 'Load in kg, new set 2' })).toHaveValue('40')
+    expect(within(block).getByRole('textbox', { name: 'Load in lb, new set 2' })).toHaveValue('40')
     // Warm-ups do not move the hint: planned set 1 (RIR 2) is still next.
     expect(within(block).getByRole('textbox', { name: 'RIR, new set 2' })).toHaveAttribute('placeholder', '2')
   })
 
   it('passes the load just entered on to the next row', async () => {
-    const saved = performed(1, { load_kg: '80', reps: 7, rir: null })
+    const saved = performed(1, { load_lb: '80', reps: 7, rir: null })
     const server = serve(entryFixture(), {
       'POST /api/workouts/w1/sets': () => {
         server.set(entryFixture({ sets: [saved] }))
@@ -167,12 +167,12 @@ describe('EntryScreen — one compact block per exercise', () => {
     const user = userEvent.setup()
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
-    await user.type(within(block).getByRole('textbox', { name: 'Load in kg, new set 1' }), '80')
+    await user.type(within(block).getByRole('textbox', { name: 'Load in lb, new set 1' }), '80')
     await user.type(within(block).getByRole('textbox', { name: 'Reps, new set 1' }), '7')
     await user.selectOptions(within(block).getByRole('combobox', { name: 'Set type, new set 1' }), 'working')
     await user.type(within(block).getByRole('textbox', { name: 'Reps, new set 1' }), '{Enter}')
     await waitFor(() =>
-      expect(within(block).getByRole('textbox', { name: 'Load in kg, new set 2' })).toHaveValue('80'),
+      expect(within(block).getByRole('textbox', { name: 'Load in lb, new set 2' })).toHaveValue('80'),
     )
     expect(within(block).getByRole('combobox', { name: 'Set type, new set 2' })).toHaveValue('working')
   })
@@ -203,7 +203,7 @@ describe('EntryScreen — one compact block per exercise', () => {
     const user = userEvent.setup()
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
-    await user.type(within(block).getByRole('textbox', { name: 'Load in kg, new set 1' }), '80{Enter}')
+    await user.type(within(block).getByRole('textbox', { name: 'Load in lb, new set 1' }), '80{Enter}')
     expect(await within(block).findByRole('alert')).toHaveTextContent(/enter reps/i)
     expect(posts(server.calls)).toHaveLength(0)
   })
@@ -213,11 +213,11 @@ describe('EntryScreen — one compact block per exercise', () => {
     const user = userEvent.setup()
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
-    const load = within(block).getByRole('textbox', { name: 'Load in kg, new set 2' })
+    const load = within(block).getByRole('textbox', { name: 'Load in lb, new set 2' })
     await user.clear(load)
     await user.type(load, '82.5555')
     await user.type(within(block).getByRole('textbox', { name: 'Reps, new set 2' }), '5{Enter}')
-    expect(await within(block).findByRole('alert')).toHaveTextContent(/load must be kilograms/i)
+    expect(await within(block).findByRole('alert')).toHaveTextContent(/load must be pounds/i)
     expect(posts(server.calls)).toHaveLength(0)
   })
 
@@ -228,12 +228,12 @@ describe('EntryScreen — one compact block per exercise', () => {
     const user = userEvent.setup()
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
-    const load = within(block).getByRole('textbox', { name: 'Load in kg, new set 2' })
+    const load = within(block).getByRole('textbox', { name: 'Load in lb, new set 2' })
     await user.clear(load)
     await user.type(load, '82.55')
     expect(load).toHaveValue('82.55')
     await user.type(within(block).getByRole('textbox', { name: 'Reps, new set 2' }), '5{Enter}')
-    await waitFor(() => expect(posts(server.calls)[0]?.body).toMatchObject({ load_kg: '82.55', reps: 5 }))
+    await waitFor(() => expect(posts(server.calls)[0]?.body).toMatchObject({ load_lb: '82.55', reps: 5 }))
   })
 
   it('Escape clears what was typed in a row', async () => {
@@ -416,7 +416,7 @@ describe('EntryScreen — one compact block per exercise', () => {
     const user = userEvent.setup()
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
-    expect(within(block).getByRole('textbox', { name: 'Load in kg, new set 2' })).toHaveValue('82.5')
+    expect(within(block).getByRole('textbox', { name: 'Load in lb, new set 2' })).toHaveValue('82.5')
     await user.click(screen.getByRole('button', { name: 'Complete workout' }))
     await waitFor(() => expect(server.calls.some((call) => call.url.endsWith('/complete'))).toBe(true))
     expect(posts(server.calls)).toHaveLength(0)
@@ -506,13 +506,13 @@ describe('EntryScreen — one compact block per exercise', () => {
   })
 
   it('shows the stored spelling after a save and never sends it twice', async () => {
-    const server = serve(entryFixture({ sets: [performed(1, { load_kg: '80' })] }), {
-      'PATCH /api/sets/set-1': () => ({ body: performed(1, { load_kg: '82.5' }) }),
+    const server = serve(entryFixture({ sets: [performed(1, { load_lb: '80' })] }), {
+      'PATCH /api/sets/set-1': () => ({ body: performed(1, { load_lb: '82.5' }) }),
     })
     const user = userEvent.setup()
     render(<EntryScreen workoutId="w1" />)
-    const load = await screen.findByRole('textbox', { name: 'Load in kg, set 1' })
-    server.set(entryFixture({ sets: [performed(1, { load_kg: '82.5' })] }))
+    const load = await screen.findByRole('textbox', { name: 'Load in lb, set 1' })
+    server.set(entryFixture({ sets: [performed(1, { load_lb: '82.5' })] }))
     await user.clear(load)
     await user.type(load, '82,5{Enter}')
     await waitFor(() => expect(load).toHaveValue('82.5'))
@@ -547,7 +547,7 @@ describe('EntryScreen — one compact block per exercise', () => {
   })
 
   it('after Enter saves a row, the cursor is in the next row’s load', async () => {
-    const saved = performed(2, { load_kg: '85', reps: 5 })
+    const saved = performed(2, { load_lb: '85', reps: 5 })
     const server = serve(entryFixture({ sets: [performed(1)] }), {
       'POST /api/workouts/w1/sets': () => {
         server.set(entryFixture({ sets: [performed(1), saved] }))
@@ -559,12 +559,12 @@ describe('EntryScreen — one compact block per exercise', () => {
     const block = await screen.findByTestId('slot-upper_a.01')
     // 2 planned sets, 1 saved: one pending row; add a second so Enter has somewhere to go.
     await user.click(within(block).getByRole('button', { name: /^Add set/ }))
-    const load = within(block).getByRole('textbox', { name: 'Load in kg, new set 2' })
+    const load = within(block).getByRole('textbox', { name: 'Load in lb, new set 2' })
     await user.click(load)
     await user.keyboard('{Control>}a{/Control}85{Tab}5{Enter}')
     await waitFor(() => expect(posts(server.calls)).toHaveLength(1))
     await waitFor(() =>
-      expect(within(block).getByRole('textbox', { name: 'Load in kg, new set 3' })).toHaveFocus(),
+      expect(within(block).getByRole('textbox', { name: 'Load in lb, new set 3' })).toHaveFocus(),
     )
   })
 

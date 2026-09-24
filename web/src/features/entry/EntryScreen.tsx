@@ -3,8 +3,9 @@ import { ArrowLeft, Check, Dumbbell, Plus, SlidersHorizontal } from 'lucide-reac
 import { ApiError, api } from '@/api/client'
 import type { CompletionIssue, Entry, Exercise, WorkSets } from '@/api/types'
 import { Button } from '@/components/ui/button'
-import { Callout, EmptyState, LoadError, Skeleton } from '@/components/app/primitives'
+import { Callout, EmptyState, LoadError, ProgressRing, Skeleton } from '@/components/app/primitives'
 import { exerciseLabel, formatDate, localDate } from '@/lib/format'
+import { AnimatedNumber } from '@/components/app/AnimatedNumber'
 import { navigate } from '@/lib/route'
 import { installUnloadGuard, unsavedDescriptions } from '@/lib/unsaved'
 import { ExerciseBlock } from './ExerciseBlock'
@@ -36,7 +37,7 @@ function ExerciseSelect({
   return (
     <select
       aria-label={label}
-      className="h-9 min-w-64 rounded-md border border-input bg-card px-2.5 text-[14px] outline-none hover:border-border-strong focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+      className="h-9 min-w-64 rounded-[10px] border border-border-strong bg-card px-2.5 text-[14px] shadow-[0_1px_2px_rgb(16_52_38/0.05)] outline-none hover:border-input focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/15"
       value=""
       onChange={(event) => event.target.value && onChange(event.target.value)}
     >
@@ -84,7 +85,7 @@ function NewExerciseForm({
       <input
         aria-label="New exercise name"
         placeholder="Exercise name"
-        className="h-9 rounded-md border border-input bg-card px-2.5 text-[14px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="h-9 rounded-[10px] border border-border-strong bg-card px-2.5 text-[14px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/15"
         value={name}
         autoFocus
         onChange={(event) => setName(event.target.value)}
@@ -92,7 +93,7 @@ function NewExerciseForm({
       <input
         aria-label="New exercise equipment"
         placeholder="Machine or equipment (optional)"
-        className="h-9 w-64 rounded-md border border-input bg-card px-2.5 text-[14px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="h-9 w-64 rounded-[10px] border border-border-strong bg-card px-2.5 text-[14px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/15"
         value={equipment}
         onChange={(event) => setEquipment(event.target.value)}
       />
@@ -337,72 +338,93 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
   const shortened = locked && entry.work_sets?.short === true
 
   return (
-    <div className="flex flex-col gap-5">
-      <header className="sticky top-0 z-10 -mx-10 -mt-8 flex flex-col gap-3 border-b border-border bg-background/90 px-10 pt-5 pb-4 backdrop-blur-md">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <div className="enter flex flex-col gap-5">
+      <header className="sticky top-[76px] z-10 -mt-3 flex flex-col gap-3 rounded-[22px] bg-white/80 px-5 py-4 shadow-[var(--shadow-card)] ring-1 ring-white/70 backdrop-blur-xl backdrop-saturate-150">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
           <a
             href="#/"
             aria-label="Back to the week"
-            className="-ml-2 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-sunken hover:text-foreground"
+            className="press -ml-1 inline-flex size-9 items-center justify-center rounded-full bg-card text-muted-foreground shadow-[0_1px_2px_rgb(16_52_38/0.08),0_0_0_1px_rgb(16_52_38/0.05)] hover:text-emerald-700"
           >
             <ArrowLeft className="size-4" aria-hidden />
           </a>
-          <h1 className="t-title">{origin ? origin.planned_workout_name : 'Unplanned session'}</h1>
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${
-              locked ? 'bg-ok-surface text-ok' : 'bg-warn-surface text-warn'
-            }`}
-          >
-            {locked ? <Check className="size-3.5" strokeWidth={2.5} aria-hidden /> : <span className="size-1.5 rounded-full bg-warn" aria-hidden />}
-            <span data-testid="workout-status">{locked ? 'Complete' : 'Draft'}</span>
-            {shortened && (
-              <span data-testid="workout-shortfall" className="font-medium">
-                · shortened
+          {plannedTotal > 0 && (
+            <ProgressRing
+              value={workedTotal}
+              max={plannedTotal}
+              size={52}
+              stroke={5}
+              color={workedTotal >= plannedTotal ? 'var(--emerald-700)' : 'var(--emerald-500)'}
+              label={`${workedTotal} of ${plannedTotal} working sets`}
+            >
+              <span className="num text-[13px] font-semibold tracking-[-0.02em]">
+                <AnimatedNumber value={workedTotal} />
               </span>
-            )}
-          </span>
-          <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <span className="sr-only">Date performed</span>
-            <CommitInput
-              type="date"
-              label="Date performed"
-              value={workout.performed_on}
-              align="left"
-              dense
-              className="w-[9.5rem]"
-              disabled={locked}
-              isValid={(text) => /^\d{4}-\d{2}-\d{2}$/.test(text)}
-              invalidHint="a date"
-              onCommit={(text) => run(() => api.patchWorkout(workout.id, { performed_on: text }))}
-            />
-          </label>
-          <span className="num flex items-center gap-2 text-[13px] text-muted-foreground">
-            {plannedTotal > 0 ? (
-              <>
-                <span className="relative h-1.5 w-20 overflow-hidden rounded-full bg-sunken" aria-hidden>
-                  <span
-                    className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ${workedTotal >= plannedTotal ? 'bg-ok' : 'bg-plan'}`}
-                    style={{ width: `${Math.min(workedTotal / plannedTotal, 1) * 100}%` }}
-                  />
-                </span>
-                <span>
-                  <span className="font-medium text-foreground">{workedTotal}</span> of {plannedTotal} working sets
-                  {setCount !== workedTotal && ` · ${setCount} total`}
-                </span>
-              </>
-            ) : (
-              <>
-                {setCount} {setCount === 1 ? 'set' : 'sets'} recorded
-              </>
-            )}
-          </span>
-          <span className="w-16 text-[12px] text-muted-foreground" aria-live="polite">
-            {saving ? 'Saving…' : ''}
-          </span>
+            </ProgressRing>
+          )}
+          <div className="flex min-w-0 flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="t-title">{origin ? origin.planned_workout_name : 'Unplanned session'}</h1>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] leading-4 font-semibold transition-colors duration-300 ${
+                  locked
+                    ? shortened
+                      ? 'bg-warn-surface text-warn'
+                      : 'bg-gradient-to-b from-emerald-600 to-emerald-700 text-white shadow-[0_4px_10px_-4px_rgb(27_104_79/0.6)]'
+                    : 'border border-dashed border-emerald-600/60 bg-emerald-50 text-emerald-800'
+                }`}
+              >
+                {locked ? (
+                  <Check className="pop-in size-3.5" strokeWidth={3} aria-hidden />
+                ) : (
+                  <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
+                )}
+                <span data-testid="workout-status">{locked ? 'Complete' : 'Draft'}</span>
+                {shortened && (
+                  <span data-testid="workout-shortfall" className="font-medium">
+                    · shortened
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                <span className="sr-only">Date performed</span>
+                <CommitInput
+                  type="date"
+                  label="Date performed"
+                  value={workout.performed_on}
+                  align="left"
+                  dense
+                  className="w-[9.5rem]"
+                  disabled={locked}
+                  isValid={(text) => /^\d{4}-\d{2}-\d{2}$/.test(text)}
+                  invalidHint="a date"
+                  onCommit={(text) => run(() => api.patchWorkout(workout.id, { performed_on: text }))}
+                />
+              </label>
+              <span className="num text-[13px] text-muted-foreground">
+                {plannedTotal > 0 ? (
+                  <>
+                    <span className="font-semibold text-foreground">{workedTotal}</span> of {plannedTotal} working sets
+                    {setCount !== workedTotal && ` · ${setCount} total`}
+                  </>
+                ) : (
+                  <>
+                    {setCount} {setCount === 1 ? 'set' : 'sets'} recorded
+                  </>
+                )}
+                <span className="ml-2 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800">loads in lb</span>
+              </span>
+              <span className="w-16 text-[12px] font-medium text-emerald-700" aria-live="polite">
+                {saving ? 'Saving…' : ''}
+              </span>
+            </div>
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <Button
               variant="ghost"
-              className="h-9 gap-1.5 text-muted-foreground"
+              className="h-10 gap-1.5 rounded-[12px] text-muted-foreground"
               aria-label="Details"
               aria-expanded={detailsOpen}
               onPress={() => setDetailsOpen((open) => !open)}
@@ -413,21 +435,22 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
             {locked ? (
               <Button
                 variant="outline"
-                className="h-9 border-border-strong bg-card px-4"
+                className="h-10 rounded-[12px] px-4"
                 isDisabled={saving}
                 onPress={() => void run(() => api.reopen(workout.id)).then(() => setFeedback(null))}
               >
                 Reopen to correct
               </Button>
             ) : (
-              <Button className="h-9 px-4" onPress={() => void complete()}>
+              <Button className="h-10 gap-1.5 rounded-[12px] px-5 text-[14px]" onPress={() => void complete()}>
+                <Check aria-hidden />
                 Complete workout
               </Button>
             )}
           </div>
         </div>
         {detailsOpen && (
-          <div className="flex animate-in flex-wrap items-end gap-4 rounded-lg border border-border bg-card p-4 text-[12px] text-muted-foreground fade-in slide-in-from-top-1 duration-150">
+          <div className="surface flex animate-in flex-wrap items-end gap-4 p-5 text-[12px] text-muted-foreground fade-in slide-in-from-top-1 duration-200">
             {origin && (
               <p className="basis-full text-[13px]">
                 {origin.program_name}
@@ -486,7 +509,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
       </header>
 
       {view.slots.length === 0 && view.extras.length === 0 && (
-        <div className="rounded-[10px] border border-dashed border-border-strong bg-card/50">
+        <div className="surface">
           <EmptyState icon={Dumbbell} title={locked ? 'No exercises were recorded.' : 'No exercises yet.'}>
             {locked
               ? 'This session was completed without sets.'
@@ -497,7 +520,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
       <section
         hidden={view.slots.length === 0 && view.extras.length === 0}
         aria-label="Exercises"
-        className="gap-x-12 rounded-[10px] border border-border bg-card px-7 pb-1 [column-rule:1px_solid_var(--border)] lg:columns-2 [&>article:last-child]:border-b-0"
+        className="gap-x-4 lg:columns-2"
       >
         {view.slots.map(({ slot, sets, sharedWith }) => (
           <ExerciseBlock
@@ -542,8 +565,8 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
       </section>
 
       {!locked && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="t-micro mr-1 font-medium">Extra work</span>
+        <div className="flex flex-wrap items-center gap-2 rounded-[18px] bg-white/45 p-3 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.7)]">
+          <span className="t-micro mr-1 pl-1 font-semibold">Extra work</span>
           <ExerciseSelect
             label="Add an exercise"
             exercises={addable}

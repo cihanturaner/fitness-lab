@@ -155,7 +155,7 @@ export function entryFixture(overrides: Partial<Entry> = {}): Entry {
             reps_max: 8,
             target_rir_min: 2,
             target_rir_max: 2,
-            target_load_kg: null,
+            target_load_lb: null,
             notes: null,
           },
           {
@@ -166,7 +166,7 @@ export function entryFixture(overrides: Partial<Entry> = {}): Entry {
             reps_max: 8,
             target_rir_min: 0,
             target_rir_max: 1,
-            target_load_kg: null,
+            target_load_lb: null,
             notes: null,
           },
         ],
@@ -189,7 +189,7 @@ export function entryFixture(overrides: Partial<Entry> = {}): Entry {
             exercise_id: 'bench',
             set_order: 1,
             set_type: 'working',
-            load_kg: '80',
+            load_lb: '80',
             reps: 6,
             rir: 2,
             notes: null,
@@ -327,9 +327,9 @@ export const BODYWEIGHT: Bodyweight = {
 
 export const NUTRITION: Nutrition = {
   date: '2026-10-07',
-  day: { logged_on: '2026-10-07', calories_kcal: 2410, protein_g: 150, carbs_g: 290, fat_g: 62, notes: null },
+  day: { logged_on: '2026-10-07', calories_kcal: 2318, calories_complete: true, protein_g: 150, carbs_g: 290, fat_g: 62, notes: null },
   targets: { protein_g: 145, fat_g: 60, calories_kcal: null, carbs_g: null, calorie_target_effective_on: null },
-  recent: [{ logged_on: '2026-10-07', calories_kcal: 2410, protein_g: 150, carbs_g: 290, fat_g: 62, notes: null }],
+  recent: [{ logged_on: '2026-10-07', calories_kcal: 2318, calories_complete: true, protein_g: 150, carbs_g: 290, fat_g: 62, notes: null }],
   target_history: [],
 }
 

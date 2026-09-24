@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { ArrowDownRight, ArrowUpRight, Minus, Pencil, Scale, X } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, CheckCircle2, CircleDashed, Minus, Pencil, Scale, X } from 'lucide-react'
 import { ApiError, api } from '@/api/client'
 import type { Bodyweight } from '@/api/types'
 import { Button } from '@/components/ui/button'
@@ -19,8 +19,8 @@ const BAND_TEXT: Record<string, string> = {
   OVER_GAIN: 'above the 0.10–0.25 band',
 }
 const inputClass =
-  'num h-9 rounded-md border border-input bg-card px-2.5 text-[14px] outline-none transition-colors ' +
-  'hover:border-border-strong focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 ' +
+  'num h-9 rounded-[10px] border border-border-strong bg-card px-2.5 text-[14px] outline-none transition-[border-color,box-shadow] ' +
+  'hover:border-input focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/15 ' +
   'aria-invalid:border-destructive aria-invalid:ring-destructive/20'
 
 function message(error: unknown): string {
@@ -42,8 +42,8 @@ function Stat({
   hero?: boolean
 }) {
   return (
-    <div className={`flex flex-col justify-between gap-2 ${hero ? 'pr-2' : 'border-l border-border pl-8'}`}>
-      <span className="t-micro font-medium">{label}</span>
+    <div className={`flex flex-col gap-2 ${hero ? 'justify-between pr-2' : 'self-center border-l border-border pl-6'}`}>
+      <span className={`t-micro font-semibold ${hero ? 'text-emerald-800' : ''}`}>{label}</span>
       <span className="flex flex-col">
         <span data-testid={testId} className="num flex flex-col">
           {children}
@@ -56,7 +56,7 @@ function Stat({
 
 function Metric({ value, hero = false, faint = false }: { value: string; hero?: boolean; faint?: boolean }) {
   return (
-    <span className={`${hero ? 't-hero' : 't-metric'} ${faint ? 'text-faint' : ''}`}>
+    <span className={`${hero ? 'text-[64px] leading-[64px] font-semibold tracking-[-0.045em]' : 't-stat'} ${faint ? 'text-faint' : ''}`}>
       {value}
       <span className="t-unit"> kg</span>
     </span>
@@ -150,12 +150,12 @@ export function BodyweightScreen() {
   const ChangeIcon = change === null || change === 0 ? Minus : change > 0 ? ArrowUpRight : ArrowDownRight
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="enter flex flex-col gap-8">
       <PageHeader
         title="Bodyweight"
         meta="Morning, after the bathroom, before food or fluid, same scale, similar clothing."
         aside={
-          <form onSubmit={(event) => void save(event)} className="flex items-end gap-2" aria-label="Log a weigh-in">
+          <form onSubmit={(event) => void save(event)} className="surface flex items-end gap-2 p-3 pl-4" aria-label="Log a weigh-in">
             <label className="flex flex-col gap-1 text-[12px] text-muted-foreground">
               Date
               <DateField
@@ -199,14 +199,14 @@ export function BodyweightScreen() {
                 onChange={(event) => setNotes(event.target.value)}
               />
             </label>
-            <Button type="submit" isDisabled={saving} className="h-9 px-4">
+            <Button type="submit" isDisabled={saving} className="h-9 rounded-[10px] px-5">
               {saving ? 'Saving…' : existing ? 'Replace' : 'Save'}
             </Button>
           </form>
         }
       />
       {(existing || problem || saved) && (
-        <div className="-mt-5 flex justify-end text-[12px]">
+        <div className="-mt-5 flex justify-end pr-2 text-[12px]">
           {problem ? (
             <p role="alert" className="text-destructive">
               {problem}
@@ -223,20 +223,41 @@ export function BodyweightScreen() {
         </div>
       )}
 
-      <section aria-label="Summary" className="flex flex-wrap items-stretch gap-x-8 gap-y-4">
+      <section aria-label="Summary" className="surface relative flex flex-wrap items-stretch gap-x-6 gap-y-5 overflow-hidden p-7">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-24 -left-24 size-72 rounded-full bg-[radial-gradient(circle,rgb(47_154_114/0.16),transparent_65%)]"
+        />
         {/* The source's display metric is the 7-day average; a single weigh-in is secondary. */}
-        <Stat label="7-day average" testId="bw-avg7" hero>
+        <Stat
+          label="7-day average"
+          testId="bw-avg7"
+          hero
+          caption={
+            // Whether the decision metric is usable yet: said plainly, under the number.
+            <span
+              data-testid="bw-qualified"
+              className={`mt-3 inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold ${
+                trend.qualified ? 'bg-emerald-100 text-emerald-800' : 'bg-sunken text-muted-foreground'
+              }`}
+            >
+              {trend.qualified ? <CheckCircle2 className="size-3.5" aria-hidden /> : <CircleDashed className="size-3.5" aria-hidden />}
+              {trend.qualified ? '14-day trend qualified' : `Trend not qualified yet · ${trend.weigh_ins}/14 weigh-ins`}
+            </span>
+          }
+        >
           {summary.current_avg_kg !== null ? (
             <>
               <Metric value={summary.current_avg_kg} hero /> <span className="t-micro">({summary.current_count}/7 days)</span>
             </>
           ) : (
             <>
-              <span className="t-hero text-faint">—</span>
+              <span className="text-[64px] leading-[64px] font-semibold text-faint">—</span>
               <span className="t-micro">no weigh-in this week</span>
             </>
           )}
         </Stat>
+        <span className="hidden flex-1 xl:block" aria-hidden />
         <Stat label="Latest" testId="bw-latest">
           {summary.latest ? (
             <>
@@ -244,7 +265,7 @@ export function BodyweightScreen() {
               <span className="t-micro"> {formatShortDate(summary.latest.measured_on)}</span>
             </>
           ) : (
-            <span className="t-metric text-faint">—</span>
+            <span className="t-stat text-faint">—</span>
           )}
         </Stat>
         <Stat label="Previous 7 days" testId="bw-prev7">
@@ -254,13 +275,13 @@ export function BodyweightScreen() {
         <Stat label="Change of the average" testId="bw-change" caption={change === null ? undefined : 'vs previous 7 days'}>
           {change === null || summary.change_kg === null ? (
             <>
-              <span className="t-metric text-faint">—</span>
+              <span className="t-stat text-faint">—</span>
               <span className="t-micro">needs {MIN_COMPARABLE} weigh-ins in each week</span>
             </>
           ) : (
             <span className="flex items-baseline gap-1">
-              <ChangeIcon className="size-6 self-center text-muted-foreground" strokeWidth={2} aria-hidden />
-              <span className="t-metric">{signed(summary.change_kg)}</span>
+              <ChangeIcon className="size-5 self-center text-emerald-700" strokeWidth={2.25} aria-hidden />
+              <span className="t-stat">{signed(summary.change_kg)}</span>
               <span className="t-unit"> kg</span>
             </span>
           )}
@@ -272,13 +293,13 @@ export function BodyweightScreen() {
         >
           {trend.qualified && trend.pct_bw_per_week !== null ? (
             <span className="flex items-baseline gap-1">
-              <span className="t-metric">{signed(trend.pct_bw_per_week)}</span>
+              <span className="t-stat text-emerald-800">{signed(trend.pct_bw_per_week)}</span>
               <span className="t-unit"> % BW/week</span>
               <span className="t-meta"> · {BAND_TEXT[trend.band ?? ''] ?? ''}</span>
             </span>
           ) : (
             <>
-              <span className="t-metric text-faint">—</span>
+              <span className="t-stat text-faint">—</span>
               <span className="t-micro">
                 not qualified: needs {TREND_MIN_PER_HALF} weigh-ins in each week ({trend.first_half} + {trend.second_half})
               </span>
@@ -292,7 +313,7 @@ export function BodyweightScreen() {
       </p>
 
       {entries.length === 0 ? (
-        <section className="rounded-[10px] border border-border bg-card p-5">
+        <section className="surface p-6">
           <EmptyChartFrame height={260}>
             <EmptyState icon={Scale} title="No weigh-ins yet">
               Save your first morning weight above. Daily points and the 7-day trend line start from it.
@@ -300,8 +321,8 @@ export function BodyweightScreen() {
           </EmptyChartFrame>
         </section>
       ) : (
-        <div className="grid items-start gap-4 lg:grid-cols-12">
-          <section aria-label="Trend" className="flex flex-col gap-3 rounded-[10px] border border-border bg-card p-5 lg:col-span-8">
+        <div className="grid items-start gap-5 lg:grid-cols-12">
+          <section aria-label="Trend" className="surface flex flex-col gap-3 p-6 lg:col-span-8">
             <div className="flex items-baseline justify-between">
               <h2 className="t-section">Trend</h2>
               <span className="t-micro">
@@ -328,14 +349,15 @@ export function BodyweightScreen() {
                   color: 'var(--series-trend)',
                   kind: 'line',
                   endLabel: true,
+                  area: true,
                   values: series.map((point) => (point.avg7_kg === null ? null : Number(point.avg7_kg))),
                 },
               ]}
             />
           </section>
 
-          <section aria-label="Weigh-ins" className="flex flex-col rounded-[10px] border border-border bg-card lg:col-span-4">
-            <div className="flex items-baseline justify-between px-5 pt-5 pb-3">
+          <section aria-label="Weigh-ins" className="surface flex flex-col lg:col-span-4">
+            <div className="flex items-baseline justify-between px-6 pt-6 pb-3">
               <h2 className="t-section">Weigh-ins</h2>
               <span className="num t-micro">{entries.length} in 90 days</span>
             </div>
@@ -351,7 +373,7 @@ export function BodyweightScreen() {
                 </thead>
                 <tbody>
                   {entries.map((entry) => (
-                    <tr key={entry.measured_on} data-testid="bw-entry" className="group/row border-t border-border hover:bg-sunken/60">
+                    <tr key={entry.measured_on} data-testid="bw-entry" className="group/row border-t border-border transition-colors duration-150 hover:bg-emerald-50/50">
                       <td className="px-3 py-2">
                         {formatShortDate(entry.measured_on)}
                         {entry.notes && <span className="block truncate text-[12px] text-muted-foreground">{entry.notes}</span>}

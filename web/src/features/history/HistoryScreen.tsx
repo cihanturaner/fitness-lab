@@ -16,15 +16,15 @@ export function HistoryTabs({ current }: { current: 'exercises' | 'sessions' }) 
     <a
       href={href}
       aria-current={current === name ? 'page' : undefined}
-      className={`rounded-md px-3 py-1 text-[13px] font-medium transition-colors ${
-        current === name ? 'bg-card text-foreground shadow-[0_0_0_1px_var(--border-strong)]' : 'text-muted-foreground hover:text-foreground'
+      className={`press rounded-full px-3.5 py-1 text-[13px] font-semibold transition-colors duration-200 ${
+        current === name ? 'bg-card text-emerald-800 shadow-[var(--shadow-card)]' : 'text-muted-foreground hover:text-foreground'
       }`}
     >
       {label}
     </a>
   )
   return (
-    <nav aria-label="History views" className="flex gap-1 rounded-lg bg-sunken p-1">
+    <nav aria-label="History views" className="flex gap-1 rounded-full bg-emerald-900/5 p-1">
       {tab('exercises', '#/history', 'By exercise')}
       {tab('sessions', '#/sessions', 'Sessions')}
     </nav>
@@ -35,11 +35,11 @@ export function HistoryTabs({ current }: { current: 'exercises' | 'sessions' }) 
 function topSet(sets: PerformedSet[]): PerformedSet | null {
   let best: PerformedSet | null = null
   for (const performed of sets) {
-    if (performed.set_type === 'warmup' || performed.load_kg === null) continue
+    if (performed.set_type === 'warmup' || performed.load_lb === null) continue
     if (
       !best ||
-      Number(performed.load_kg) > Number(best.load_kg) ||
-      (Number(performed.load_kg) === Number(best.load_kg) && (performed.reps ?? 0) > (best.reps ?? 0))
+      Number(performed.load_lb) > Number(best.load_lb) ||
+      (Number(performed.load_lb) === Number(best.load_lb) && (performed.reps ?? 0) > (best.reps ?? 0))
     ) {
       best = performed
     }
@@ -47,12 +47,12 @@ function topSet(sets: PerformedSet[]): PerformedSet | null {
   return best
 }
 
-/** "+5 kg", "+1 rep", "=" — the top set against the previous exposure's top set. */
+/** "+5 lb", "+1 rep", "=" — the top set against the previous exposure's top set. */
 function delta(current: PerformedSet | null, previous: PerformedSet | null): { text: string; dir: -1 | 0 | 1 } | null {
   if (!current || !previous) return null
-  const load = Number(current.load_kg) - Number(previous.load_kg)
+  const load = Number(current.load_lb) - Number(previous.load_lb)
   if (Math.abs(load) > 1e-9) {
-    const text = `${load > 0 ? '+' : '−'}${Number(Math.abs(load).toFixed(3))} kg`
+    const text = `${load > 0 ? '+' : '−'}${Number(Math.abs(load).toFixed(2))} lb`
     return { text, dir: load > 0 ? 1 : -1 }
   }
   const reps = (current.reps ?? 0) - (previous.reps ?? 0)
@@ -64,19 +64,28 @@ function Delta({ value }: { value: ReturnType<typeof delta> }) {
   if (!value) return <span className="text-faint">—</span>
   const Icon = value.dir > 0 ? ArrowUpRight : ArrowDownRight
   return (
-    <span className={`inline-flex items-center gap-0.5 ${value.dir > 0 ? 'text-ok' : value.dir < 0 ? 'text-muted-foreground' : 'text-faint'}`}>
+    <span
+      className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-semibold ${
+        value.dir > 0 ? 'bg-emerald-100 text-emerald-800' : value.dir < 0 ? 'bg-sunken text-muted-foreground' : 'text-faint'
+      }`}
+    >
       {value.dir !== 0 && <Icon className="size-3.5" strokeWidth={2.25} aria-hidden />}
       {value.text}
     </span>
   )
 }
 
-/** "82.5 kg × 6 @ RIR 2": one working set with every unit spelled out. */
-function SetCell({ performed }: { performed: PerformedSet | undefined }) {
+/** "185 lb × 6 @ RIR 2": one working set with every unit spelled out; the top set stands out. */
+function SetCell({ performed, top }: { performed: PerformedSet | undefined; top: boolean }) {
   if (!performed) return <span className="text-faint">·</span>
   return (
-    <span data-testid="history-set" className="whitespace-nowrap">
-      <span className="font-medium">{performed.load_kg === null ? '–' : `${performed.load_kg} kg`}</span>
+    <span
+      data-testid="history-set"
+      className={`inline-block whitespace-nowrap rounded-lg px-2 py-0.5 ${top ? 'bg-emerald-50 shadow-[inset_0_0_0_1px_rgb(47_154_114/0.35)]' : ''}`}
+    >
+      <span className={`text-[15px] font-semibold tracking-[-0.01em] ${top ? 'text-emerald-800' : ''}`}>
+        {performed.load_lb === null ? '–' : `${performed.load_lb} lb`}
+      </span>
       <span className="text-muted-foreground"> × </span>
       {performed.reps ?? '?'}
       {performed.rir !== null && <span className="text-muted-foreground"> @ RIR {performed.rir}</span>}
@@ -96,9 +105,9 @@ function weekLabel(exposure: Exposure): string {
   return exposure.block_week === null ? '–' : String(exposure.block_week)
 }
 
-/** A top set with its unit: "85 kg × 6 @ 2". */
+/** A top set with its unit: "185 lb × 6 @ 2". */
 function topLabel(top: PerformedSet | null): string {
-  return top ? `${compactSet(top).replace('×', ' kg × ').replace('@', ' @ ')}` : '—'
+  return top ? `${compactSet(top).replace('×', ' lb × ').replace('@', ' @ ')}` : '—'
 }
 
 function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
@@ -154,16 +163,16 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
     <section aria-label={`History, ${exerciseLabel(history.exercise)}`} className="flex min-w-0 flex-col gap-6">
       <header className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-[22px] leading-7 font-semibold tracking-[-0.02em]">{exerciseLabel(history.exercise)}</h2>
+          <h2 className="text-[26px] leading-8 font-semibold tracking-[-0.03em]">{exerciseLabel(history.exercise)}</h2>
           {sessions.length > 1 && (
-            <div role="group" aria-label="Session" className="flex gap-1 rounded-lg bg-sunken p-1">
+            <div role="group" aria-label="Session" className="flex gap-1 rounded-full bg-card p-1 shadow-[var(--shadow-card)]">
               {[null, ...sessions].map((option) => (
                 <button
                   key={option ?? 'all'}
                   type="button"
                   aria-pressed={session === option}
-                  className={`rounded-md px-3 py-1 text-[13px] font-medium transition-colors ${
-                    session === option ? 'bg-card text-foreground shadow-[0_0_0_1px_var(--border-strong)]' : 'text-muted-foreground hover:text-foreground'
+                  className={`press rounded-full px-3.5 py-1 text-[13px] font-semibold transition-colors duration-200 ${
+                    session === option ? 'bg-emerald-700 text-white shadow-[0_4px_10px_-4px_rgb(27_104_79/0.6)]' : 'text-muted-foreground hover:text-foreground'
                   }`}
                   onClick={() => setSession(option)}
                 >
@@ -174,12 +183,12 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
           )}
         </div>
         {exposures.length > 0 && (
-          <dl className="num flex flex-wrap gap-x-10 gap-y-3">
-            <div className="flex flex-col gap-1">
-              <dt className="t-micro font-medium">Latest top set · kg × reps @ RIR</dt>
+          <dl className="num grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="flex flex-col gap-1.5 rounded-[18px] bg-gradient-to-br from-emerald-700 to-emerald-600 p-4 text-white shadow-[0_14px_30px_-16px_rgb(15_63_48/0.7)]">
+              <dt className="text-[12px] leading-4 font-medium text-white/75">Latest top set · lb × reps @ RIR</dt>
               <dd className="t-stat">{topLabel(latestTop)}</dd>
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="surface flex flex-col gap-1.5 p-4">
               <dt className="t-micro font-medium">
                 {sinceLabel}
                 {last && sessions.length > 1 ? ` · ${name(last)}` : ''}
@@ -188,12 +197,12 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
                 <Delta value={overall} />
               </dd>
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="surface flex flex-col gap-1.5 p-4">
               <dt className="t-micro font-medium">Sessions</dt>
               <dd className="t-stat">{exposures.length}</dd>
             </div>
             {last && (
-              <div className="flex flex-col gap-1">
+              <div className="surface flex flex-col gap-1.5 p-4">
                 <dt className="t-micro font-medium">Last</dt>
                 <dd className="t-stat">{formatShortDate(last.performed_on)}</dd>
               </div>
@@ -207,11 +216,11 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
         </EmptyState>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-[10px] border border-border bg-card">
+          <div className="surface overflow-x-auto">
             <table className="num w-full text-[14px]" aria-label="Exposures">
               <thead className="text-left text-[12px] text-muted-foreground">
                 <tr className="border-b border-border">
-                  {hasWeeks && <th className="w-14 py-2.5 pl-5 font-medium">Week</th>}
+                  {hasWeeks && <th className="w-16 py-3 pl-5 font-medium">Week</th>}
                   <th className={`py-2.5 pr-5 font-medium ${hasWeeks ? '' : 'pl-5'}`}>Date</th>
                   <th className="py-2.5 pr-5 font-medium">Session</th>
                   {Array.from({ length: columns }, (_, index) => (
@@ -227,10 +236,21 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
                   const warmups = exposure.sets.length - (working[index]?.length ?? 0)
                   const before = previousIndex(index)
                   return (
-                    <tr key={exposure.workout_id} data-testid="history-exposure" className="border-b border-border last:border-b-0 hover:bg-sunken/40">
+                    <tr
+                      key={exposure.workout_id}
+                      data-testid="history-exposure"
+                      className="border-b border-border transition-colors duration-150 last:border-b-0 hover:bg-emerald-50/50"
+                    >
                       {hasWeeks && (
-                        <td data-testid="history-week" className="py-2.5 pl-5 text-muted-foreground">
-                          {weekLabel(exposure)}
+                        <td className="py-2.5 pl-5">
+                          <span
+                            data-testid="history-week"
+                            className={`num inline-flex h-6 min-w-8 items-center justify-center rounded-full px-2 text-[12px] font-semibold ${
+                              exposure.phase === 'block' ? 'bg-emerald-100 text-emerald-800' : 'bg-sunken text-muted-foreground'
+                            }`}
+                          >
+                            {weekLabel(exposure)}
+                          </span>
                         </td>
                       )}
                       <td className={`py-2.5 pr-5 whitespace-nowrap ${hasWeeks ? '' : 'pl-5'}`}>
@@ -242,11 +262,14 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
                         {name(exposure)}
                         {warmups > 0 && <span className="block text-[12px] text-faint">+{warmups} warm-up</span>}
                       </td>
-                      {Array.from({ length: columns }, (_, column) => (
-                        <td key={column} className="py-2.5 pr-5">
-                          <SetCell performed={working[index]?.[column]} />
-                        </td>
-                      ))}
+                      {Array.from({ length: columns }, (_, column) => {
+                        const performed = working[index]?.[column]
+                        return (
+                          <td key={column} className="py-2 pr-3">
+                            <SetCell performed={performed} top={performed !== undefined && performed.id === tops[index]?.id} />
+                          </td>
+                        )
+                      })}
                       <td className="py-2.5 pr-5 text-right whitespace-nowrap">
                         <Delta value={before < 0 ? null : delta(tops[index] ?? null, tops[before] ?? null)} />
                       </td>
@@ -257,20 +280,20 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
             </table>
           </div>
           <p className="-mt-3 t-micro">
-            Oldest first. Each working set is kg × reps @ RIR; warm-ups are counted, not listed; <sup>b</sup> marks a
-            back-off set. “vs previous” compares the heaviest working set with the previous session of the same name; it
+            Oldest first. Each working set is lb × reps @ RIR; the outlined set is the session’s top set; warm-ups are
+            counted, not listed; <sup>b</sup> marks a back-off set. “vs previous” compares the heaviest working set with the previous session of the same name; it
             does not consider RIR, so it is not a progression verdict.
             {hasWeeks && ' Pre / Post: before the block start / after its last week.'}
           </p>
           {exposures.length >= 2 && (sessions.length === 1 || session !== null) && (
-            <div className="flex flex-col gap-2 rounded-[10px] border border-border bg-card p-5">
+            <div className="surface flex flex-col gap-2 p-6">
               <div className="flex items-baseline justify-between">
-                <h3 className="t-section">Top load per session · kg</h3>
+                <h3 className="t-section">Top load per session · lb</h3>
                 <span className="t-micro">Reps above each point</span>
               </div>
               <TrendChart
                 label="Top recorded load per session"
-                unit="kg"
+                unit="lb"
                 height={200}
                 minSpan={10}
                 dates={exposures.map((exposure) => exposure.performed_on)}
@@ -280,7 +303,7 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
                     color: 'var(--series-trend)',
                     kind: 'line',
                     markers: true,
-                    values: tops.map((top) => (top ? Number(top.load_kg) : null)),
+                    values: tops.map((top) => (top ? Number(top.load_lb) : null)),
                     pointLabels: tops.map((top) => (top?.reps === null || top?.reps === undefined ? null : `×${top.reps}`)),
                   },
                 ]}
@@ -318,34 +341,34 @@ function EmptyHistory() {
         {library.length === 0 ? (
           <div className="flex flex-col gap-2" aria-hidden>
             {[0, 1, 2, 3, 4, 5].map((row) => (
-              <div key={row} className="h-9 rounded-md bg-sunken/80" />
+              <div key={row} className="h-9 rounded-[12px] bg-white/50" />
             ))}
           </div>
         ) : (
           <ul className="flex max-h-[60vh] flex-col overflow-y-auto">
             {library.map((exercise) => (
-              <li key={exercise.id} className="truncate border-b border-border/70 px-1 py-2 text-[14px] text-muted-foreground">
+              <li key={exercise.id} className="truncate rounded-[12px] px-3 py-2 text-[14px] text-muted-foreground">
                 {exerciseLabel(exercise)}
               </li>
             ))}
           </ul>
         )}
       </nav>
-      <div className="rounded-[10px] border border-dashed border-border-strong bg-card/50 py-10">
+      <div className="surface py-10">
         <EmptyState
           icon={HistoryIcon}
           title="History begins with your first completed workout."
           action={
             <a
               href="#/"
-              className="inline-flex h-9 items-center rounded-lg bg-primary px-4 text-[14px] font-medium text-primary-foreground hover:bg-primary/85"
+              className="press inline-flex h-10 items-center rounded-[12px] bg-primary px-5 text-[14px] font-semibold text-primary-foreground hover:bg-emerald-800"
             >
               Go to this week
             </a>
           }
         >
-          Completed sessions appear here, exercise by exercise, week by week: the date, every set, and its kg, reps
-          and RIR, with the change from one week to the next.
+          Completed sessions appear here, exercise by exercise, week by week: the date, every set, and its load in lb,
+          reps and RIR, with the change from one week to the next.
         </EmptyState>
       </div>
     </div>
@@ -387,7 +410,7 @@ export function HistoryScreen({ exerciseId }: { exerciseId: string | null }) {
   const shown = list.filter((item) => exerciseLabel(item.exercise).toLowerCase().includes(filter.trim().toLowerCase()))
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="enter flex flex-col gap-8">
       {header}
       {list.length === 0 ? (
         <EmptyHistory />
@@ -399,12 +422,12 @@ export function HistoryScreen({ exerciseId }: { exerciseId: string | null }) {
               <input
                 aria-label="Filter exercises"
                 placeholder="Filter exercises"
-                className="h-9 w-full rounded-md border border-input bg-card pr-2 pl-8 text-[14px] outline-none placeholder:text-faint hover:border-border-strong focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+                className="h-10 w-full rounded-[12px] border border-transparent bg-card pr-2 pl-8 text-[14px] shadow-[var(--shadow-card)] outline-none placeholder:text-faint focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/15"
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
               />
             </label>
-            <ul className="flex max-h-[70vh] flex-col gap-px overflow-y-auto">
+            <ul className="-mx-1 flex max-h-[70vh] flex-col gap-1 overflow-y-auto px-1 py-1">
               {shown.map((item) => {
                 const active = item.exercise.id === selected
                 return (
@@ -412,11 +435,18 @@ export function HistoryScreen({ exerciseId }: { exerciseId: string | null }) {
                     <a
                       href={historyHref(item.exercise.id)}
                       aria-current={active ? 'page' : undefined}
-                      className={`flex flex-col rounded-md px-3 py-1.5 transition-colors ${
-                        active ? 'bg-card shadow-[0_0_0_1px_var(--border-strong)]' : 'hover:bg-sunken'
+                      className={`press relative flex flex-col rounded-[14px] py-2 pr-3 pl-4 transition-[background-color,box-shadow] duration-200 ${
+                        active ? 'bg-card shadow-[var(--shadow-card)]' : 'hover:bg-white/60'
                       }`}
                     >
-                      <span className={`text-[14px] leading-5 ${active ? 'font-semibold' : ''}`}>{exerciseLabel(item.exercise)}</span>
+                      {/* The selected exercise carries an emerald bar, like a tab pulled forward. */}
+                      <span
+                        aria-hidden
+                        className={`absolute top-2.5 bottom-2.5 left-1.5 w-[3px] rounded-full bg-emerald-600 transition-opacity duration-200 ${active ? 'opacity-100' : 'opacity-0'}`}
+                      />
+                      <span className={`text-[14px] leading-5 ${active ? 'font-semibold text-emerald-900' : 'font-medium'}`}>
+                        {exerciseLabel(item.exercise)}
+                      </span>
                       <span className="num text-[12px] leading-4 text-muted-foreground">
                         {item.exposures} {item.exposures === 1 ? 'session' : 'sessions'} · {formatShortDate(item.last_performed_on)}
                       </span>

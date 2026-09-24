@@ -12,7 +12,7 @@ function set(id: string, load: string, reps: number, rir: number | null, type: P
     exercise_id: 'bench',
     set_order: 1,
     set_type: type,
-    load_kg: load,
+    load_lb: load,
     reps,
     rir,
     notes: null,
@@ -49,7 +49,7 @@ const HISTORY: ExerciseHistory = {
 describe('HistoryScreen', () => {
   beforeEach(() => vi.unstubAllGlobals())
 
-  it('shows every completed exposure in order with its exact kg × reps @ RIR', async () => {
+  it('shows every completed exposure in order with its exact lb × reps @ RIR', async () => {
     fakeApi({
       'GET /api/history/exercises': () => ({
         body: [{ exercise: BENCH, exposures: 2, last_performed_on: '2026-09-30' }],
@@ -63,15 +63,15 @@ describe('HistoryScreen', () => {
     const second = rows[1] as HTMLElement
     // Working sets aligned by set number, every unit spelled out; the warm-up is counted.
     expect(within(first).getAllByTestId('history-set').map((cell) => cell.textContent)).toEqual([
-      '82.5 kg × 6 @ RIR 2',
-      '82.5 kg × 6 @ RIR 2',
-      '82.5 kg × 5 @ RIR 1',
+      '82.5 lb × 6 @ RIR 2',
+      '82.5 lb × 6 @ RIR 2',
+      '82.5 lb × 5 @ RIR 1',
     ])
     expect(first).toHaveTextContent('Upper A+1 warm-up')
     expect(within(second).getAllByTestId('history-set').map((cell) => cell.textContent)).toEqual([
-      '85 kg × 6 @ RIR 2',
-      '85 kg × 5 @ RIR 1',
-      '85 kg × 5 @ RIR 1',
+      '85 lb × 6 @ RIR 2',
+      '85 lb × 5 @ RIR 1',
+      '85 lb × 5 @ RIR 1',
     ])
     expect(within(first).getByTestId('history-week')).toHaveTextContent('1')
     expect(within(second).getByTestId('history-week')).toHaveTextContent('2')
@@ -110,8 +110,8 @@ describe('HistoryScreen', () => {
     render(<HistoryScreen exerciseId={null} />)
     const rows = await screen.findAllByTestId('history-exposure')
     expect(rows.map((row) => within(row).getByTestId('history-week').textContent)).toEqual(['Pre', '2', '2', '3', '3'])
-    // a2 against a1 (+2.5 kg), b2 against b1 (same) — never Upper A against Upper B.
-    expect(rows[3]).toHaveTextContent('+2.5 kg')
+    // a2 against a1 (+2.5 lb), b2 against b1 (same) — never Upper A against Upper B.
+    expect(rows[3]).toHaveTextContent('+2.5 lb')
     expect(rows[4]).toHaveTextContent('same')
     // Since week 1 of the latest session (Upper B): from its first in-block exposure.
     expect(screen.getByText(/Since week 2 · Upper B/)).toBeInTheDocument()
@@ -119,7 +119,7 @@ describe('HistoryScreen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Upper A' }))
     expect(await screen.findAllByTestId('history-exposure')).toHaveLength(3)
-    expect(screen.getByTestId('history-since')).toHaveTextContent('+2.5 kg')
+    expect(screen.getByTestId('history-since')).toHaveTextContent('+2.5 lb')
     expect(screen.getByRole('img', { name: 'Top recorded load per session' })).toBeInTheDocument()
   })
 

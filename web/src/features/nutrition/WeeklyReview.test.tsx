@@ -148,9 +148,10 @@ describe('Weekly review', () => {
           ...NUTRITION,
           targets: { ...NUTRITION.targets, calories_kcal: 2800, carbs_g: 420, calorie_target_effective_on: '2026-10-06' },
           recent: [
-            { logged_on: '2026-10-07', calories_kcal: 2800, protein_g: 150, carbs_g: 400, fat_g: 60, notes: null },
-            { logged_on: '2026-10-05', calories_kcal: 2700, protein_g: 150, carbs_g: 400, fat_g: 60, notes: null },
-            { logged_on: '2026-09-28', calories_kcal: 2500, protein_g: 150, carbs_g: 400, fat_g: 60, notes: null },
+            // Calories as the server derives them: 150 x 4 + carbs x 4 + 60 x 9.
+            { logged_on: '2026-10-07', calories_kcal: 2800, calories_complete: true, protein_g: 150, carbs_g: 415, fat_g: 60, notes: null },
+            { logged_on: '2026-10-05', calories_kcal: 2700, calories_complete: true, protein_g: 150, carbs_g: 390, fat_g: 60, notes: null },
+            { logged_on: '2026-09-28', calories_kcal: 2500, calories_complete: true, protein_g: 150, carbs_g: 340, fat_g: 60, notes: null },
           ],
           target_history: [
             { id: 't2', effective_on: '2026-10-06', calories_kcal: 2800, notes: 'Week 3 review: UNDER_GAIN, +150 kcal/day applied', set_at_utc: '2026-10-06T07:00:00Z' },
