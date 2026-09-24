@@ -55,7 +55,7 @@ from fitness_lab.api.schemas import (
 )
 from fitness_lab.api.settings import router as settings_router
 from fitness_lab.api.tracking import router as tracking_router
-from fitness_lab.domain.models import create_exercise
+from fitness_lab.domain.models import SetTypeCode, create_exercise
 from fitness_lab.storage import db, entry, history, migrations, programs
 from fitness_lab.storage.exercises import get_exercise, insert_exercise, list_exercises
 from fitness_lab.storage.snapshots import SnapshotError
@@ -299,7 +299,11 @@ def create_app() -> FastAPI:
                 connection,
                 workout_id,
                 exercise_id=body.exercise_id,
-                set_type=body.set_type,
+                # V3.2: the lifter never picks a set type. A set entered without one is a
+                # working set; an explicit type (or null) is still honoured for compatibility.
+                set_type=(
+                    body.set_type if "set_type" in body.model_fields_set else SetTypeCode.WORKING
+                ),
                 load_kg=parse_load(body.load_lb),
                 reps=body.reps,
                 rir=body.rir,

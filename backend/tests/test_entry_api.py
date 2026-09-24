@@ -255,6 +255,34 @@ def test_invalid_set_input_is_422(
     assert client.post(f"/api/workouts/{workout_id}/sets", json=body).status_code == 422
 
 
+def test_a_set_entered_without_a_type_is_a_working_set(
+    client: TestClient, seeded: dict[str, Any], db_file: Path
+) -> None:
+    """V3.2: the lifter never chooses a set type; the API stores an untyped set as working."""
+    workout_id = open_upper(client, seeded)
+    body = {"exercise_id": seeded["exercises"]["Bench Press"], "load_lb": "185", "reps": 5}
+    response = client.post(f"/api/workouts/{workout_id}/sets", json=body)
+    assert response.status_code == 201, response.text
+    assert response.json()["set_type"] == "working"
+    # An explicit type is still honoured (compatibility); an explicit null stays unrecorded.
+    warm = client.post(f"/api/workouts/{workout_id}/sets", json=body | {"set_type": "warmup"})
+    assert warm.json()["set_type"] == "warmup"
+    unset = client.post(f"/api/workouts/{workout_id}/sets", json=body | {"set_type": None})
+    assert unset.json()["set_type"] is None
+    with db.connection_scope(db_file) as connection:
+        stored = [
+            row[0]
+            for row in connection.execute(
+                "SELECT set_type FROM performed_set WHERE workout_id = ? ORDER BY set_order",
+                (workout_id,),
+            )
+        ]
+    assert stored == ["working", "warmup", None]
+    # Totals count every non-warm-up set: the default working set and the unrecorded one.
+    entry = client.get(f"/api/workouts/{workout_id}/entry").json()
+    assert entry["work_sets"]["actual"] == 2
+
+
 def test_bad_reorder_is_422_and_unknown_set_is_404(
     client: TestClient, seeded: dict[str, Any]
 ) -> None:
