@@ -1,6 +1,8 @@
-import { loadHomeFacts } from '@/data/home-source';
+import { loadHomeFacts } from '@/data/facts-source';
 import { HomeScreen } from '@/features/home/home-screen';
+import { useQuery } from '@/store/data-store';
 
 export default function HomeRoute() {
-  return <HomeScreen facts={loadHomeFacts()} />;
+  const { data } = useQuery(loadHomeFacts, 'home');
+  return data ? <HomeScreen facts={data} /> : null;
 }

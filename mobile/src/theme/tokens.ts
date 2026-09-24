@@ -16,6 +16,8 @@ export const color = {
   inkSoft: '#2B3B34',
   muted: '#53645C', // >= 5.2:1 on paper and card
   faint: '#788A81', // non-essential marks only
+  /** Placeholder hints in entry fields: clearly not a value (the plan is also stated as text). */
+  placeholder: '#AEBDB5',
   hairline: '#E1EAE5',
   track: '#E6EFEA',
 

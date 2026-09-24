@@ -37,6 +37,9 @@ export type WorkoutHero = {
 
 export type RestHero = { kind: 'rest'; nextLabel: string };
 
+/** No block start yet: nothing is scheduled, and Home says how to begin. */
+export type SetupHero = { kind: 'setup'; note: string };
+
 export type MacroRow = {
   macro: Macro;
   label: string;
@@ -49,7 +52,7 @@ export type HomeView = {
   dateLabel: string;
   blockLabel: string | null;
   strip: StripDay[];
-  hero: WorkoutHero | RestHero;
+  hero: WorkoutHero | RestHero | SetupHero;
   nutrition: {
     kcalLabel: string;
     kcalCaption: string;
@@ -104,7 +107,13 @@ const MARK_LABEL: Record<DayMark, string> = {
   rest: 'rest day',
 };
 
-function buildHero(facts: HomeFacts): WorkoutHero | RestHero {
+function buildHero(facts: HomeFacts): WorkoutHero | RestHero | SetupHero {
+  if (!facts.block) {
+    return {
+      kind: 'setup',
+      note: 'Set the block start date in Settings to lay out the 12-week plan. Week 1 is the week containing it.',
+    };
+  }
   const session = facts.week.find((s) => s.date === facts.today);
   const detail = facts.todayWorkout;
   if (!session || !detail) {

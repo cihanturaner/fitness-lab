@@ -10,7 +10,7 @@ Native iPhone: **NOT YET VERIFIED** for anything in this file unless stated.
 | # | Milestone | Status | Commit |
 | --- | --- | --- | --- |
 | M0 | Finalize M2.5 visual calibration (anatomy redraw, compact Home hero) | done | see log |
-| M3 | Real workout logger (lb → reps → RIR) | queued | — |
+| M3 | Real workout logger (lb → reps → RIR) | done | see log |
 | M4 | Nutrition + bodyweight + Quick Add | queued | — |
 | M5 | History (day-first) + Settings | queued | — |
 | M6 | Local SQLite persistence (expo-sqlite), Clock | queued | — |
@@ -100,6 +100,18 @@ is real from the start; the M6 commit adds migrations tests, cold-restart and th
 
 ## Decisions
 
+- D2 Bodyweight change of the 7-day average needs ≥ 4 weigh-ins in each window (desktop
+  `MIN_COMPARABLE`); the M1 test that compared sparse windows was updated to the desktop rule
+  (frozen desktop outranks the accepted mobile fixture).
+- D3 Logger keys a session by (date, workout key): opening the scheduled workout of a day
+  returns that day's draft (else its latest completed workout) or creates one empty draft on
+  Start. Today and past in-block days can be started; future days show the plan only.
+- D4 Discarding a draft that holds sets keeps a JSON copy in `discarded_workout` (the desktop
+  snapshots the file instead); nothing is lost silently.
+- D5 In-app confirmation dialogs (not `Alert`) so they behave identically on iOS and the web
+  preview and are testable.
+- D6 Web preview uses expo-sqlite's web build (wasm; `metro.config.js`), so browser QA runs
+  the real SQL path. Tests use sql.js (dev dependency only) behind the same `Db` interface.
 - D1 Muscle focus: the program package states none. Only the existing accepted mobile
   focus (Upper B: back, chest, shoulders, triceps, biceps — M1 fixture) is used; other
   workouts draw a neutral figure. Needs an authoritative source from the user to extend.

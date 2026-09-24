@@ -30,6 +30,15 @@ const symbols = {
     web: 'person',
   },
   close: { ios: 'xmark', android: 'close', web: 'close' },
+  more: { ios: 'ellipsis', android: 'more_horiz', web: 'more_horiz' },
+  trash: { ios: 'trash', android: 'delete', web: 'delete' },
+  swap: { ios: 'arrow.left.arrow.right', android: 'swap_horiz', web: 'swap_horiz' },
+  undo: { ios: 'arrow.uturn.backward', android: 'undo', web: 'undo' },
+  export: { ios: 'square.and.arrow.up', android: 'ios_share', web: 'ios_share' },
+  import: { ios: 'square.and.arrow.down', android: 'download', web: 'download' },
+  target: { ios: 'scope', android: 'my_location', web: 'my_location' },
+  info: { ios: 'info.circle', android: 'info', web: 'info' },
+  program: { ios: 'list.bullet.rectangle', android: 'list_alt', web: 'list_alt' },
 } as const;
 
 export type IconName = keyof typeof symbols;

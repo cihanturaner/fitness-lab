@@ -4,6 +4,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
+import { openDeviceDatabase } from '@/data/db/open-database';
+import { StartupError } from '@/features/shell/startup-error';
+import { DataProvider } from '@/store/data-store';
 import { color } from '@/theme/tokens';
 import { font, fontAssets } from '@/theme/typography';
 
@@ -20,7 +23,7 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
-    <>
+    <DataProvider open={openDeviceDatabase} renderError={(error) => <StartupError error={error} />}>
       <StatusBar style="dark" />
       <Stack
         screenOptions={{
@@ -36,6 +39,7 @@ export default function RootLayout() {
           name="plan/[date]"
           options={{ title: 'Workout plan', headerBackTitle: 'Training' }}
         />
+        <Stack.Screen name="workout/[date]" options={{ title: 'Workout', headerBackTitle: 'Back' }} />
         <Stack.Screen
           name="quick-add"
           options={{
@@ -48,6 +52,6 @@ export default function RootLayout() {
           }}
         />
       </Stack>
-    </>
+    </DataProvider>
   );
 }

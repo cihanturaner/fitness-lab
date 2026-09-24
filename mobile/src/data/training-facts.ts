@@ -16,12 +16,16 @@ export type PlannedSet = {
 };
 
 export type PlannedExercise = {
+  /** The slot's identity in the program ("upper_b.04"): what a performed set is placed in. */
+  slotKey: string;
   name: string;
   /** A week-12 benchmark lift. */
   marker: boolean;
   failure: 'prohibited' | 'final-set';
   restSeconds: { min: number; max: number };
   sets: readonly PlannedSet[];
+  /** The slot's notes, verbatim from the package (rest, failure, approved substitutes). */
+  notes: string;
 };
 
 export type ProgramWorkout = {
@@ -34,7 +38,9 @@ export type ProgramWorkout = {
 };
 
 export type ProgramFacts = {
+  key: string;
   name: string;
+  versionLabel: string;
   weeks: number;
   workouts: readonly ProgramWorkout[];
 };

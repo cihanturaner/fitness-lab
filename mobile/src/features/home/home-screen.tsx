@@ -38,7 +38,8 @@ export function HomeScreen({ facts }: { facts: HomeFacts }) {
         <WorkoutHero
           hero={view.hero}
           focusGroups={facts.todayWorkout?.focus ?? []}
-          onOpenWorkout={() => router.navigate('/training')}
+          onOpenWorkout={() => router.push({ pathname: '/workout/[date]', params: { date: facts.today } })}
+          onOpenSettings={() => router.push('/settings')}
         />
 
         <Text variant="section" accessibilityRole="header" style={styles.section}>

@@ -11,13 +11,16 @@ import { Text } from '@/ui/text';
 
 import type { SelectedDay, SelectedWorkout } from '../training-view';
 
-type Props = { selected: SelectedWorkout | SelectedDay; onViewPlan: (date: string) => void };
+type Props = {
+  selected: SelectedWorkout | SelectedDay;
+  onOpen: (date: string, route: SelectedWorkout['cta']['route']) => void;
+};
 
 /**
  * The selected day. A workout gets the same hero card as Home — name, status, stated muscle
  * focus, progress, then its one action; rest and off-block days stay a small quiet card.
  */
-export function SelectedSession({ selected, onViewPlan }: Props) {
+export function SelectedSession({ selected, onOpen }: Props) {
   const anatomyHeight = useAnatomyHeight(0.84);
 
   if (selected.kind !== 'workout') {
@@ -88,10 +91,10 @@ export function SelectedSession({ selected, onViewPlan }: Props) {
 
       <View style={styles.cta}>
         <HeroButton
-          label="View plan"
-          icon="chevronRight"
-          accessibilityLabel={selected.planAccessibilityLabel}
-          onPress={() => onViewPlan(selected.date)}
+          label={selected.cta.label}
+          icon={selected.cta.route === 'plan' ? 'chevronRight' : 'play'}
+          accessibilityLabel={selected.cta.accessibilityLabel}
+          onPress={() => onOpen(selected.date, selected.cta.route)}
         />
       </View>
     </Card>

@@ -96,7 +96,7 @@ describe('buildTrainingView (fixture week 2)', () => {
     expect(view.outsideLabel).toBeNull();
   });
 
-  it('features today’s session with its progress and a read-only plan action', () => {
+  it('features today’s session with its progress and the logger as its action', () => {
     expect(view.selected).toEqual({
       kind: 'workout',
       date: '2026-10-08',
@@ -112,7 +112,7 @@ describe('buildTrainingView (fixture week 2)', () => {
         names: ['Back', 'Chest', 'Shoulders', 'Triceps', 'Biceps'],
       },
       progress: { value: 9 / 21, label: '9 of 21 work sets', percentLabel: '43%' },
-      planAccessibilityLabel: 'View plan, Upper B, Thursday 8 October',
+      cta: { label: 'Continue workout', route: 'workout', accessibilityLabel: 'Continue workout, Upper B, Thursday 8 October' },
     });
   });
 

@@ -42,9 +42,9 @@ export function TrainingScreen({ facts }: { facts: TrainingFacts }) {
 
   const goToWeek = (week: number) => setSelection(selectWeek(facts, week));
   const select = (date: string) => setSelection((s) => (s ? { week: s.week, date } : s));
-  const openPlan = (date: string) => {
+  const openDay = (date: string, route: 'workout' | 'plan') => {
     returningFromPlan.current = true;
-    router.push({ pathname: '/plan/[date]', params: { date } });
+    router.push({ pathname: route === 'plan' ? '/plan/[date]' : '/workout/[date]', params: { date } });
   };
 
   // Same frame as Home: the top inset is on a non-scrolling view, so the scroll viewport
@@ -82,7 +82,7 @@ export function TrainingScreen({ facts }: { facts: TrainingFacts }) {
             </View>
             <DaySelector days={view.days} onSelect={select} />
             <View style={styles.selected}>
-              <SelectedSession selected={view.selected} onViewPlan={openPlan} />
+              <SelectedSession selected={view.selected} onOpen={openDay} />
             </View>
             <View style={styles.sectionHead}>
               <Text variant="section" accessibilityRole="header">

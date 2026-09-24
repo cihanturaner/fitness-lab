@@ -31,13 +31,13 @@ describe('HomeScreen', () => {
     expect(screen.getByLabelText('Thursday 8 October, today: Upper B, in progress')).toBeOnTheScreen();
   });
 
-  it('has exactly one workout CTA, which opens Training', async () => {
+  it('has exactly one workout CTA, which opens today’s workout in the logger', async () => {
     await render(<HomeScreen facts={homeFixture} />);
 
     const ctas = screen.getAllByRole('button', { name: /workout/i });
     expect(ctas).toHaveLength(1);
     fireEvent.press(screen.getByRole('button', { name: 'Continue workout, Upper B' }));
-    expect(mockRouter.navigate).toHaveBeenCalledWith('/training');
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/workout/[date]', params: { date: '2026-10-08' } });
   });
 
   it('opens Settings from the header', async () => {

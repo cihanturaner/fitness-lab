@@ -56,3 +56,57 @@ export function macroProgress(intake: MacroGrams, target: MacroTarget): MacroPro
     };
   });
 }
+
+/** Whole grams a day's macro or a target's macro may hold (the desktop's limit). */
+export const MAX_MACRO_G = 1500;
+
+/** "145" → 145; blank → null (not recorded); anything else (145.5, -1, 1e3) → 'invalid'. */
+export function parseMacroText(text: string): number | null | 'invalid' {
+  const t = text.trim();
+  if (t === '') return null;
+  if (!/^\d{1,5}$/.test(t)) return 'invalid';
+  const g = Number(t);
+  return g <= MAX_MACRO_G ? g : 'invalid';
+}
+
+/** One effective-dated target as recorded (append-only history). */
+export type TargetRecord = MacroTarget & { id: number; effectiveOn: string; setAt: string };
+
+/**
+ * The target in force on `date`: the latest `effectiveOn` on or before it; ties go to the
+ * one set last (then the higher id). Null before the first target.
+ */
+export function targetOn<T extends TargetRecord>(targets: readonly T[], date: string): T | null {
+  let best: T | null = null;
+  for (const t of targets) {
+    if (t.effectiveOn > date) continue;
+    if (
+      best === null ||
+      t.effectiveOn > best.effectiveOn ||
+      (t.effectiveOn === best.effectiveOn &&
+        (t.setAt > best.setAt || (t.setAt === best.setAt && t.id > best.id)))
+    ) {
+      best = t;
+    }
+  }
+  return best;
+}
+
+/** A target's derived calories must be 1–10 000 kcal (the desktop's rule). */
+export function targetError(target: MacroTarget): string | null {
+  for (const macro of MACROS) {
+    const g = target[macro];
+    if (!Number.isInteger(g) || g < 0 || g > MAX_MACRO_G) return `Each macro is 0–${MAX_MACRO_G} g.`;
+  }
+  const kcal = targetCalories(target);
+  return kcal < 1 || kcal > 10_000 ? 'A target is 1–10,000 kcal.' : null;
+}
+
+/** The weeks 1–2 exceptions the source allows for changing an established target. */
+export const EARLY_EXCEPTIONS = [
+  'GI intolerance',
+  'obvious logging error',
+  'illness',
+  'clearly falling trend',
+  'implementation mistake',
+] as const;

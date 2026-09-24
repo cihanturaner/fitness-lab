@@ -10,20 +10,38 @@ import { ProgressBar } from '@/ui/progress-bar';
 import { StatusChip } from '@/ui/status-chip';
 import { Text } from '@/ui/text';
 
-import type { RestHero, WorkoutHero as WorkoutHeroView } from '../home-view';
+import type { RestHero, SetupHero, WorkoutHero as WorkoutHeroView } from '../home-view';
 
 type Props = {
-  hero: WorkoutHeroView | RestHero;
+  hero: WorkoutHeroView | RestHero | SetupHero;
   focusGroups: readonly MuscleGroup[];
   onOpenWorkout: () => void;
+  onOpenSettings: () => void;
 };
 
 /**
  * Today's training card: the workout's name and status, its muscle focus drawn as the
  * centerpiece, progress kept secondary, and the one call to action anchored at the bottom.
  */
-export function WorkoutHero({ hero, focusGroups, onOpenWorkout }: Props) {
+export function WorkoutHero({ hero, focusGroups, onOpenWorkout, onOpenSettings }: Props) {
   const anatomyHeight = useAnatomyHeight();
+
+  if (hero.kind === 'setup') {
+    return (
+      <Card size="hero" style={styles.rest}>
+        <Text variant="eyebrow" tone="muted">
+          Training block
+        </Text>
+        <Text variant="workoutName" tone="emerald700" accessibilityRole="header">
+          Not started yet
+        </Text>
+        <Text variant="body" tone="muted" style={styles.setupNote}>
+          {hero.note}
+        </Text>
+        <HeroButton label="Set block start" icon="chevronRight" accessibilityLabel="Set block start in Settings" onPress={onOpenSettings} />
+      </Card>
+    );
+  }
 
   if (hero.kind === 'rest') {
     return (
@@ -98,6 +116,7 @@ export function WorkoutHero({ hero, focusGroups, onOpenWorkout }: Props) {
 
 const styles = StyleSheet.create({
   rest: { gap: space.sm },
+  setupNote: { marginBottom: space.sm },
   card: { paddingTop: space.lg + 2, paddingBottom: space.lg + 2 },
   topRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
   titles: { flex: 1, gap: 2 },

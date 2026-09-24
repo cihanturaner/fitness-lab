@@ -62,7 +62,8 @@ export type SelectedWorkout = {
   /** The stated focus for the anatomy figure and its caption; empty when none is stated. */
   focus: { groups: readonly MuscleGroup[]; names: string[] };
   progress: { value: number; label: string; percentLabel: string } | null;
-  planAccessibilityLabel: string;
+  /** Today or a past day opens the logger; a future day shows the plan. */
+  cta: { label: string; route: 'workout' | 'plan'; accessibilityLabel: string };
 };
 
 export type SelectedDay = { kind: 'rest' | 'outside'; eyebrow: string; title: string; note: string };
@@ -260,8 +261,22 @@ function buildSelected(
           percentLabel: `${Math.round(progress * 100)}%`,
         }
       : null,
-    planAccessibilityLabel: `View plan, ${workout.name}, ${longDate(date)}`,
+    cta: selectedCta(status, date, facts.today, workout.name),
   };
+}
+
+const CTA_LABEL: Record<DayStatus, string> = {
+  planned: 'Start workout',
+  'in-progress': 'Continue workout',
+  done: 'View workout',
+  shortened: 'View workout',
+  'not-recorded': 'Log workout',
+};
+
+function selectedCta(status: DayStatus, date: IsoDate, today: IsoDate, name: string): SelectedWorkout['cta'] {
+  const future = parseIsoDate(date) > parseIsoDate(today);
+  const label = future ? 'View plan' : CTA_LABEL[status];
+  return { label, route: future ? 'plan' : 'workout', accessibilityLabel: `${label}, ${name}, ${longDate(date)}` };
 }
 
 export function buildTrainingView(facts: TrainingFacts, selection: TrainingSelection): TrainingView {

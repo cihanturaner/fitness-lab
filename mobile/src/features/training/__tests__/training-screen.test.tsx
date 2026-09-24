@@ -47,12 +47,14 @@ describe('TrainingScreen', () => {
     expect(screen.queryByText('Not built yet')).toBeNull();
   });
 
-  it('offers only a read-only plan action — no start, continue or logging', async () => {
+  it('opens the logger for today (M3) and only the read-only plan for a future day', async () => {
     await render(<TrainingScreen facts={trainingFixture} />);
 
-    expect(screen.queryByText(/start workout|continue workout/i)).toBeNull();
-    await fireEvent.press(screen.getByRole('button', { name: 'View plan, Upper B, Thursday 8 October' }));
-    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/plan/[date]', params: { date: '2026-10-08' } });
+    await fireEvent.press(screen.getByRole('button', { name: 'Continue workout, Upper B, Thursday 8 October' }));
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/workout/[date]', params: { date: '2026-10-08' } });
+    await fireEvent.press(screen.getByRole('tab', { name: 'Friday 9 October: Lower B, planned' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'View plan, Lower B, Friday 9 October' }));
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/plan/[date]', params: { date: '2026-10-09' } });
   });
 
   it('draws the anatomy only for a workout whose focus a source states', async () => {
@@ -136,9 +138,9 @@ describe('TrainingScreen entry', () => {
     await render(<TrainingScreen facts={trainingFixture} />);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Previous week, week 1' }));
-    await fireEvent.press(screen.getByRole('button', { name: 'View plan, Upper B, Thursday 1 October' }));
-    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/plan/[date]', params: { date: '2026-10-01' } });
-    await act(async () => mockFocus.run()); // back from the plan
+    await fireEvent.press(screen.getByRole('button', { name: 'View workout, Upper B, Thursday 1 October' }));
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/workout/[date]', params: { date: '2026-10-01' } });
+    await act(async () => mockFocus.run()); // back from the workout
 
     expect(screen.getByText('Week 1 of 12')).toBeOnTheScreen();
     // The next entry from elsewhere resets again.

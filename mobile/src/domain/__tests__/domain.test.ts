@@ -77,7 +77,7 @@ describe('nutrition', () => {
 });
 
 describe('bodyweightTrend', () => {
-  it('compares the last 7 days with the 7 before', () => {
+  it('averages the last 7 days but compares only with 4 weigh-ins in each week (desktop rule)', () => {
     const trend = bodyweightTrend(
       [
         { date: '2026-09-25', grams: 83_000 },
@@ -89,6 +89,14 @@ describe('bodyweightTrend', () => {
     );
     expect(trend.latest).toEqual({ date: '2026-10-08', grams: 82_400 });
     expect(trend.average7Grams).toBe(82_500);
+    expect(trend.count7).toBe(2);
+    expect(trend.weeklyChangeGrams).toBeNull();
+  });
+
+  it('compares the last 7 days with the 7 before once both hold 4 weigh-ins', () => {
+    const week = (first: string, grams: number) =>
+      [0, 1, 2, 3].map((i) => ({ date: addDays(first, i), grams }));
+    const trend = bodyweightTrend([...week('2026-09-25', 83_000), ...week('2026-10-02', 82_600)], '2026-10-08');
     expect(trend.weeklyChangeGrams).toBe(-400);
   });
 
