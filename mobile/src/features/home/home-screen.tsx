@@ -20,43 +20,45 @@ export function HomeScreen({ facts }: { facts: HomeFacts }) {
   const insets = useSafeAreaInsets();
   const view = useMemo(() => buildHomeView(facts), [facts]);
 
+  // The top inset is applied to a non-scrolling frame, not to the scroll content, so the
+  // scroll viewport itself starts below the status bar and nothing scrolls under it.
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + space.md, paddingBottom: tabBarClearance(insets.bottom) },
-      ]}
-      showsVerticalScrollIndicator={false}>
-      <HomeHeader
-        dateLabel={view.dateLabel}
-        blockLabel={view.blockLabel}
-        onOpenSettings={() => router.push('/settings')}
-      />
-      <View style={styles.strip}>
-        <WeekStrip days={view.strip} />
-      </View>
-      <WorkoutHero
-        hero={view.hero}
-        focusGroups={facts.todayWorkout?.focus ?? []}
-        onOpenWorkout={() => router.navigate('/training')}
-      />
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { paddingBottom: tabBarClearance(insets.bottom) }]}
+        showsVerticalScrollIndicator={false}>
+        <HomeHeader
+          dateLabel={view.dateLabel}
+          blockLabel={view.blockLabel}
+          onOpenSettings={() => router.push('/settings')}
+        />
+        <View style={styles.strip}>
+          <WeekStrip days={view.strip} />
+        </View>
+        <WorkoutHero
+          hero={view.hero}
+          focusGroups={facts.todayWorkout?.focus ?? []}
+          onOpenWorkout={() => router.navigate('/training')}
+        />
 
-      <Text variant="title" accessibilityRole="header" style={styles.section}>
-        Today
-      </Text>
-      <NutritionCard nutrition={view.nutrition} />
-      <View style={styles.pair}>
-        <BodyweightCard bodyweight={view.bodyweight} />
-        <WeekCard week={view.week} />
-      </View>
-    </ScrollView>
+        <Text variant="title" accessibilityRole="header" style={styles.section}>
+          Today
+        </Text>
+        <NutritionCard nutrition={view.nutrition} />
+        <View style={styles.pair}>
+          <BodyweightCard bodyweight={view.bodyweight} />
+          <WeekCard week={view.week} />
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.paper },
-  content: { paddingHorizontal: gutter },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: gutter, paddingTop: space.md },
   strip: { marginTop: space.xl, marginBottom: space.xl },
   section: { marginTop: space.xxxl, marginBottom: space.md },
   pair: { flexDirection: 'row', gap: space.md, marginTop: space.md },
