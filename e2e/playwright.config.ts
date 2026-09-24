@@ -19,21 +19,32 @@ process.env.FITNESS_LAB_E2E_DB_V2 ??= path.join(
   'fitness_lab.db',
 )
 process.env.FITNESS_LAB_E2E_PORT_V2 ??= '8712'
+// The V3 completeness journey: its own scratch database, block started three Mondays ago, so
+// week 3 has just finished and the first routine nutrition decision is due.
+process.env.FITNESS_LAB_E2E_DB_V3 ??= path.join(
+  mkdtempSync(path.join(os.tmpdir(), 'fitness-lab-e2e-v3-')),
+  'fitness_lab.db',
+)
+process.env.FITNESS_LAB_E2E_PORT_V3 ??= '8713'
 
-/** Monday of the local week two weeks ago: today then falls in week 3 of the block. */
-function blockStart(): string {
+/** Monday of the local week `weeksAgo` weeks ago. */
+function blockStart(weeksAgo: number): string {
   const now = new Date()
-  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7) - 14)
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7) - 7 * weeksAgo)
   const pad = (value: number) => String(value).padStart(2, '0')
   return `${monday.getFullYear()}-${pad(monday.getMonth() + 1)}-${pad(monday.getDate())}`
 }
-process.env.FITNESS_LAB_E2E_BLOCK_START ??= blockStart()
+// V2: today falls in week 3 of the block. V3: weeks 1-3 are finished, today is in week 4.
+process.env.FITNESS_LAB_E2E_BLOCK_START ??= blockStart(2)
+process.env.FITNESS_LAB_E2E_BLOCK_START_V3 ??= blockStart(3)
 
 export const E2E_DB = process.env.FITNESS_LAB_E2E_DB
 export const E2E_PORT = Number(process.env.FITNESS_LAB_E2E_PORT)
 const BASE_URL = `http://127.0.0.1:${E2E_PORT}`
 const E2E_DB_V2 = process.env.FITNESS_LAB_E2E_DB_V2
 const BASE_URL_V2 = `http://127.0.0.1:${process.env.FITNESS_LAB_E2E_PORT_V2}`
+const E2E_DB_V3 = process.env.FITNESS_LAB_E2E_DB_V3
+const BASE_URL_V3 = `http://127.0.0.1:${process.env.FITNESS_LAB_E2E_PORT_V3}`
 
 export default defineConfig({
   testDir: './tests',
@@ -49,7 +60,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /v2-.*\.spec\.ts/,
+      testIgnore: /v[23]-.*\.spec\.ts/,
       // Viewport must come after the device spread - project `use` overrides the
       // top-level one, and Desktop Chrome would otherwise force 1280x720.
       use: { ...devices['Desktop Chrome'], viewport: { width: 1920, height: 1080 } },
@@ -59,6 +70,11 @@ export default defineConfig({
       testMatch: /v2-.*\.spec\.ts/,
       // A common Mac laptop viewport: the compact layout must work here, not only at 1920.
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, baseURL: BASE_URL_V2 },
+    },
+    {
+      name: 'v3-completeness',
+      testMatch: /v3-.*\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, baseURL: BASE_URL_V3 },
     },
   ],
   webServer: [
@@ -83,6 +99,19 @@ export default defineConfig({
         FITNESS_LAB_SEED_BLOCK_START: process.env.FITNESS_LAB_E2E_BLOCK_START,
       },
       url: `${BASE_URL_V2}/api/health`,
+      reuseExistingServer: false,
+      timeout: 240_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      command: `until curl -sf ${BASE_URL}/api/health >/dev/null; do sleep 1; done; bash scripts/serve-scratch.sh`,
+      env: {
+        FITNESS_LAB_DB: E2E_DB_V3,
+        FITNESS_LAB_PORT: String(process.env.FITNESS_LAB_E2E_PORT_V3),
+        FITNESS_LAB_SEED_BLOCK_START: process.env.FITNESS_LAB_E2E_BLOCK_START_V3,
+      },
+      url: `${BASE_URL_V3}/api/health`,
       reuseExistingServer: false,
       timeout: 240_000,
       stdout: 'pipe',

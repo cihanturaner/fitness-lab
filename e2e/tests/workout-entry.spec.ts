@@ -3,7 +3,7 @@ import net from 'node:net'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { DB_PATH, auditRequests, count, sql } from './support'
+import { DB_PATH, auditRequests, count, sql, acceptShortfall } from './support'
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -213,8 +213,12 @@ test('completion locks the record, reopening allows a correction', async ({ page
   await row.getByTestId('new-set-row').first().getByRole('textbox', { name: /^Reps/ }).press('Escape')
   await expect(row.getByTestId('new-set-row').first().getByRole('textbox', { name: /^Reps/ })).toHaveValue('')
 
+  // Far fewer working sets than Upper A's 23: completing asks first, and the record says so.
+  const shortfall = acceptShortfall(page)
   await page.getByRole('button', { name: 'Complete workout' }).click()
   await expect(page.getByTestId('workout-status')).toHaveText('Complete')
+  expect(shortfall()).toMatch(/^\d+ actual working sets recorded \/ 23 planned\. Complete anyway\?$/)
+  await expect(page.getByTestId('workout-shortfall')).toHaveText('· shortened')
   expect(sql(`SELECT status FROM workout WHERE id = '${workoutId}'`)).toBe('complete')
   await expect(slot(page, 'upper_a.01').getByRole('textbox', { name: 'Reps, set 1' })).toBeDisabled()
   await expect(page.getByRole('button', { name: /^Add set/ })).toHaveCount(0)
@@ -226,6 +230,7 @@ test('completion locks the record, reopening allows a correction', async ({ page
   await reps.fill('5')
   await reps.press('Enter')
   await expect.poll(() => sql("SELECT reps FROM performed_set WHERE set_order = 2")).toBe('5')
+  acceptShortfall(page)
   await page.getByRole('button', { name: 'Complete workout' }).click()
   await expect(page.getByTestId('workout-status')).toHaveText('Complete')
   expect(sql(`SELECT count(*) FROM workout_plan_origin WHERE workout_id = '${workoutId}'`)).toBe('1')

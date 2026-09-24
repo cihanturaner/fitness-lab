@@ -53,8 +53,22 @@ Dependency direction is one-way:
   is then (calories - 1120) / 4. The app never sets or changes calories itself.
 - A workout row in the UI is not a set until the lifter saves it; its set type is never
   taken from the plan.
+- A session is "shortened" when its recorded non-warm-up sets are fewer than the planned
+  non-warm-up sets of its origin (totals only, never matched set by set). Completing one asks
+  first, and no screen shows it as a full "Done".
+- Block phases are exact to the day: before the start date is pre-block (even inside week 1),
+  after the last block week is post-block. History weeks come from each workout's own
+  program version's block.
+- The nutrition controller (`domain/nutrition_controller.py`) is decision support only. A
+  calorie target changes only by an explicit Apply on a due review (or a manual target);
+  `controller_event` and `diagnostic_gate_event` are append-only. Its three app choices (≥ 6
+  weigh-ins per 7-day half, "sustained" = two consecutive weekly trends above 0.25, gate
+  reliability checks) are documented in the V3 spec and must stay fixed for a block.
 
-Current design: `docs/superpowers/specs/2026-09-23-v2-1-product-polish.md` (V2.1 visual
+Current design: `docs/superpowers/specs/2026-09-23-v3-final-product-completeness.md` (V3:
+block phases, week navigation, shortened sessions, History by set, nutrition controller,
+Settings, source-fidelity declarations) over
+`docs/superpowers/specs/2026-09-23-v2-1-product-polish.md` (V2.1 visual
 contract: tokens, type scale, shell, per-screen hierarchy — follow it for any UI change) over
 `docs/superpowers/specs/2026-09-23-v2-product-ux-note.md` (V2: Week,
 Workout, Bodyweight, Nutrition, History), on top of
@@ -110,13 +124,17 @@ one JSON result:
     uv run fitness-lab list-programs | show-program | deactivate-program
     uv run fitness-lab set-block-start 2026-10-01    # week 1 = the Mon-Sun week containing it
 
+The block start is also set in the app (Settings), which is the ordinary way. Settings also
+shows the program and its rules (read-only) and takes a verified manual backup
+(`<timestamp>-manual-backup.db` in `data/snapshots/`).
+
 Import is idempotent (an identical package returns the existing version and writes
 nothing) and never creates exercises; `ensure-exercises` creates missing identities
 through the M1 exercise authority and refuses to revive retired ones.
 
 ## Snapshots and restore
 
-Three operations take a full-file snapshot (SQLite `VACUUM INTO`) into `data/snapshots/`
+Besides the manual backup in Settings, three operations take a full-file snapshot (SQLite `VACUUM INTO`) into `data/snapshots/`
 before touching the database: applying pending migrations (once per run, before the
 first pending migration), `delete_complete_workout` (before every hard delete of a
 completed workout), and discarding a draft that holds sets (it may be a reopened,
@@ -148,7 +166,8 @@ Frontend (from `web/`):
 
 End-to-end (from `e2e/`) — seeds fresh scratch databases with the locked program and
 starts the real launcher on port 8710 (V1 journey; 8711 for the restart test) and 8712
-(V2 daily-use journey, its own database, block started two Mondays ago); it ignores
+(V2 daily-use journey, its own database, block started two Mondays ago) and 8713 (V3
+completeness journey, its own database, block started three Mondays ago); it ignores
 `FITNESS_LAB_DB` and never reuses a running server:
 
     npx playwright test
@@ -157,6 +176,9 @@ Visual QA (from `e2e/`, not part of the suite above) — screenshots every scree
 and a seeded scratch database at 1440×900 and 1728×1117 into `artifacts/visual/<VISUAL_TAG>/`:
 
     VISUAL_TAG=check npx playwright test -c playwright.visual.config.ts
+
+`VISUAL_BROWSER=webkit` renders the same screens in WebKit (needs the matching WebKit build
+installed by `npx playwright install webkit`).
 
 ## Component base
 

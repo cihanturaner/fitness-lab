@@ -177,6 +177,8 @@ test('empty dataset', async ({ page }) => {
     await shoot(page, 'empty-history')
     await page.goto(`${EMPTY}/#/sessions`)
     await shoot(page, 'empty-sessions')
+    await page.goto(`${EMPTY}/#/settings`)
+    await shoot(page, 'empty-settings')
   }
   // The formatted date field is still the native field for the keyboard: typing a date
   // (in the browser's segment order, en-US here) changes the value and the visible label.
@@ -191,7 +193,8 @@ test('empty dataset', async ({ page }) => {
   // Last: opening a session creates a draft, which ends the empty state.
   await page.setViewportSize(VIEWPORTS[0]!)
   await page.goto(`${EMPTY}/#/`)
-  await page.getByRole('button', { name: 'Start Upper A', exact: true }).click()
+  // Before the block, a session is still loggable, quietly ("Log anyway"), never offered as block work.
+  await page.getByRole('button', { name: 'Log Upper A anyway', exact: true }).click()
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport)
@@ -219,6 +222,12 @@ test('populated dataset', async ({ page }) => {
     await shoot(page, 'full-history')
     await page.goto(`${FULL}/#/sessions`)
     await shoot(page, 'full-sessions')
+    await page.goto(`${FULL}/#/settings`)
+    await shoot(page, 'full-settings')
+    await page.goto(`${FULL}/#/`)
+    await page.getByRole('link', { name: 'Previous week' }).click()
+    await expect(page.getByTestId('week-mode')).toBeVisible()
+    await shoot(page, 'full-week-previous')
     if (draft) {
       await page.goto(`${FULL}/#/workouts/${draft}`)
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()

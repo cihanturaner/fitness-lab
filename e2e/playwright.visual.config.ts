@@ -8,6 +8,7 @@ import { defineConfig, devices } from '@playwright/test'
 // realistic three-week history by the spec itself through the public API.
 //
 //   npx playwright test -c playwright.visual.config.ts
+//   VISUAL_BROWSER=webkit VISUAL_TAG=<tag>-webkit npx playwright test -c playwright.visual.config.ts
 //
 // Screenshots land in ../artifacts/visual/<dataset>-<screen>-<width>x<height>.png.
 
@@ -37,7 +38,8 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   outputDir: '../artifacts/playwright-visual',
-  use: { ...devices['Desktop Chrome'] },
+  // VISUAL_BROWSER=webkit renders the same screens in Safari's engine.
+  use: { ...devices[process.env.VISUAL_BROWSER === 'webkit' ? 'Desktop Safari' : 'Desktop Chrome'] },
   webServer: [
     {
       command: 'bash scripts/serve-scratch.sh',

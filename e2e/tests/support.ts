@@ -12,6 +12,8 @@ function scratch(name: string): string {
 export const DB_PATH = scratch('FITNESS_LAB_E2E_DB')
 /** The V2 daily-use journey's own scratch database. */
 export const DB_PATH_V2 = scratch('FITNESS_LAB_E2E_DB_V2')
+/** The V3 completeness journey's own scratch database. */
+export const DB_PATH_V3 = scratch('FITNESS_LAB_E2E_DB_V3')
 
 /** Query the SQLite file directly, bypassing the app, so assertions check persisted truth. */
 export function sql(query: string, dbPath: string = DB_PATH): string {
@@ -46,4 +48,17 @@ export function auditRequests(page: Page, origins: string[]): () => void {
     expect(failed, 'failed requests').toEqual([])
     expect(consoleErrors, 'browser console errors').toEqual([])
   }
+}
+
+/**
+ * The next dialog must be the shortened-session confirmation; it is accepted, and its exact
+ * text ("N actual working sets recorded / M planned. Complete anyway?") is returned.
+ */
+export function acceptShortfall(page: import('@playwright/test').Page): () => string {
+  let asked = ''
+  page.once('dialog', (dialog) => {
+    asked = dialog.message()
+    void dialog.accept()
+  })
+  return () => asked
 }
