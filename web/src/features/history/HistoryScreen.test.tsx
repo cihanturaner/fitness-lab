@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExerciseHistory, PerformedSet } from '@/api/types'
-import { BENCH, fakeApi } from '@/test/fakeApi'
+import { BENCH, INCLINE, fakeApi } from '@/test/fakeApi'
 import { HistoryScreen } from './HistoryScreen'
 
 function set(id: string, load: string, reps: number, rir: number | null, type: PerformedSet['set_type'] = 'working'): PerformedSet {
@@ -30,6 +30,7 @@ const HISTORY: ExerciseHistory = {
       performed_on: '2026-09-23',
       performed_time_local: null,
       planned_workout_name: 'Upper A',
+      replaced: null,
       block_week: 1,
       phase: 'block',
       sets: [set('a', '40', 8, null, 'warmup'), set('b', '82.5', 6, 2), set('c', '82.5', 6, 2), set('d', '82.5', 5, 1)],
@@ -39,6 +40,7 @@ const HISTORY: ExerciseHistory = {
       performed_on: '2026-09-30',
       performed_time_local: null,
       planned_workout_name: 'Upper A',
+      replaced: null,
       block_week: 2,
       phase: 'block',
       sets: [set('e', '85', 6, 2), set('f', '85', 5, 1), set('g', '85', 5, 1)],
@@ -76,6 +78,22 @@ describe('HistoryScreen', () => {
     expect(within(first).getByTestId('history-week')).toHaveTextContent('1')
     expect(within(second).getByTestId('history-week')).toHaveTextContent('2')
     expect(screen.getByRole('img', { name: 'Top recorded load per session' })).toBeInTheDocument()
+    // It is the secondary view: the day timeline is History's default.
+    expect(screen.getByRole('link', { name: 'Days' })).toHaveAttribute('href', '#/history')
+    expect(screen.getByRole('link', { name: 'Exercises' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('names the planned exercise a substitute was performed in place of', async () => {
+    const exposure = HISTORY.exposures[1]
+    if (!exposure) throw new Error('fixture')
+    fakeApi({
+      'GET /api/history/exercises': () => ({ body: [{ exercise: BENCH, exposures: 1, last_performed_on: '2026-09-30' }] }),
+      'GET /api/exercises/bench/history': () => ({
+        body: { ...HISTORY, exposures: [{ ...exposure, replaced: INCLINE }] } satisfies ExerciseHistory,
+      }),
+    })
+    render(<HistoryScreen exerciseId="bench" />)
+    expect(await screen.findByTestId('history-replaced')).toHaveTextContent('in place of Incline Smith Press')
   })
 
   it('compares each exposure with the previous one of the same session, week to week', async () => {
@@ -84,6 +102,7 @@ describe('HistoryScreen', () => {
       performed_on: day,
       performed_time_local: null,
       planned_workout_name: session,
+      replaced: null,
       block_week: week,
       phase,
       sets: [set(`${id}-1`, load, 8, 2)],

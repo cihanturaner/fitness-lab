@@ -10,8 +10,8 @@ export interface NotesSection {
   blocks: NotesBlock[]
 }
 
-export function parseProgramNotes(text: string): NotesSection[] {
-  const sections: NotesSection[] = [{ title: 'About', blocks: [] }]
+export function parseProgramNotes(text: string, aboutTitle = 'About'): NotesSection[] {
+  const sections: NotesSection[] = [{ title: aboutTitle, blocks: [] }]
   let json: string[] | null = null
   let lines: string[] = []
   const current = () => sections[sections.length - 1] as NotesSection
@@ -47,4 +47,16 @@ export function parseProgramNotes(text: string): NotesSection[] {
   }
   flush()
   return sections.filter((section) => section.blocks.length > 0)
+}
+
+/**
+ * sha256 of the program notes the Turkish text (program-notes.tr.md) was translated from:
+ * programs/advanced-natural-12w/package/program-notes.md. The Turkish rendering is shown only
+ * for exactly those notes; any other program's notes are shown as imported.
+ */
+export const TURKISH_SOURCE_SHA256 = '2080af04d4402b93f81b4bc484d141f81f134752c87673df2445e4a028dd2683'
+
+/** True when the Turkish translation belongs to exactly these notes. */
+export function hasTurkishRules(notesSha256: string | null): boolean {
+  return notesSha256 === TURKISH_SOURCE_SHA256
 }

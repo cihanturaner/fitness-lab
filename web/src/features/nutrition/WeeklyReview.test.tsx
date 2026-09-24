@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CalorieTarget, NutritionReview, Review } from '@/api/types'
+import type { MacroTarget, NutritionReview, Review } from '@/api/types'
 import { NUTRITION, REVIEW, fakeApi } from '@/test/fakeApi'
 import { NutritionScreen } from './NutritionScreen'
 
@@ -28,17 +28,29 @@ const UNDER = reviewWith({
   decision_due: true,
   recommended_action: 'ADD_CALORIES',
   recommended_delta_kcal: 150,
-  current_target_kcal: 2650,
-  recommended_target_kcal: 2800,
-  recommended_carbs_g: 420,
+  current_target_kcal: 2430,
+  recommended_target_kcal: 2582,
+  recommended_carbs_g: 338,
+  current_macros: { protein_g: 150, carbs_g: 300, fat_g: 70, calories_kcal: 2430 },
+  recommended_macros: { protein_g: 150, carbs_g: 338, fat_g: 70, calories_kcal: 2582 },
   note: null,
 })
 
-const TARGET: CalorieTarget = { id: 't1', effective_on: '2026-09-30', calories_kcal: 2650, notes: 'Starting rule', set_at_utc: '2026-09-30T07:00:00Z' }
+const TARGET: MacroTarget = {
+  id: 't1',
+  effective_on: '2026-09-30',
+  protein_g: 150,
+  carbs_g: 300,
+  fat_g: 70,
+  calories_kcal: 2430,
+  legacy_calories_kcal: null,
+  notes: 'Starting rule',
+  set_at_utc: '2026-09-30T07:00:00Z',
+}
 
 function serve(review: NutritionReview, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
-    'GET /api/nutrition': () => ({ body: { ...NUTRITION, target_history: [TARGET] } }),
+    'GET /api/nutrition': () => ({ body: { ...NUTRITION, target: TARGET, target_history: [TARGET] } }),
     'GET /api/nutrition/review': () => ({ body: review }),
     ...extra,
   })
@@ -59,18 +71,21 @@ describe('Weekly review', () => {
     const panel = await screen.findByRole('region', { name: 'Weekly review' })
     expect(within(panel).getByTestId('review-trend')).toHaveTextContent('+0.07 % BW/week')
     expect(within(panel).getByTestId('review-status')).toHaveTextContent('UNDER_GAINSlow gainHEURISTIC')
+    // Current macro targets and exactly what Apply would record, before anything changes.
+    expect(within(panel).getByTestId('review-current-targets')).toHaveTextContent('150 P · 300 C · 70 F = 2430 kcal')
     expect(within(panel).getByTestId('review-recommendation')).toHaveTextContent(
-      '+150 kcal/day → 2800 kcal · carbs 420 g · protein 145 g and fat 60 g unchanged',
+      '+150 kcal/day → carbs +38 g: 150 P · 338 C · 70 F = 2582 kcal',
     )
     expect(calls.some((call) => call.method === 'POST')).toBe(false)
-    await user.click(within(panel).getByRole('button', { name: 'Apply +150' }))
+    await user.click(within(panel).getByRole('button', { name: 'Apply +150 kcal' }))
     await waitFor(() =>
       expect(calls.find((call) => call.url === '/api/nutrition/review/decision')?.body).toMatchObject({
         block_week: 3,
         choice: 'APPLIED',
         expected_status: 'UNDER_GAIN',
         expected_delta_kcal: 150,
-        expected_target_kcal: 2800,
+        expected_target_kcal: 2582,
+        expected_macros: { protein_g: 150, carbs_g: 338, fat_g: 70 },
       }),
     )
   })
@@ -105,7 +120,7 @@ describe('Weekly review', () => {
   })
 
   it('opens the diagnostic gate: underfeeding can be confirmed only on reliable inputs', async () => {
-    const gate = reviewWith({ ...UNDER.review!, status: 'DIAGNOSTIC_GATE', recommended_action: 'AUDIT_BEFORE_CONTINUING', recommended_delta_kcal: null, recommended_target_kcal: null, recommended_carbs_g: null, failed_corrections: 2, block_week: 7 })
+    const gate = reviewWith({ ...UNDER.review!, status: 'DIAGNOSTIC_GATE', recommended_action: 'AUDIT_BEFORE_CONTINUING', recommended_delta_kcal: null, recommended_target_kcal: null, recommended_carbs_g: null, recommended_macros: null, failed_corrections: 2, block_week: 7 })
     const calls = serve(gate, { 'POST /api/nutrition/review/gate': () => ({ status: 201, body: {} }) })
     const user = userEvent.setup()
     render(<NutritionScreen />)
@@ -131,7 +146,7 @@ describe('Weekly review', () => {
   })
 
   it('after “inputs unreliable” the audit can be redone, and the current target kept', async () => {
-    const fix = reviewWith({ ...UNDER.review!, status: 'DIAGNOSTIC_GATE', recommended_action: 'FIX_INPUT_PROBLEM_FIRST', recommended_delta_kcal: null, recommended_target_kcal: null, recommended_carbs_g: null, failed_corrections: 2, block_week: 7 })
+    const fix = reviewWith({ ...UNDER.review!, status: 'DIAGNOSTIC_GATE', recommended_action: 'FIX_INPUT_PROBLEM_FIRST', recommended_delta_kcal: null, recommended_target_kcal: null, recommended_carbs_g: null, recommended_macros: null, failed_corrections: 2, block_week: 7 })
     serve(fix)
     render(<NutritionScreen />)
     expect(await screen.findByRole('group', { name: 'Diagnostic gate audit' })).toBeInTheDocument()
@@ -141,34 +156,45 @@ describe('Weekly review', () => {
     expect(within(panel).queryByRole('button', { name: /Apply/ })).not.toBeInTheDocument()
   })
 
-  it('lists the calorie target history and scores each day against the target of that day', async () => {
+  it('lists the target history and scores each day against the target in force on it', async () => {
+    const raised: MacroTarget = {
+      ...TARGET,
+      id: 't2',
+      effective_on: '2026-10-06',
+      carbs_g: 338,
+      calories_kcal: 2582,
+      notes: 'Week 3 review: UNDER_GAIN, +152 kcal/day applied',
+    }
+    const day = (logged_on: string, carbs_g: number, target: MacroTarget | null) => ({
+      logged_on,
+      // As the server derives them: 150 x 4 + carbs x 4 + 70 x 9.
+      calories_kcal: 600 + carbs_g * 4 + 630,
+      calories_complete: true,
+      protein_g: 150,
+      carbs_g,
+      fat_g: 70,
+      notes: null,
+      target,
+    })
     fakeApi({
       'GET /api/nutrition': () => ({
         body: {
           ...NUTRITION,
-          targets: { ...NUTRITION.targets, calories_kcal: 2800, carbs_g: 420, calorie_target_effective_on: '2026-10-06' },
-          recent: [
-            // Calories as the server derives them: 150 x 4 + carbs x 4 + 60 x 9.
-            { logged_on: '2026-10-07', calories_kcal: 2800, calories_complete: true, protein_g: 150, carbs_g: 415, fat_g: 60, notes: null },
-            { logged_on: '2026-10-05', calories_kcal: 2700, calories_complete: true, protein_g: 150, carbs_g: 390, fat_g: 60, notes: null },
-            { logged_on: '2026-09-28', calories_kcal: 2500, calories_complete: true, protein_g: 150, carbs_g: 340, fat_g: 60, notes: null },
-          ],
-          target_history: [
-            { id: 't2', effective_on: '2026-10-06', calories_kcal: 2800, notes: 'Week 3 review: UNDER_GAIN, +150 kcal/day applied', set_at_utc: '2026-10-06T07:00:00Z' },
-            TARGET,
-          ],
+          target: raised,
+          recent: [day('2026-10-07', 338, raised), day('2026-10-05', 310, TARGET), day('2026-09-28', 300, null)],
+          target_history: [raised, TARGET],
         },
       }),
       'GET /api/nutrition/review': () => ({ body: REVIEW }),
     })
     render(<NutritionScreen />)
-    const history = await screen.findByRole('region', { name: 'Calorie target history' })
+    const history = await screen.findByRole('region', { name: 'Target history' })
     const rows = within(history).getAllByTestId('target-row')
-    expect(rows[0]).toHaveTextContent('2800+150420Week 3 review')
-    expect(rows[1]).toHaveTextContent('2650first383')
+    expect(rows[0]).toHaveTextContent('15033870' + '2582+152Week 3 review')
+    expect(rows[1]).toHaveTextContent('150300702430first')
     const days = screen.getAllByTestId('nut-day')
-    expect(days[0]).toHaveTextContent('28000150') // on target that day: 0
-    expect(days[1]).toHaveTextContent('2700+50') // against 2650 in force on 5 Oct, not 2800
+    expect(days[0]).toHaveTextContent('25820150') // on target that day: 0
+    expect(days[1]).toHaveTextContent('2470+40') // against 2430 in force on 5 Oct, not 2582
     expect(days[2]).not.toHaveTextContent('+') // no target existed on 28 Sep
   })
 
@@ -176,36 +202,42 @@ describe('Weekly review', () => {
     fakeApi({
       'GET /api/nutrition': () => ({ body: NUTRITION }),
       'GET /api/nutrition/review': () => ({ body: REVIEW }),
-      'POST /api/nutrition/calorie-targets': () => ({ status: 201, body: TARGET }),
     })
     const user = userEvent.setup()
     render(<NutritionScreen />)
-    await user.click(await screen.findByRole('button', { name: 'Set calorie target…' }))
+    await user.click(await screen.findByRole('button', { name: 'Set targets…' }))
     await user.type(screen.getByRole('textbox', { name: 'Recent stable intake in kcal' }), '2500')
     expect(screen.getByTestId('starting-target')).toHaveTextContent('2650 kcal')
-    await user.click(screen.getByRole('button', { name: 'Use 2650' }))
-    expect(screen.getByRole('textbox', { name: 'Calorie target in kcal' })).toHaveValue('2650')
+    // At the source's 145 g protein and 60 g fat: (2650 - 1120) / 4 = 382.5 -> 383 g.
+    await user.click(screen.getByRole('button', { name: 'Use 383 g carbs' }))
+    expect(screen.getByRole('textbox', { name: 'Carbs target g' })).toHaveValue('383')
   })
 
   it('in weeks 1–2 a target change needs one of the source’s exceptions', async () => {
-    const early = reviewWith({ phase: 'early', current_target_kcal: 2650 })
+    const early = reviewWith({ phase: 'early', current_target_kcal: 2430 })
     const calls = fakeApi({
-      'GET /api/nutrition': () => ({ body: { ...NUTRITION, targets: { ...NUTRITION.targets, calories_kcal: 2650, carbs_g: 383 }, target_history: [TARGET] } }),
+      'GET /api/nutrition': () => ({ body: { ...NUTRITION, target: TARGET, target_history: [TARGET] } }),
       'GET /api/nutrition/review': () => ({ body: early }),
-      'POST /api/nutrition/calorie-targets': () => ({ status: 201, body: TARGET }),
+      'POST /api/nutrition/targets': () => ({ status: 201, body: TARGET }),
     })
     const user = userEvent.setup()
     render(<NutritionScreen />)
     await screen.findByRole('region', { name: 'Weekly review' })
-    await user.click(screen.getByRole('button', { name: 'Set calorie target…' }))
-    await user.type(screen.getByRole('textbox', { name: 'Calorie target in kcal' }), '2500')
-    await user.click(screen.getByRole('button', { name: 'Record target' }))
+    await user.click(screen.getByRole('button', { name: 'Change targets…' }))
+    // The form starts from the target in force.
+    expect(screen.getByRole('textbox', { name: 'Carbs target g' })).toHaveValue('300')
+    await user.clear(screen.getByRole('textbox', { name: 'Carbs target g' }))
+    await user.type(screen.getByRole('textbox', { name: 'Carbs target g' }), '260')
+    await user.click(screen.getByRole('button', { name: 'Save targets' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('choose the exception')
     expect(calls.some((call) => call.method === 'POST')).toBe(false)
     await user.selectOptions(screen.getByRole('combobox', { name: 'Target reason' }), 'illness')
-    await user.click(screen.getByRole('button', { name: 'Record target' }))
+    await user.click(screen.getByRole('button', { name: 'Save targets' }))
     await waitFor(() =>
-      expect(calls.find((call) => call.method === 'POST')?.body).toMatchObject({ notes: 'Weeks 1–2 exception: illness' }),
+      expect(calls.find((call) => call.method === 'POST')?.body).toMatchObject({
+        carbs_g: 260,
+        notes: 'Weeks 1–2 exception: illness',
+      }),
     )
   })
 })

@@ -200,6 +200,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
   const [saving, setSaving] = useState(false)
   const [pendingExtras, setPendingExtras] = useState<string[]>([])
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const inFlight = useRef(new Set<Promise<unknown>>())
   const completing = useRef(false)
 
@@ -329,12 +330,19 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
     }
   }
 
+  /**
+   * An empty draft holds nothing: a light confirmation. A draft with sets holds evidence, so
+   * it asks inside the page, naming what goes (a safety snapshot is taken first).
+   */
+  const requestDiscard = () => {
+    if (entry.sets.length > 0) {
+      setConfirmDiscard(true)
+      return
+    }
+    if (window.confirm('Discard this empty draft? Nothing was recorded in it; the planned session stays.')) void discard()
+  }
+
   const discard = async () => {
-    const question =
-      entry.sets.length === 0
-        ? 'Discard this empty draft?'
-        : `Delete this workout and its ${entry.sets.length} recorded sets? A safety snapshot of the database is kept.`
-    if (!window.confirm(question)) return
     setSaving(true)
     try {
       await api.discardWorkout(workout.id)
@@ -349,10 +357,17 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
   }
 
   const setCount = entry.sets.length
-  const selectable = (slotExerciseId: string, effectiveId: string) =>
-    exercises.filter(
-      (exercise) => exercise.is_active || exercise.id === effectiveId || exercise.id === slotExerciseId,
-    )
+  const changeFor = (slotId: string) => ({
+    toExercise: (exerciseId: string) => run(() => api.setSlotExercise(workout.id, slotId, exerciseId)),
+    toApproved: (name: string) =>
+      run(async () => {
+        await api.useApprovedSubstitute(workout.id, slotId, name)
+        await reloadExercises()
+      }),
+  })
+  const recordedNames = [...new Set(entry.sets.map((performed) => performed.exercise_id))].map((id) =>
+    exerciseLabel(entry.exercises[id]),
+  )
 
   // Totals from the server: planned non-warm-up sets of the origin vs those recorded.
   const plannedTotal = entry.work_sets?.planned ?? 0
@@ -455,6 +470,16 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
               <SlidersHorizontal aria-hidden />
               Details
             </Button>
+            {!locked && (
+              <Button
+                variant="ghost"
+                className="h-10 rounded-[12px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                isDisabled={saving}
+                onPress={requestDiscard}
+              >
+                Discard draft
+              </Button>
+            )}
             {locked ? (
               <Button
                 variant="outline"
@@ -508,12 +533,30 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
                 onCommit={(text) => run(() => api.patchWorkout(workout.id, { notes: text.trim() === '' ? null : text }))}
               />
             </label>
-            {!locked && (
-              <Button variant="ghost" className="h-8 text-destructive hover:bg-destructive/10" isDisabled={saving} onPress={() => void discard()}>
-                {entry.sets.length === 0 ? 'Discard draft' : 'Delete workout…'}
-              </Button>
-            )}
           </div>
+        )}
+        {confirmDiscard && !locked && (
+          <Callout tone="error" role="alertdialog" testId="discard-confirm" title={`Discard this draft and its ${setCount} recorded ${setCount === 1 ? 'set' : 'sets'}?`}>
+            <p>
+              Recorded here: {recordedNames.join(', ')}. Discarding deletes this workout only; the planned session and the
+              program stay. A safety snapshot of the database is taken first.
+            </p>
+            <div className="mt-2 flex gap-2">
+              <Button
+                className="h-9 bg-destructive text-white hover:bg-destructive/90"
+                isDisabled={saving}
+                onPress={() => {
+                  setConfirmDiscard(false)
+                  void discard()
+                }}
+              >
+                Discard {setCount} {setCount === 1 ? 'set' : 'sets'}
+              </Button>
+              <Button variant="outline" className="h-9" autoFocus onPress={() => setConfirmDiscard(false)}>
+                Keep the draft
+              </Button>
+            </div>
+          </Callout>
         )}
         {locked && (
           <p className="t-micro">
@@ -567,6 +610,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
               plannedExerciseId: slot.exercise_id,
               notes: slot.notes,
               substituted: slot.substitute_exercise_id !== null,
+              approved: slot.approved_substitutes,
             }}
             plannedSets={slot.sets}
             performance={entry.last_performance[slot.effective_exercise_id]}
@@ -575,8 +619,8 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
             sharedWith={sharedWith}
             locked={locked}
             actions={actions}
-            substitutes={selectable(slot.exercise_id, slot.effective_exercise_id)}
-            onSubstitute={(exerciseId) => void run(() => api.setSlotExercise(workout.id, slot.id, exerciseId))}
+            exercises={exercises}
+            change={changeFor(slot.id)}
           />
         ))}
         {view.extras.map((extra) => (

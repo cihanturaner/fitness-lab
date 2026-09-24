@@ -86,6 +86,7 @@ describe('app shell', () => {
       ...SYSTEM_ROUTES,
       ...HOME_ROUTES,
       'GET /api/history/exercises': () => ({ body: [] }),
+      'GET /api/history/days': () => ({ body: { days: [], next_before: null } }),
     })
     const user = userEvent.setup()
     render(<App />)
@@ -104,6 +105,12 @@ describe('app shell', () => {
     expect(await screen.findByRole('heading', { name: 'Nutrition', level: 1 })).toBeInTheDocument()
     await user.click(within(nav).getByRole('link', { name: 'History' }))
     expect(await screen.findByRole('heading', { name: 'History', level: 1 })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'History' })).toHaveAttribute('aria-current', 'page')
+    // History opens on the day timeline; exercise history is one tab away and stays under History.
+    expect(await screen.findByText('Nothing recorded yet.')).toBeInTheDocument()
+    await user.click(screen.getByRole('link', { name: 'Exercises' }))
+    expect(await screen.findByRole('heading', { name: 'Exercise history', level: 1 })).toBeInTheDocument()
+    expect(window.location.hash).toBe('#/history/exercises')
     expect(within(nav).getByRole('link', { name: 'History' })).toHaveAttribute('aria-current', 'page')
   })
 })

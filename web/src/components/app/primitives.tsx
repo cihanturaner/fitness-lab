@@ -101,7 +101,7 @@ export function Callout({
   tone: keyof typeof CALLOUT
   title: ReactNode
   children?: ReactNode
-  role?: 'alert' | 'status'
+  role?: 'alert' | 'status' | 'alertdialog'
   testId?: string
 }) {
   const { icon: Icon, className } = CALLOUT[tone]

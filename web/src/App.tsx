@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { fetchHealth, fetchPingDb, type HealthResponse, type PingDbResponse } from '@/api/m0'
 import { BodyweightScreen } from '@/features/bodyweight/BodyweightScreen'
 import { EntryScreen } from '@/features/entry/EntryScreen'
+import { DayHistory } from '@/features/history/DayHistory'
 import { HistoryScreen } from '@/features/history/HistoryScreen'
 import { SessionsScreen } from '@/features/history/SessionsScreen'
 import { HomeScreen } from '@/features/home/HomeScreen'
@@ -109,7 +110,7 @@ const NAV: { label: string; href: string; routes: Route['name'][] }[] = [
   { label: 'Training', href: '#/training', routes: ['training', 'workout'] },
   { label: 'Bodyweight', href: '#/bodyweight', routes: ['bodyweight'] },
   { label: 'Nutrition', href: '#/nutrition', routes: ['nutrition'] },
-  { label: 'History', href: '#/history', routes: ['history', 'sessions'] },
+  { label: 'History', href: '#/history', routes: ['history', 'exercises', 'sessions'] },
   { label: 'Settings', href: '#/settings', routes: ['settings'] },
 ]
 
@@ -171,6 +172,8 @@ function Screen({ route }: { route: Route }) {
     case 'nutrition':
       return <NutritionScreen />
     case 'history':
+      return <DayHistory />
+    case 'exercises':
       return <HistoryScreen exerciseId={route.exerciseId} />
     case 'sessions':
       return <SessionsScreen />

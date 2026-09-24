@@ -7,21 +7,24 @@ export type Route =
   | { name: 'workout'; id: string }
   | { name: 'bodyweight' }
   | { name: 'nutrition' }
-  | { name: 'history'; exerciseId: string | null }
+  | { name: 'history' }
+  | { name: 'exercises'; exerciseId: string | null }
   | { name: 'sessions' }
   | { name: 'settings' }
 
 /**
  * Hash routes survive a reload and need no server-side fallback: `#/` (Home), `#/training`,
- * `#/training/<date>`, `#/workouts/<id>`, `#/bodyweight`, `#/nutrition`, `#/history`,
- * `#/history/<exerciseId>`, `#/sessions`, `#/settings`. The pre-V3.2 `#/week/<date>` still
- * opens that week, now on Training.
+ * `#/training/<date>`, `#/workouts/<id>`, `#/bodyweight`, `#/nutrition`, `#/history` (the
+ * day-by-day timeline), `#/history/exercises`, `#/history/<exerciseId>`, `#/sessions`,
+ * `#/settings`. The pre-V3.2 `#/week/<date>` still opens that week, now on Training.
  */
 export function parseRoute(hash: string): Route {
   const workout = /^#\/workouts\/([A-Za-z0-9]+)$/.exec(hash)
   if (workout?.[1]) return { name: 'workout', id: workout[1] }
-  const history = /^#\/history(?:\/([A-Za-z0-9]+))?$/.exec(hash)
-  if (history) return { name: 'history', exerciseId: history[1] ?? null }
+  if (hash === '#/history') return { name: 'history' }
+  if (hash === '#/history/exercises') return { name: 'exercises', exerciseId: null }
+  const exercise = /^#\/history\/([A-Za-z0-9]+)$/.exec(hash)
+  if (exercise?.[1]) return { name: 'exercises', exerciseId: exercise[1] }
   if (hash === '#/bodyweight') return { name: 'bodyweight' }
   if (hash === '#/nutrition') return { name: 'nutrition' }
   if (hash === '#/sessions') return { name: 'sessions' }
@@ -43,6 +46,7 @@ const BACK_LABELS: Partial<Record<Route['name'], string>> = {
   home: 'Home',
   training: 'Training',
   history: 'History',
+  exercises: 'Exercise history',
   sessions: 'All sessions',
 }
 
@@ -59,6 +63,8 @@ function remember(hash: string): void {
 export function backTarget(): { href: string; label: string } {
   return back
 }
+
+export const EXERCISES_HREF = '#/history/exercises'
 
 export function historyHref(exerciseId: string): string {
   return `#/history/${exerciseId}`

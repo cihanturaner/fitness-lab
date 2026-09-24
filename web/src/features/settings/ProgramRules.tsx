@@ -1,15 +1,23 @@
-import { useId, useState, type ReactNode } from 'react'
+import { createContext, useContext, useId, useState, type ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
-import { parseProgramNotes } from './programNotes'
+import turkishNotes from './program-notes.tr.md?raw'
+import { hasTurkishRules, parseProgramNotes } from './programNotes'
+
+const Words = createContext({ yes: 'yes', no: 'no' })
 
 function label(key: string): string {
   const text = key.replace(/_/g, ' ')
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
+function BooleanWord({ value }: { value: boolean }) {
+  const words = useContext(Words)
+  return value ? words.yes : words.no
+}
+
 function Value({ value }: { value: unknown }): ReactNode {
   if (value === null) return <span className="text-faint">—</span>
-  if (typeof value === 'boolean') return value ? 'yes' : 'no'
+  if (typeof value === 'boolean') return <BooleanWord value={value} />
   if (typeof value !== 'object') return String(value)
   if (Array.isArray(value)) {
     if (value.every((item) => typeof item !== 'object' || item === null)) {
@@ -70,25 +78,32 @@ function RuleSection({ title, children }: { title: string; children: ReactNode }
   )
 }
 
-export function ProgramRules({ notes }: { notes: string }) {
-  const sections = parseProgramNotes(notes)
+export function ProgramRules({ notes, notesSha256 }: { notes: string; notesSha256: string | null }) {
+  const turkish = hasTurkishRules(notesSha256)
+  const sections = turkish ? parseProgramNotes(turkishNotes, 'Program Hakkında') : parseProgramNotes(notes)
   return (
-    <div className="flex flex-col divide-y divide-border overflow-hidden rounded-[12px] bg-sunken/60 shadow-[inset_0_0_0_1px_var(--border)]">
-      {sections.map((section) => (
-        <RuleSection key={section.title} title={section.title}>
-          {section.blocks.map((block, index) =>
-            block.kind === 'json' ? (
-              <Value key={index} value={block.value} />
-            ) : (
-              <ul key={index} className="flex flex-col gap-1">
-                {block.lines.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            ),
-          )}
-        </RuleSection>
-      ))}
-    </div>
+    <Words.Provider value={turkish ? { yes: 'evet', no: 'hayır' } : { yes: 'yes', no: 'no' }}>
+      <div
+        lang={turkish ? 'tr' : undefined}
+        data-testid="program-rules"
+        className="flex flex-col divide-y divide-border overflow-hidden rounded-[12px] bg-sunken/60 shadow-[inset_0_0_0_1px_var(--border)]"
+      >
+        {sections.map((section) => (
+          <RuleSection key={section.title} title={section.title}>
+            {section.blocks.map((block, index) =>
+              block.kind === 'json' ? (
+                <Value key={index} value={block.value} />
+              ) : (
+                <ul key={index} className="flex flex-col gap-1">
+                  {block.lines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ),
+            )}
+          </RuleSection>
+        ))}
+      </div>
+    </Words.Provider>
   )
 }

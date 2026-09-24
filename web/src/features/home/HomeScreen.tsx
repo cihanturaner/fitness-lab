@@ -316,13 +316,13 @@ function MacroRow({ label, value, target, testId }: { label: keyof typeof MACRO_
 }
 
 function NutritionSummary({ data, review }: { data: Nutrition; review: NutritionReview | null }) {
-  const { day, targets } = data
+  const { day, target } = data
   const due = review?.review?.decision_due ? review.review : null
   const energy = macroCalories({ protein: day?.protein_g ?? null, carbs: day?.carbs_g ?? null, fat: day?.fat_g ?? null })
   const kcal = day ? day.calories_kcal : null
   const notes = [
     !day ? 'Nothing logged today.' : null,
-    targets.calories_kcal === null ? 'Calorie target not calibrated yet.' : null,
+    target === null ? 'No macro target set yet.' : null,
   ].filter((note): note is string => note !== null)
   return (
     <div className="flex flex-1 flex-col gap-4">
@@ -330,7 +330,7 @@ function NutritionSummary({ data, review }: { data: Nutrition; review: Nutrition
         {/* Calories are the result of the three macros, so the ring's arc is split by them. */}
         <ProgressRing
           value={kcal ?? 0}
-          max={targets.calories_kcal ?? (kcal && kcal > 0 ? kcal : null)}
+          max={target?.calories_kcal ?? (kcal && kcal > 0 ? kcal : null)}
           size={96}
           stroke={9}
           segments={[
@@ -347,14 +347,14 @@ function NutritionSummary({ data, review }: { data: Nutrition; review: Nutrition
               <AnimatedNumber value={kcal} className="text-[22px] leading-7 font-semibold tracking-[-0.03em]" />
             )}
             <span className="text-[11px] font-medium text-muted-foreground">
-              {targets.calories_kcal === null ? 'kcal' : `of ${targets.calories_kcal}`}
+              {target === null ? 'kcal' : `of ${target.calories_kcal}`}
             </span>
           </span>
         </ProgressRing>
         <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-          <MacroRow label="Protein" value={day?.protein_g ?? null} target={targets.protein_g} testId="home-nut-protein" />
-          <MacroRow label="Carbs" value={day?.carbs_g ?? null} target={targets.carbs_g} testId="home-nut-carbs" />
-          <MacroRow label="Fat" value={day?.fat_g ?? null} target={targets.fat_g} testId="home-nut-fat" />
+          <MacroRow label="Protein" value={day?.protein_g ?? null} target={target?.protein_g ?? null} testId="home-nut-protein" />
+          <MacroRow label="Carbs" value={day?.carbs_g ?? null} target={target?.carbs_g ?? null} testId="home-nut-carbs" />
+          <MacroRow label="Fat" value={day?.fat_g ?? null} target={target?.fat_g ?? null} testId="home-nut-fat" />
         </div>
       </div>
       {(notes.length > 0 || due) && (

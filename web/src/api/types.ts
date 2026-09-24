@@ -67,9 +67,17 @@ export interface Slot {
   sets: PlannedSet[]
 }
 
+/** One of a slot's approved substitutes (locked source); exercise_id once it exists. */
+export interface ApprovedSubstitute {
+  name: string
+  condition: string | null
+  exercise_id: string | null
+}
+
 export interface EntrySlot extends Slot {
   substitute_exercise_id: string | null
   effective_exercise_id: string
+  approved_substitutes: ApprovedSubstitute[]
 }
 
 export interface LastPerformance {
@@ -126,6 +134,7 @@ export interface ActiveProgram {
   version: ProgramVersion | null
   activated_at_utc: string | null
   notes_text: string | null
+  notes_sha256: string | null
   planned_workouts: PlannedWorkoutSummary[]
 }
 
@@ -269,20 +278,20 @@ export interface NutritionDay {
   carbs_g: number | null
   fat_g: number | null
   notes: string | null
+  /** The target in force on this day: an earlier day keeps the target it had then. */
+  target: MacroTarget | null
 }
 
-export interface NutritionTargets {
-  protein_g: number
-  fat_g: number
-  calories_kcal: number | null
-  carbs_g: number | null
-  calorie_target_effective_on: string | null
-}
-
-export interface CalorieTarget {
+/** A daily target in grams; its calories are derived (P × 4 + C × 4 + F × 9), never set. */
+export interface MacroTarget {
   id: string
   effective_on: string
+  protein_g: number
+  carbs_g: number
+  fat_g: number
   calories_kcal: number
+  /** Targets recorded before V3.3 were calories only: the number recorded then. */
+  legacy_calories_kcal: number | null
   notes: string | null
   set_at_utc: string
 }
@@ -290,9 +299,19 @@ export interface CalorieTarget {
 export interface Nutrition {
   date: string
   day: NutritionDay | null
-  targets: NutritionTargets
+  target: MacroTarget | null
+  /** The locked source's protein and fat, offered for a first target. */
+  defaults: { protein_g: number; fat_g: number }
   recent: NutritionDay[]
-  target_history: CalorieTarget[]
+  target_history: MacroTarget[]
+}
+
+export interface MacroTargetFields {
+  effective_on: string
+  protein_g: number
+  carbs_g: number
+  fat_g: number
+  notes: string | null
 }
 
 export interface NutritionFields {
@@ -313,6 +332,8 @@ export interface Exposure {
   performed_on: string
   performed_time_local: string | null
   planned_workout_name: string | null
+  /** The planned exercise this one was performed in place of, in that workout. */
+  replaced: Exercise | null
   block_week: number | null
   phase: BlockPhase | null
   sets: PerformedSet[]
@@ -356,6 +377,13 @@ export interface ReviewTrend {
   band: string | null
 }
 
+export interface Macros {
+  protein_g: number
+  carbs_g: number
+  fat_g: number
+  calories_kcal: number
+}
+
 export interface ReviewDecision {
   id: string
   block_week: number
@@ -368,6 +396,7 @@ export interface ReviewDecision {
   previous_calorie_target_kcal: number
   user_choice: 'APPLIED' | 'KEPT'
   new_calorie_target_kcal: number | null
+  new_target: Macros | null
   composition_concern: boolean
   notes: string | null
   recorded_at_utc: string
@@ -400,6 +429,9 @@ export interface Review {
   current_target_kcal: number | null
   recommended_target_kcal: number | null
   recommended_carbs_g: number | null
+  current_macros: Macros | null
+  /** What Apply records: the current target with carbohydrate moved by the change. */
+  recommended_macros: Macros | null
   failed_corrections: number
   note: string | null
   decision: ReviewDecision | null
@@ -442,4 +474,46 @@ export interface Backup {
   kind: 'manual' | 'pre-migration' | 'pre-delete' | 'other'
   created_at_utc: string
   size_bytes: number
+}
+
+// --- V3.3: day-by-day history -----------------------------------------------------------
+
+export type HistoryKind = 'all' | 'training' | 'bodyweight' | 'nutrition'
+
+export interface DayExercise {
+  exercise: Exercise
+  /** The planned exercise this one replaced in this workout, if it was changed. */
+  planned_exercise: Exercise | null
+  sets: PerformedSet[]
+}
+
+export interface DayWorkout {
+  workout_id: string
+  performed_time_local: string | null
+  planned_workout_name: string | null
+  planned_work_sets: number | null
+  actual_work_sets: number
+  shortened: boolean
+  exercises: DayExercise[]
+}
+
+export interface DayNutrition {
+  calories_kcal: number
+  calories_complete: boolean
+  protein_g: number | null
+  carbs_g: number | null
+  fat_g: number | null
+  target: MacroTarget | null
+}
+
+export interface HistoryDay {
+  date: string
+  workouts: DayWorkout[]
+  bodyweight_kg: string | null
+  nutrition: DayNutrition | null
+}
+
+export interface HistoryDays {
+  days: HistoryDay[]
+  next_before: string | null
 }

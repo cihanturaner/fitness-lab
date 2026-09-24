@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Week, WeekDay } from '@/api/types'
-import { HOME_ROUTES, REVIEW, WEEK, entryFixture, fakeApi, session } from '@/test/fakeApi'
+import { HOME_ROUTES, NUTRITION, REVIEW, TARGET, WEEK, entryFixture, fakeApi, session } from '@/test/fakeApi'
 import { HomeScreen } from './HomeScreen'
 
 function withDays(week: Week, change: (day: WeekDay, index: number) => WeekDay): Week {
@@ -58,11 +58,22 @@ describe('HomeScreen', () => {
     // Two weigh-ins are no trend: no single-day change is presented as a rate.
     expect(within(bodyweight).getByTestId('home-bw-trend')).toHaveTextContent('not enough weigh-ins (2/14)')
     const nutrition = screen.getByTestId('home-nutrition')
-    expect(within(nutrition).getByTestId('home-nut-protein')).toHaveTextContent('150 gtarget 145 g')
-    expect(within(nutrition).getByTestId('home-nut-fat')).toHaveTextContent('62 gtarget 60 g')
+    // No macro target recorded yet: none is shown, not even the source's defaults.
+    expect(within(nutrition).getByTestId('home-nut-protein')).toHaveTextContent('150 gtarget not set')
+    expect(within(nutrition).getByTestId('home-nut-fat')).toHaveTextContent('62 gtarget not set')
     // Derived from the macros (150 x 4 + 290 x 4 + 62 x 9), never typed.
     expect(within(nutrition).getByTestId('home-nut-kcal')).toHaveTextContent('2318kcal')
-    expect(nutrition).toHaveTextContent('Calorie target not calibrated yet.')
+    expect(nutrition).toHaveTextContent('No macro target set yet.')
+  })
+
+  it('compares today’s macros with the macro target in force', async () => {
+    fakeApi({ ...HOME_ROUTES, 'GET /api/nutrition': () => ({ body: { ...NUTRITION, target: TARGET } }) })
+    render(<HomeScreen />)
+    const nutrition = await screen.findByTestId('home-nutrition')
+    expect(within(nutrition).getByTestId('home-nut-protein')).toHaveTextContent('150 gtarget 150 g')
+    expect(within(nutrition).getByTestId('home-nut-carbs')).toHaveTextContent('290 gtarget 300 g')
+    expect(within(nutrition).getByTestId('home-nut-kcal')).toHaveTextContent('2318of 2430')
+    expect(nutrition).not.toHaveTextContent('No macro target set yet.')
   })
 
   it('starts today’s planned session as a draft and routes to it', async () => {

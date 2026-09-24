@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Nutrition } from '@/api/types'
-import { NUTRITION, REVIEW, fakeApi } from '@/test/fakeApi'
+import { NUTRITION, REVIEW, TARGET, fakeApi } from '@/test/fakeApi'
 import { NutritionScreen } from './NutritionScreen'
 
 const EMPTY: Nutrition = { ...NUTRITION, day: null, recent: [] }
@@ -10,15 +10,28 @@ const EMPTY: Nutrition = { ...NUTRITION, day: null, recent: [] }
 describe('NutritionScreen', () => {
   beforeEach(() => vi.unstubAllGlobals())
 
-  it('shows the locked targets and an uncalibrated calorie target truthfully', async () => {
+  it('has no target until the lifter records one, and says so', async () => {
     fakeApi({ 'GET /api/nutrition': () => ({ body: NUTRITION }),
       'GET /api/nutrition/review': () => ({ body: REVIEW }), })
     render(<NutritionScreen />)
-    expect(await screen.findByTestId('nut-target-protein')).toHaveTextContent('145 g')
-    expect(screen.getByTestId('nut-target-fat')).toHaveTextContent('60 g')
-    expect(screen.getByTestId('nut-target-calories')).toHaveTextContent('Calorie target not calibrated yet.')
-    expect(screen.getByTestId('nut-target-carbs')).toHaveTextContent('Follows the calorie target.')
+    expect(await screen.findByTestId('nut-target-protein')).toHaveTextContent('no target')
+    expect(screen.getByTestId('nut-target-carbs')).toHaveTextContent('no target')
+    expect(screen.getByTestId('nut-target-fat')).toHaveTextContent('no target')
+    expect(screen.getByTestId('nut-target-calories')).toHaveTextContent('No target yet.')
     expect(screen.getByRole('textbox', { name: 'Protein g' })).toHaveValue('150')
+  })
+
+  it('shows the targets in force and their derived calories', async () => {
+    fakeApi({
+      'GET /api/nutrition': () => ({ body: { ...NUTRITION, target: TARGET, target_history: [TARGET] } }),
+      'GET /api/nutrition/review': () => ({ body: REVIEW }),
+    })
+    render(<NutritionScreen />)
+    expect(await screen.findByTestId('nut-target-protein')).toHaveTextContent('150 g')
+    expect(screen.getByTestId('nut-target-carbs')).toHaveTextContent('300 g')
+    expect(screen.getByTestId('nut-target-fat')).toHaveTextContent('70 g')
+    expect(screen.getByTestId('nut-target-calories')).toHaveTextContent('2430 kcal')
+    expect(screen.getByTestId('nut-target-line')).toHaveTextContent('Targets 150 P · 300 C · 70 F = 2430 kcal since Thu 1 Oct.')
   })
 
   it('saves the day with exactly what was typed; an empty field is unknown, not zero', async () => {
@@ -101,36 +114,44 @@ describe('NutritionScreen', () => {
     expect(calls.some((call) => call.method === 'PUT')).toBe(false)
   })
 
-  it('records a calorie target only when the lifter sets one, showing the derived carbohydrate', async () => {
+  it('records protein, carbs and fat targets; the calorie target is derived, never typed', async () => {
     const calls = fakeApi({
       'GET /api/nutrition': () => ({ body: NUTRITION }),
       'GET /api/nutrition/review': () => ({ body: REVIEW }),
-      'POST /api/nutrition/calorie-targets': () => ({
-        status: 201,
-        body: { id: 't', effective_on: '2026-10-07', calories_kcal: 2650, notes: null, set_at_utc: 'x' },
-      }),
+      'POST /api/nutrition/targets': () => ({ status: 201, body: TARGET }),
     })
     const user = userEvent.setup()
     render(<NutritionScreen />)
-    await user.click(await screen.findByRole('button', { name: 'Set calorie target…' }))
-    await user.type(screen.getByRole('textbox', { name: 'Calorie target in kcal' }), '2650')
-    expect(screen.getByText(/\(2650 − 1120\) \/ 4 =/)).toHaveTextContent('383 g')
+    await user.click(await screen.findByRole('button', { name: 'Set targets…' }))
+    const form = screen.getByRole('form', { name: 'Macro targets' })
+    // The locked source's protein and fat are offered; carbs are the lifter's to set.
+    expect(within(form).getByRole('textbox', { name: 'Protein target g' })).toHaveValue('145')
+    expect(within(form).getByRole('textbox', { name: 'Fat target g' })).toHaveValue('60')
+    expect(within(form).queryByRole('textbox', { name: /calorie/i })).not.toBeInTheDocument()
+    for (const [name, value] of [['Protein target g', '150'], ['Carbs target g', '300'], ['Fat target g', '70']] as const) {
+      await user.clear(within(form).getByRole('textbox', { name }))
+      await user.type(within(form).getByRole('textbox', { name }), value)
+    }
+    expect(within(form).getByTestId('target-form-kcal')).toHaveTextContent('150 × 4 + 300 × 4 + 70 × 9 = 2430 kcal')
     expect(calls.some((call) => call.method === 'POST')).toBe(false)
-    await user.click(screen.getByRole('button', { name: 'Record target' }))
+    await user.click(within(form).getByRole('button', { name: 'Save targets' }))
     await waitFor(() =>
-      expect(calls.find((call) => call.method === 'POST')?.body).toMatchObject({ calories_kcal: 2650 }),
+      expect(calls.find((call) => call.method === 'POST')?.body).toMatchObject({
+        protein_g: 150,
+        carbs_g: 300,
+        fat_g: 70,
+      }),
     )
   })
 
-  it('refuses a calorie target below protein and fat alone', async () => {
+  it('refuses a target missing a macro', async () => {
     const calls = fakeApi({ 'GET /api/nutrition': () => ({ body: NUTRITION }),
       'GET /api/nutrition/review': () => ({ body: REVIEW }), })
     const user = userEvent.setup()
     render(<NutritionScreen />)
-    await user.click(await screen.findByRole('button', { name: 'Set calorie target…' }))
-    await user.type(screen.getByRole('textbox', { name: 'Calorie target in kcal' }), '1000')
-    await user.click(screen.getByRole('button', { name: 'Record target' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(/at least 1120/)
+    await user.click(await screen.findByRole('button', { name: 'Set targets…' }))
+    await user.click(screen.getByRole('button', { name: 'Save targets' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/protein, carbs and fat/)
     expect(calls.some((call) => call.method === 'POST')).toBe(false)
   })
 })

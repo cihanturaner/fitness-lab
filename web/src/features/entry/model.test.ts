@@ -13,6 +13,7 @@ function slot(position: number, exerciseId: string, substitute: string | null = 
     sets: [],
     substitute_exercise_id: substitute,
     effective_exercise_id: substitute ?? exerciseId,
+    approved_substitutes: [],
   }
 }
 

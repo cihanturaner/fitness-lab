@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { ArrowLeftRight, Check, Info } from 'lucide-react'
-import type { Exercise, LastPerformance, PerformedSet, PlannedSet } from '@/api/types'
+import { Check, Info } from 'lucide-react'
+import type { ApprovedSubstitute, Exercise, LastPerformance, PerformedSet, PlannedSet } from '@/api/types'
 import { compactSet, exerciseLabel, formatShortDate, targetSummary } from '@/lib/format'
 import { SetGrid, type SetActions } from './SetGrid'
 
@@ -35,6 +35,141 @@ export interface SlotInfo {
   plannedExerciseId: string
   notes: string | null
   substituted: boolean
+  approved: ApprovedSubstitute[]
+}
+
+export interface ChangeActions {
+  /** Any existing exercise (the planned one clears the change). */
+  toExercise: (exerciseId: string) => Promise<boolean>
+  /** One of the slot's approved substitutes, by its source name. */
+  toApproved: (name: string) => Promise<boolean>
+}
+
+const MAX_MATCHES = 8
+
+/**
+ * Change the exercise of one slot for this workout only. The plan, next week and every
+ * later occurrence keep the planned exercise; History shows both.
+ */
+function ChangePanel({
+  slot,
+  current,
+  planned,
+  exercises,
+  savedHere,
+  change,
+  onDone,
+}: {
+  slot: SlotInfo
+  current: Exercise | undefined
+  planned: Exercise | undefined
+  exercises: Exercise[]
+  savedHere: number
+  change: ChangeActions
+  onDone: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const [busy, setBusy] = useState(false)
+  const approvedIds = new Set(slot.approved.map((item) => item.exercise_id).filter(Boolean))
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const matches =
+    words.length === 0
+      ? []
+      : exercises
+          .filter((item) => item.is_active && item.id !== current?.id && item.id !== slot.plannedExerciseId && !approvedIds.has(item.id))
+          .filter((item) => words.every((word) => exerciseLabel(item).toLowerCase().includes(word)))
+          .slice(0, MAX_MATCHES)
+  const pick = (task: () => Promise<boolean>) => {
+    setBusy(true)
+    void task().then((ok) => {
+      setBusy(false)
+      if (ok) onDone()
+    })
+  }
+  const option =
+    'press rounded-lg bg-card px-3 py-1.5 text-left text-[13px] font-medium shadow-[0_0_0_1px_var(--border-strong)] hover:bg-emerald-50 hover:shadow-[0_0_0_1px_rgb(47_154_114/0.45)] disabled:opacity-50'
+  return (
+    <section
+      aria-label={`Change exercise, slot ${slot.position}`}
+      className="ml-10 flex animate-in flex-col gap-3 rounded-[12px] bg-sunken/70 p-3.5 text-[13px] fade-in slide-in-from-top-1 duration-200"
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <h4 className="font-semibold">Change exercise</h4>
+        <span className="t-micro">This workout only · the plan stays {exerciseLabel(planned)}</span>
+      </div>
+      {savedHere > 0 && (
+        <p className="text-warn">
+          {savedHere} saved {savedHere === 1 ? 'set stays' : 'sets stay'} recorded as {exerciseLabel(current)}.
+        </p>
+      )}
+      {slot.approved.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <span className="t-micro font-semibold">Approved substitutes</span>
+          <div className="flex flex-wrap gap-1.5">
+            {slot.approved.map((item) => {
+              const active = item.exercise_id !== null && item.exercise_id === current?.id
+              return (
+                <button
+                  key={item.name}
+                  type="button"
+                  disabled={busy || active}
+                  aria-pressed={active}
+                  className={`${option} ${active ? 'bg-emerald-50 text-emerald-800' : ''}`}
+                  onClick={() => pick(() => change.toApproved(item.name))}
+                >
+                  {item.name}
+                  {item.condition && <span className="ml-1 font-normal text-muted-foreground">({item.condition})</span>}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      <div className="flex flex-col gap-1.5">
+        <label className="t-micro font-semibold" htmlFor={`change-search-${slot.id}`}>
+          Other exercise
+        </label>
+        <input
+          id={`change-search-${slot.id}`}
+          aria-label={`Search exercises, slot ${slot.position}`}
+          placeholder="Type to search existing exercises"
+          autoComplete="off"
+          className="h-9 rounded-[10px] border border-border-strong bg-card px-2.5 text-[14px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/15"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        {words.length > 0 &&
+          (matches.length === 0 ? (
+            <p className="text-muted-foreground">No existing exercise matches “{query.trim()}”.</p>
+          ) : (
+            <ul aria-label="Matching exercises" className="flex flex-wrap gap-1.5">
+              {matches.map((item) => (
+                <li key={item.id}>
+                  <button type="button" disabled={busy} className={option} onClick={() => pick(() => change.toExercise(item.id))}>
+                    {exerciseLabel(item)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ))}
+      </div>
+      <div className="flex items-center gap-3">
+        {slot.substituted && (
+          <button
+            type="button"
+            disabled={busy}
+            className="press text-[13px] font-semibold text-emerald-700 hover:underline disabled:opacity-50"
+            onClick={() => pick(() => change.toExercise(slot.plannedExerciseId))}
+          >
+            Back to {exerciseLabel(planned)}
+          </button>
+        )}
+        <button type="button" className="press ml-auto text-[13px] text-muted-foreground hover:text-foreground" onClick={onDone}>
+          Cancel
+        </button>
+      </div>
+    </section>
+  )
 }
 
 /**
@@ -54,8 +189,8 @@ export function ExerciseBlock({
   sharedWith,
   locked,
   actions,
-  substitutes,
-  onSubstitute,
+  exercises,
+  change,
 }: {
   exerciseId: string
   exercise: Exercise | undefined
@@ -68,12 +203,12 @@ export function ExerciseBlock({
   sharedWith: number | null
   locked: boolean
   actions: SetActions
-  substitutes?: Exercise[]
-  onSubstitute?: (exerciseId: string) => void
+  exercises?: Exercise[]
+  change?: ChangeActions
 }) {
-  const [panel, setPanel] = useState<'notes' | 'swap' | null>(null)
+  const [panel, setPanel] = useState<'notes' | 'change' | null>(null)
   const name = exerciseLabel(exercise)
-  const toggle = (next: 'notes' | 'swap') => setPanel((current) => (current === next ? null : next))
+  const toggle = (next: 'notes' | 'change') => setPanel((current) => (current === next ? null : next))
 
   const worked = sets.filter((performed) => performed.set_type !== 'warmup').length
   const planned = plannedSets.length
@@ -99,7 +234,11 @@ export function ExerciseBlock({
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="text-[17px] leading-6 font-semibold tracking-[-0.02em]">{name}</h3>
-          {slot?.substituted && <p className="text-[12px] font-medium text-plan">replaces {exerciseLabel(plannedExercise)}</p>}
+          {slot?.substituted && (
+            <p data-testid="planned-exercise" className="text-[12px] font-medium text-plan">
+              Planned: {exerciseLabel(plannedExercise)} · changed for this workout
+            </p>
+          )}
           {!slot && <p className="text-[12px] text-muted-foreground">Extra exercise</p>}
         </div>
         {planned > 0 && sharedWith === null && (
@@ -126,15 +265,15 @@ export function ExerciseBlock({
                 <Info className="size-4" aria-hidden />
               </button>
             )}
-            {!locked && (
+            {!locked && change && (
               <button
                 type="button"
-                className={iconButton}
-                aria-label={`Substitute, slot ${slot.position}`}
-                aria-expanded={panel === 'swap'}
-                onClick={() => toggle('swap')}
+                className="press h-7 rounded-lg px-2 text-[13px] font-medium text-muted-foreground hover:bg-sunken hover:text-foreground aria-expanded:bg-emerald-50 aria-expanded:text-emerald-800"
+                aria-label={`Change exercise, slot ${slot.position}`}
+                aria-expanded={panel === 'change'}
+                onClick={() => toggle('change')}
               >
-                <ArrowLeftRight className="size-4" aria-hidden />
+                Change
               </button>
             )}
           </div>
@@ -156,25 +295,16 @@ export function ExerciseBlock({
           {slot.notes}
         </p>
       )}
-      {panel === 'swap' && slot && substitutes && onSubstitute && (
-        <label className="ml-10 flex animate-in items-center gap-2 text-[13px] text-muted-foreground fade-in slide-in-from-top-1 duration-200">
-          Performed as
-          <select
-            aria-label={`Exercise performed for slot ${slot.position}`}
-            className="h-8 min-w-0 flex-1 rounded-lg border border-border-strong bg-card px-2 text-[13px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/15"
-            value={exerciseId}
-            onChange={(event) => event.target.value && onSubstitute(event.target.value)}
-          >
-            <option value={slot.plannedExerciseId}>{exerciseLabel(plannedExercise)} (as planned)</option>
-            {substitutes
-              .filter((item) => item.id !== slot.plannedExerciseId)
-              .map((item) => (
-                <option key={item.id} value={item.id}>
-                  {exerciseLabel(item)}
-                </option>
-              ))}
-          </select>
-        </label>
+      {panel === 'change' && slot && change && (
+        <ChangePanel
+          slot={slot}
+          current={exercise}
+          planned={plannedExercise}
+          exercises={exercises ?? []}
+          savedHere={sets.length}
+          change={change}
+          onDone={() => setPanel(null)}
+        />
       )}
 
       <div className="pt-1">

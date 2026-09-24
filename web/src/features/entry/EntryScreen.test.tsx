@@ -315,32 +315,99 @@ describe('EntryScreen — one compact block per exercise', () => {
     )
   })
 
-  it('substitutes the whole slot from a secondary control', async () => {
+  it('changes the exercise for this workout to an approved substitute', async () => {
+    const server = serve(entryFixture(), {
+      'PUT /api/workouts/w1/slots/slot-1/approved-substitute': () => ({ body: entryFixture() }),
+    })
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const block = await screen.findByTestId('slot-upper_a.01')
+    expect(within(block).queryByRole('region', { name: 'Change exercise, slot 1' })).not.toBeInTheDocument()
+    await user.click(within(block).getByRole('button', { name: 'Change exercise, slot 1' }))
+    const panel = within(block).getByRole('region', { name: 'Change exercise, slot 1' })
+    expect(panel).toHaveTextContent('This workout only · the plan stays Smith Flat Bench Press')
+    expect(within(panel).getByText('Approved substitutes')).toBeInTheDocument()
+    await user.click(within(panel).getByRole('button', { name: 'Barbell Bench Press' }))
+    await waitFor(() =>
+      expect(server.calls.find((call) => call.method === 'PUT')).toMatchObject({
+        url: '/api/workouts/w1/slots/slot-1/approved-substitute',
+        body: { name: 'Barbell Bench Press' },
+      }),
+    )
+    await waitFor(() => expect(within(block).queryByRole('region', { name: 'Change exercise, slot 1' })).not.toBeInTheDocument())
+  })
+
+  it('changes the exercise for this workout to any existing exercise found by search', async () => {
     const server = serve(entryFixture(), {
       'PUT /api/workouts/w1/slots/slot-1/exercise': () => ({ body: entryFixture() }),
     })
     const user = userEvent.setup()
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
-    expect(within(block).queryByRole('combobox', { name: 'Exercise performed for slot 1' })).not.toBeInTheDocument()
-    await user.click(within(block).getByRole('button', { name: 'Substitute, slot 1' }))
-    await user.selectOptions(within(block).getByRole('combobox', { name: 'Exercise performed for slot 1' }), 'incline')
+    await user.click(within(block).getByRole('button', { name: 'Change exercise, slot 1' }))
+    await user.type(within(block).getByRole('textbox', { name: 'Search exercises, slot 1' }), 'incl')
+    const matches = within(block).getByRole('list', { name: 'Matching exercises' })
+    // The planned exercise and the current one are never offered as "other".
+    expect(within(matches).queryByRole('button', { name: 'Smith Flat Bench Press' })).not.toBeInTheDocument()
+    await user.click(within(matches).getByRole('button', { name: 'Incline Smith Press' }))
     await waitFor(() =>
       expect(server.calls.find((call) => call.method === 'PUT')?.body).toEqual({ exercise_id: 'incline' }),
     )
   })
 
-  it('says whose slot a substitute replaces', async () => {
+  it('shows the planned exercise beside a changed one and can go back to it', async () => {
     const fixture = entryFixture({ exercises: { bench: BENCH, incline: INCLINE } })
     const slot = fixture.slots[0]
     if (!slot) throw new Error('fixture')
     fixture.slots = [{ ...slot, substitute_exercise_id: 'incline', effective_exercise_id: 'incline' }]
     fixture.last_performance = { incline: null, bench: null }
-    serve(fixture)
+    const server = serve(fixture, {
+      'PUT /api/workouts/w1/slots/slot-1/exercise': () => ({ body: entryFixture() }),
+    })
+    const user = userEvent.setup()
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
     expect(within(block).getByRole('heading', { name: 'Incline Smith Press' })).toBeInTheDocument()
-    expect(within(block).getByText('replaces Smith Flat Bench Press')).toBeInTheDocument()
+    expect(within(block).getByTestId('planned-exercise')).toHaveTextContent(
+      'Planned: Smith Flat Bench Press · changed for this workout',
+    )
+    await user.click(within(block).getByRole('button', { name: 'Change exercise, slot 1' }))
+    await user.click(within(block).getByRole('button', { name: 'Back to Smith Flat Bench Press' }))
+    await waitFor(() =>
+      expect(server.calls.find((call) => call.method === 'PUT')?.body).toEqual({ exercise_id: 'bench' }),
+    )
+  })
+
+  it('offers no Change and no Discard on a complete workout', async () => {
+    const fixture = entryFixture({ sets: [performed(1)] })
+    fixture.workout = { ...fixture.workout, status: 'complete' }
+    serve(fixture)
+    render(<EntryScreen workoutId="w1" />)
+    const block = await screen.findByTestId('slot-upper_a.01')
+    expect(within(block).queryByRole('button', { name: 'Change exercise, slot 1' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Discard draft' })).not.toBeInTheDocument()
+  })
+
+  it('asks in the page before discarding a draft that holds sets', async () => {
+    const server = serve(entryFixture({ sets: [performed(1)] }), {
+      'DELETE /api/workouts/w1': () => ({ status: 204 }),
+    })
+    const confirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirm)
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    await screen.findByTestId('slot-upper_a.01')
+    await user.click(screen.getByRole('button', { name: 'Discard draft' }))
+    const ask = screen.getByRole('alertdialog')
+    expect(ask).toHaveTextContent('Discard this draft and its 1 recorded set?')
+    expect(ask).toHaveTextContent('Recorded here: Smith Flat Bench Press.')
+    expect(ask).toHaveTextContent('the planned session and the program stay')
+    await user.click(within(ask).getByRole('button', { name: 'Keep the draft' }))
+    expect(server.calls.some((call) => call.method === 'DELETE')).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'Discard draft' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Discard 1 set' }))
+    await waitFor(() => expect(server.calls.some((call) => call.method === 'DELETE')).toBe(true))
+    expect(confirm).not.toHaveBeenCalled()
   })
 
   it('shows why a workout cannot be completed yet', async () => {
@@ -591,8 +658,8 @@ describe('EntryScreen — one compact block per exercise', () => {
     const user = userEvent.setup()
     render(<EntryScreen workoutId="w1" />)
     await screen.findByTestId('slot-upper_a.01')
-    await user.click(screen.getByRole('button', { name: 'Details' }))
     await user.click(screen.getByRole('button', { name: 'Discard draft' }))
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Discard this empty draft?'))
     await waitFor(() => expect(window.location.hash).toBe('#/'))
     const deleted = server.calls.findIndex((call) => call.method === 'DELETE')
     expect(deleted).toBeGreaterThan(-1)

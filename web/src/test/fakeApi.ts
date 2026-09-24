@@ -4,6 +4,7 @@ import type {
   Bodyweight,
   Entry,
   Exercise,
+  MacroTarget,
   Nutrition,
   NutritionReview,
   Week,
@@ -87,6 +88,7 @@ export const PROGRAM: ActiveProgram = {
   },
   activated_at_utc: 'x',
   notes_text: '# Guidance',
+  notes_sha256: 'b'.repeat(64),
   planned_workouts: [
     {
       id: 'pw-upper',
@@ -145,7 +147,7 @@ export function entryFixture(overrides: Partial<Entry> = {}): Entry {
         slot_key: 'upper_a.01',
         position: 1,
         exercise_id: 'bench',
-        notes: 'Marker lift (week-12 benchmark).',
+        notes: 'Marker lift (week-12 benchmark).\nApproved substitutes: Barbell Bench Press, Stable Chest Press.',
         sets: [
           {
             id: 'ps1',
@@ -172,6 +174,10 @@ export function entryFixture(overrides: Partial<Entry> = {}): Entry {
         ],
         substitute_exercise_id: null,
         effective_exercise_id: 'bench',
+        approved_substitutes: [
+          { name: 'Barbell Bench Press', condition: null, exercise_id: null },
+          { name: 'Stable Chest Press', condition: null, exercise_id: null },
+        ],
       },
     ],
     sets: [],
@@ -327,10 +333,24 @@ export const BODYWEIGHT: Bodyweight = {
 
 export const NUTRITION: Nutrition = {
   date: '2026-10-07',
-  day: { logged_on: '2026-10-07', calories_kcal: 2318, calories_complete: true, protein_g: 150, carbs_g: 290, fat_g: 62, notes: null },
-  targets: { protein_g: 145, fat_g: 60, calories_kcal: null, carbs_g: null, calorie_target_effective_on: null },
-  recent: [{ logged_on: '2026-10-07', calories_kcal: 2318, calories_complete: true, protein_g: 150, carbs_g: 290, fat_g: 62, notes: null }],
+  day: { logged_on: '2026-10-07', calories_kcal: 2318, calories_complete: true, protein_g: 150, carbs_g: 290, fat_g: 62, notes: null, target: null },
+  target: null,
+  defaults: { protein_g: 145, fat_g: 60 },
+  recent: [{ logged_on: '2026-10-07', calories_kcal: 2318, calories_complete: true, protein_g: 150, carbs_g: 290, fat_g: 62, notes: null, target: null }],
   target_history: [],
+}
+
+/** 150 P / 300 C / 70 F = 2430 kcal, effective 1 Oct 2026. */
+export const TARGET: MacroTarget = {
+  id: 't1',
+  effective_on: '2026-10-01',
+  protein_g: 150,
+  carbs_g: 300,
+  fat_g: 70,
+  calories_kcal: 2430,
+  legacy_calories_kcal: null,
+  notes: null,
+  set_at_utc: 'x',
 }
 
 /** A review not due: block week 1, nothing to decide yet. */
@@ -357,6 +377,8 @@ export const REVIEW: NutritionReview = {
     current_target_kcal: null,
     recommended_target_kcal: null,
     recommended_carbs_g: null,
+    current_macros: null,
+    recommended_macros: null,
     failed_corrections: 0,
     note: 'Weeks 1-2: no routine bodyweight-driven changes.',
     decision: null,

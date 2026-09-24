@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ClipboardCheck } from 'lucide-react'
 import { ApiError, api } from '@/api/client'
-import type { NutritionReview, Review, ReviewDecision, ReviewTrend } from '@/api/types'
+import type { Macros, NutritionReview, Review, ReviewDecision, ReviewTrend } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { formatRange, formatShortDate, signed } from '@/lib/format'
 
@@ -49,14 +49,24 @@ function trendText(trend: ReviewTrend | null): string {
   return `${signed(trend.pct_bw_per_week)} % BW/week`
 }
 
+function macroText(macros: Macros): string {
+  return `${macros.protein_g} P · ${macros.carbs_g} C · ${macros.fat_g} F = ${macros.calories_kcal} kcal`
+}
+
 function recommendation(review: Review): string {
   const current = review.current_target_kcal
   switch (review.recommended_action) {
     case 'ADD_CALORIES':
-    case 'REDUCE_CALORIES':
-      return `${review.recommended_delta_kcal !== null && review.recommended_delta_kcal > 0 ? '+' : '−'}${Math.abs(
-        review.recommended_delta_kcal ?? 0,
-      )} kcal/day → ${review.recommended_target_kcal} kcal · carbs ${review.recommended_carbs_g} g · protein 145 g and fat 60 g unchanged`
+    case 'REDUCE_CALORIES': {
+      const delta = review.recommended_delta_kcal ?? 0
+      const change = `${delta > 0 ? '+' : '−'}${Math.abs(delta)} kcal/day`
+      const next = review.recommended_macros
+      const from = review.current_macros
+      if (!next || !from) return `${change} (no target it can be applied to)`
+      // The source adjusts carbohydrate for a calorie change; protein and fat stay.
+      const carbs = next.carbs_g - from.carbs_g
+      return `${change} → carbs ${carbs > 0 ? '+' : '−'}${Math.abs(carbs)} g: ${macroText(next)}`
+    }
     case 'NO_CHANGE':
       return `No change: keep ${current} kcal/day`
     case 'STRONGER_REASSESSMENT':
@@ -74,7 +84,8 @@ function decisionText(decision: ReviewDecision): string {
   const when = formatShortDate(decision.decided_on)
   if (decision.user_choice === 'APPLIED' && decision.new_calorie_target_kcal !== null) {
     const delta = decision.new_calorie_target_kcal - decision.previous_calorie_target_kcal
-    return `Applied ${delta > 0 ? '+' : '−'}${Math.abs(delta)} kcal/day → ${decision.new_calorie_target_kcal} kcal (${when})`
+    const target = decision.new_target ? macroText(decision.new_target) : `${decision.new_calorie_target_kcal} kcal`
+    return `Applied ${delta > 0 ? '+' : '−'}${Math.abs(delta)} kcal/day → ${target} (${when})`
   }
   return `Kept ${decision.previous_calorie_target_kcal} kcal (${when})`
 }
@@ -222,6 +233,14 @@ export function WeeklyReview({
         expected_status: review.status,
         expected_delta_kcal: review.recommended_delta_kcal,
         expected_target_kcal: review.recommended_target_kcal,
+        expected_macros:
+          choice === 'APPLIED' && review.recommended_macros
+            ? {
+                protein_g: review.recommended_macros.protein_g,
+                carbs_g: review.recommended_macros.carbs_g,
+                fat_g: review.recommended_macros.fat_g,
+              }
+            : null,
         composition_concern: concern,
         notes: null,
       })
@@ -268,7 +287,7 @@ export function WeeklyReview({
   const gateOpen =
     due && (review.recommended_action === 'AUDIT_BEFORE_CONTINUING' || review.recommended_action === 'FIX_INPUT_PROBLEM_FIRST')
   const canApply =
-    due && review.recommended_delta_kcal !== null && review.recommended_delta_kcal !== 0 && review.recommended_target_kcal !== null
+    due && review.recommended_delta_kcal !== null && review.recommended_delta_kcal !== 0 && review.recommended_macros !== null
   const canKeep = due && review.recommended_action !== 'AUDIT_BEFORE_CONTINUING'
   const pct = review.trend?.pct_bw_per_week === null || !review.trend ? null : Number(review.trend.pct_bw_per_week)
 
@@ -300,8 +319,10 @@ export function WeeklyReview({
             <span className="text-muted-foreground">· {review.sustained ? 'sustained' : 'not yet sustained'}</span>
           )}
         </dd>
-        <dt className="text-muted-foreground">Calorie target</dt>
-        <dd>{review.current_target_kcal === null ? 'not calibrated yet' : `${review.current_target_kcal} kcal/day`}</dd>
+        <dt className="text-muted-foreground">Current targets</dt>
+        <dd data-testid="review-current-targets">
+          {review.current_macros === null ? 'no target yet' : macroText(review.current_macros)}
+        </dd>
         {due && (
           <>
             <dt className="text-muted-foreground">Plan recommendation</dt>
@@ -323,7 +344,7 @@ export function WeeklyReview({
         <div className="flex flex-wrap items-center gap-2">
           {canApply && (
             <Button className="h-9" isDisabled={busy} onPress={() => void decide('APPLIED')}>
-              Apply {signed(String(review.recommended_delta_kcal))}
+              Apply {signed(String(review.recommended_delta_kcal))} kcal
             </Button>
           )}
           {canKeep && (

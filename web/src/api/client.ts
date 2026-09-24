@@ -7,7 +7,10 @@ import type {
   ReviewDecision,
   Bodyweight,
   BodyweightEntry,
-  CalorieTarget,
+  HistoryDays,
+  HistoryKind,
+  MacroTarget,
+  MacroTargetFields,
   ExerciseHistory,
   HistoryExercise,
   Nutrition,
@@ -117,6 +120,8 @@ export const api = {
     request<Entry>('PUT', `/api/workouts/${workoutId}/slots/${slotId}/exercise`, {
       exercise_id: exerciseId,
     }),
+  useApprovedSubstitute: (workoutId: string, slotId: string, name: string) =>
+    request<Entry>('PUT', `/api/workouts/${workoutId}/slots/${slotId}/approved-substitute`, { name }),
   exercises: () => request<Exercise[]>('GET', '/api/exercises?include_inactive=true'),
   createExercise: (name: string, equipmentLabel: string | null) =>
     request<Exercise>('POST', '/api/exercises', { name, equipment_label: equipmentLabel }),
@@ -132,12 +137,12 @@ export const api = {
   putNutrition: (date: string, fields: NutritionFields) =>
     request<NutritionDay>('PUT', `/api/nutrition/${date}`, fields),
   deleteNutrition: (date: string) => request<void>('DELETE', `/api/nutrition/${date}`),
-  addCalorieTarget: (effectiveOn: string, caloriesKcal: number, notes: string | null) =>
-    request<CalorieTarget>('POST', '/api/nutrition/calorie-targets', {
-      effective_on: effectiveOn,
-      calories_kcal: caloriesKcal,
-      notes,
-    }),
+  addMacroTarget: (fields: MacroTargetFields) => request<MacroTarget>('POST', '/api/nutrition/targets', fields),
+  historyDays: (kind: HistoryKind, before: string | null = null, limit = 21) =>
+    request<HistoryDays>(
+      'GET',
+      `/api/history/days?kind=${kind}&limit=${limit}${before ? `&before=${before}` : ''}`,
+    ),
   historyExercises: () => request<HistoryExercise[]>('GET', '/api/history/exercises'),
   exerciseHistory: (exerciseId: string) =>
     request<ExerciseHistory>('GET', `/api/exercises/${exerciseId}/history`),
@@ -154,6 +159,7 @@ export const api = {
     expected_status: string
     expected_delta_kcal: number | null
     expected_target_kcal: number | null
+    expected_macros: { protein_g: number; carbs_g: number; fat_g: number } | null
     composition_concern: boolean
     notes: string | null
   }) => request<ReviewDecision>('POST', '/api/nutrition/review/decision', fields),

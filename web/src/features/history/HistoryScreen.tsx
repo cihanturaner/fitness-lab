@@ -5,14 +5,16 @@ import type { Exercise, ExerciseHistory, Exposure, HistoryExercise, PerformedSet
 import { TrendChart } from '@/components/chart/TrendChart'
 import { EmptyState, LoadError, PageHeader, Skeleton } from '@/components/app/primitives'
 import { compactSet, exerciseLabel, formatShortDate } from '@/lib/format'
-import { historyHref, workoutHref } from '@/lib/route'
+import { EXERCISES_HREF, historyHref, workoutHref } from '@/lib/route'
 
 function message(error: unknown): string {
   return error instanceof ApiError || error instanceof Error ? error.message : String(error)
 }
 
-export function HistoryTabs({ current }: { current: 'exercises' | 'sessions' }) {
-  const tab = (name: 'exercises' | 'sessions', href: string, label: string) => (
+type HistoryView = 'days' | 'exercises' | 'sessions'
+
+export function HistoryTabs({ current }: { current: HistoryView }) {
+  const tab = (name: HistoryView, href: string, label: string) => (
     <a
       href={href}
       aria-current={current === name ? 'page' : undefined}
@@ -25,7 +27,8 @@ export function HistoryTabs({ current }: { current: 'exercises' | 'sessions' }) 
   )
   return (
     <nav aria-label="History views" className="flex gap-1 rounded-[12px] bg-emerald-900/5 p-1">
-      {tab('exercises', '#/history', 'By exercise')}
+      {tab('days', '#/history', 'Days')}
+      {tab('exercises', EXERCISES_HREF, 'Exercises')}
       {tab('sessions', '#/sessions', 'Sessions')}
     </nav>
   )
@@ -255,6 +258,11 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
                       </td>
                       <td className="py-2.5 pr-5 whitespace-nowrap text-muted-foreground">
                         {name(exposure)}
+                        {exposure.replaced && (
+                          <span data-testid="history-replaced" className="block text-[12px] text-plan">
+                            in place of {exerciseLabel(exposure.replaced)}
+                          </span>
+                        )}
                         {warmups > 0 && <span className="block text-[12px] text-faint">+{warmups} warm-up</span>}
                       </td>
                       {Array.from({ length: columns }, (_, column) => {
@@ -387,7 +395,7 @@ export function HistoryScreen({ exerciseId }: { exerciseId: string | null }) {
   }, [])
 
   const header = (
-    <PageHeader title="History">
+    <PageHeader title="Exercise history">
       <HistoryTabs current="exercises" />
     </PageHeader>
   )

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { DateField, LoadError, PageHeader, Skeleton } from '@/components/app/primitives'
 import { addDays, formatRange, formatShortDate, localDate, mondayOf } from '@/lib/format'
 import { ProgramRules } from './ProgramRules'
+import { hasTurkishRules } from './programNotes'
 
 function message(error: unknown): string {
   return error instanceof ApiError || error instanceof Error ? error.message : String(error)
@@ -255,16 +256,26 @@ export function SettingsScreen() {
               <dt className="text-muted-foreground">Active since</dt>
               <dd className="num">{loaded.program.activated_at_utc ? formatShortDate(loaded.program.activated_at_utc.slice(0, 10)) : '—'}</dd>
             </dl>
-            {loaded.program.notes_text && (
-              <div className="flex flex-col gap-2">
-                <h3 className="text-[13px] font-medium">Program rules</h3>
-                <p className="t-micro">
-                  From the locked program. Progression, deload, calibration and the week-12 benchmark are guidance for your
-                  decisions; the app does not apply them.
-                </p>
-                <ProgramRules notes={loaded.program.notes_text} />
-              </div>
-            )}
+            {loaded.program.notes_text &&
+              (hasTurkishRules(loaded.program.notes_sha256) ? (
+                <div lang="tr" className="flex flex-col gap-2">
+                  <h3 className="text-[13px] font-medium">Program Kuralları</h3>
+                  <p className="t-micro">
+                    Kilitli programdan. İlerleme, deload, kalibrasyon ve 12. hafta kıyaslaması kararlarınız için yol
+                    göstericidir; uygulama bunları kendisi uygulamaz.
+                  </p>
+                  <ProgramRules notes={loaded.program.notes_text} notesSha256={loaded.program.notes_sha256} />
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-[13px] font-medium">Program rules</h3>
+                  <p className="t-micro">
+                    From the locked program. Progression, deload, calibration and the week-12 benchmark are guidance for your
+                    decisions; the app does not apply them.
+                  </p>
+                  <ProgramRules notes={loaded.program.notes_text} notesSha256={loaded.program.notes_sha256} />
+                </div>
+              ))}
           </>
         ) : (
           <p className="t-meta">No program is active.</p>
