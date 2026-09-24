@@ -43,12 +43,17 @@ export function DataProvider({ open, clock = deviceClock, children, fallback = n
     };
   }, [open]);
 
-  // A new day starts while the app sits in the background: re-read the clock on return.
+  // A new day can start while the app is open or in the background: re-read the clock on
+  // return to the foreground and once a minute (setToday ignores an unchanged date).
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') setToday(clock.today());
     });
-    return () => sub.remove();
+    const timer = setInterval(() => setToday(clock.today()), 60_000);
+    return () => {
+      sub.remove();
+      clearInterval(timer);
+    };
   }, [clock]);
 
   const changed = useCallback(() => setVersion((v) => v + 1), []);
