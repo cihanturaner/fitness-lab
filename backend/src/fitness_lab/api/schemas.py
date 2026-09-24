@@ -22,7 +22,7 @@ from pydantic import (
     field_validator,
 )
 
-from fitness_lab.domain.completion import CompletionIssue, CompletionReport
+from fitness_lab.domain.completion import CompletionIssue, CompletionReport, work_set_totals
 from fitness_lab.domain.models import Exercise, PerformedSet, SetTypeCode, Workout
 from fitness_lab.domain.units import format_kg, kg_to_g
 from fitness_lab.storage.entry import (
@@ -330,6 +330,14 @@ class LastPerformanceOut(BaseModel):
         )
 
 
+class WorkSetsOut(BaseModel):
+    """Planned non-warm-up sets of the origin against those recorded. Totals only."""
+
+    planned: int
+    actual: int
+    short: bool
+
+
 class EntryOut(BaseModel):
     workout: WorkoutOut
     origin: OriginOut | None
@@ -337,10 +345,21 @@ class EntryOut(BaseModel):
     sets: list[PerformedSetOut]
     exercises: dict[str, ExerciseOut]
     last_performance: dict[str, LastPerformanceOut | None]
+    work_sets: WorkSetsOut | None
 
     @classmethod
     def of(cls, entry: EntryAggregate) -> EntryOut:
+        totals = work_set_totals(
+            [planned.set_type for item in entry.slots for planned in item.slot.sets],
+            [
+                None if performed.set_type is None else performed.set_type.value
+                for performed in entry.sets
+            ],
+        )
         return cls(
+            work_sets=None
+            if entry.origin is None
+            else WorkSetsOut(planned=totals.planned, actual=totals.actual, short=totals.short),
             workout=WorkoutOut.of(entry.workout),
             origin=OriginOut.of(entry.origin),
             slots=[EntrySlotOut.of_entry(slot) for slot in entry.slots],
@@ -468,12 +487,16 @@ class WorkoutSummaryOut(WorkoutOut):
     planned_workout_id: str | None
     origin_name: str | None
     set_count: int
+    work_set_count: int
+    planned_work_sets: int | None
 
     @classmethod
-    def summarise(cls, summary: WorkoutSummary) -> WorkoutSummaryOut:
+    def summarise(cls, summary: WorkoutSummary, planned_work_sets: int | None) -> WorkoutSummaryOut:
         return cls(
             **WorkoutOut.of(summary.workout).model_dump(),
             planned_workout_id=summary.planned_workout_id,
             origin_name=summary.origin_name,
             set_count=summary.set_count,
+            work_set_count=summary.work_set_count,
+            planned_work_sets=planned_work_sets,
         )

@@ -31,9 +31,12 @@ from fitness_lab.domain.bodyweight import (
     summarize,
 )
 from fitness_lab.domain.nutrition import targets_for
+from fitness_lab.domain.nutrition_controller import classify_trend, qualified_trend
 from fitness_lab.domain.units import format_kg, g_to_kg
 from fitness_lab.domain.week import (
     WEEKDAYS,
+    BlockPhase,
+    block_phase,
     block_week,
     session_status,
     week_bounds,
@@ -95,6 +98,8 @@ class BlockOut(BaseModel):
     start_on: str
     week: int
     weeks: int | None
+    # The current week: today's phase. Another week: "block" if any of its days is.
+    phase: BlockPhase
 
 
 class WeekSessionOut(BaseModel):
@@ -107,6 +112,22 @@ class WeekSessionOut(BaseModel):
     status: Literal["complete", "draft", "not_started"]
     workout_id: str | None
     workout_on: str | None
+    planned_work_sets: int
+    # Non-warm-up sets recorded in the workout shown (None when nothing is shown).
+    actual_work_sets: int | None
+    # The planned workout's open draft whatever its date: Start resumes it.
+    open_draft_id: str | None
+    open_draft_on: str | None
+
+
+class OpenDraftOut(BaseModel):
+    """An open draft of a planned workout dated outside the week being shown."""
+
+    workout_id: str
+    planned_workout_id: str
+    name: str
+    performed_on: str
+    block_week: int | None
 
 
 class UnplannedOut(BaseModel):
@@ -117,34 +138,45 @@ class UnplannedOut(BaseModel):
 class WeekDayOut(BaseModel):
     date: str
     weekday: str
+    phase: BlockPhase | None
     sessions: list[WeekSessionOut]
     unplanned: list[UnplannedOut]
 
 
 class WeekOut(BaseModel):
     date: str
+    today: str
+    is_current_week: bool
     week_start: str
     week_end: str
     program: ProgramBriefOut | None
     block: BlockOut | None
     days: list[WeekDayOut]
     unscheduled: list[WeekSessionOut]
+    open_drafts: list[OpenDraftOut]
 
 
 @router.get("/api/week")
-def week(on: OnDate = None) -> WeekOut:
-    today = _day(on)
-    monday, sunday = week_bounds(today)
+def week(
+    on: OnDate = None, today_text: Annotated[str | None, Query(alias="today")] = None
+) -> WeekOut:
+    """The Monday-Sunday week containing ``date``; ``today`` says which week is current."""
+    shown = _day(on)
+    today = _day(today_text)
+    monday, sunday = week_bounds(shown)
+    first, last = monday.isoformat(), sunday.isoformat()
     days = [
         WeekDayOut(
             date=(monday + timedelta(days=offset)).isoformat(),
             weekday=WEEKDAYS[offset].capitalize(),
+            phase=None,
             sessions=[],
             unplanned=[],
         )
         for offset in range(7)
     ]
     unscheduled: list[WeekSessionOut] = []
+    open_drafts: list[OpenDraftOut] = []
     program_out: ProgramBriefOut | None = None
     block_out: BlockOut | None = None
     with _connection() as connection, db.transaction(connection):
@@ -156,19 +188,45 @@ def week(on: OnDate = None) -> WeekOut:
                 version_label=version.version_label,
                 duration_weeks=version.duration_weeks,
             )
-            start = programs.get_block_start(connection, version.id)
-            if start is not None:
+            start_text = programs.get_block_start(connection, version.id)
+            start = None if start_text is None else date_from(start_text)
+            if start is not None and start_text is not None:
+                for day in days:
+                    day.phase = block_phase(start, version.duration_weeks, date_from(day.date))
+                # The current week reads as today does; any other week is in the block if any
+                # of its days is (week 1 of a mid-week start is a block week once viewed later).
+                phases = {day.phase for day in days}
+                phase: BlockPhase
+                if week_bounds(today)[0] == monday:
+                    phase = block_phase(start, version.duration_weeks, today)
+                elif "block" in phases:
+                    phase = "block"
+                else:
+                    phase = "pre_block" if "pre_block" in phases else "post_block"
                 block_out = BlockOut(
-                    start_on=start,
-                    week=block_week(date_from(start), today),
+                    start_on=start_text,
+                    week=block_week(start, shown),
                     weeks=version.duration_weeks,
+                    phase=phase,
                 )
-            facts = history.week_facts(
-                connection, version.id, monday.isoformat(), sunday.isoformat()
-            )
+            facts = history.week_facts(connection, version.id, first, last)
             for planned in programs.list_planned_workouts(connection, version.id):
                 slots = programs.list_slots(connection, planned.id)
-                status, workout_id, workout_on = session_status(facts[planned.id])
+                fact = facts[planned.id]
+                status, workout_id, workout_on = session_status(fact, first, last)
+                draft_on = fact.open_draft_on
+                if fact.open_draft_id is not None and draft_on is not None and status != "draft":
+                    open_drafts.append(
+                        OpenDraftOut(
+                            workout_id=fact.open_draft_id,
+                            planned_workout_id=planned.id,
+                            name=planned.name,
+                            performed_on=draft_on,
+                            block_week=None
+                            if start is None
+                            else block_week(start, date_from(draft_on)),
+                        )
+                    )
                 item = WeekSessionOut(
                     planned_workout_id=planned.id,
                     workout_key=planned.workout_key,
@@ -179,27 +237,34 @@ def week(on: OnDate = None) -> WeekOut:
                     status=status,
                     workout_id=workout_id,
                     workout_on=workout_on,
+                    planned_work_sets=history.planned_work_set_count(connection, planned.id),
+                    actual_work_sets=None
+                    if workout_id is None
+                    else history.work_set_count(connection, workout_id),
+                    open_draft_id=fact.open_draft_id,
+                    open_draft_on=fact.open_draft_on,
                 )
                 index = weekday_index(planned.day_label)
                 if index is None:
                     unscheduled.append(item)
                 else:
                     days[index].sessions.append(item)
-        for workout in history.unplanned_between(
-            connection, monday.isoformat(), sunday.isoformat()
-        ):
+        for workout in history.unplanned_between(connection, first, last):
             offset = (date_from(workout.performed_on) - monday).days
             days[offset].unplanned.append(
                 UnplannedOut(workout_id=workout.id, status=workout.status.value)
             )
     return WeekOut(
-        date=today.isoformat(),
-        week_start=monday.isoformat(),
-        week_end=sunday.isoformat(),
+        date=shown.isoformat(),
+        today=today.isoformat(),
+        is_current_week=week_bounds(today)[0] == monday,
+        week_start=first,
+        week_end=last,
         program=program_out,
         block=block_out,
         days=days,
         unscheduled=unscheduled,
+        open_drafts=sorted(open_drafts, key=lambda item: item.performed_on),
     )
 
 
@@ -243,10 +308,24 @@ class SeriesPointOut(BaseModel):
     avg7_kg: str | None
 
 
+class BodyweightTrendOut(BaseModel):
+    """The source's decision metric for display: the 14-day regression, when qualified."""
+
+    window_first: str
+    window_last: str
+    weigh_ins: int
+    first_half: int
+    second_half: int
+    pct_bw_per_week: str | None
+    qualified: bool
+    band: str | None
+
+
 class BodyweightOut(BaseModel):
     entries: list[BodyweightEntryOut]
     summary: BodyweightSummaryOut
     series: list[SeriesPointOut]
+    trend: BodyweightTrendOut
 
 
 def _entry_out(row: tracking.BodyweightRow) -> BodyweightEntryOut:
@@ -269,6 +348,7 @@ def bodyweight(on: OnDate = None, days: int = 90) -> BodyweightOut:
         )
     weights = [WeightEntry(date_from(row.measured_on), row.grams) for row in rows]
     summary = summarize(weights, reference)
+    trend = qualified_trend(weights, reference, ())
     shown = [row for row in rows if row.measured_on >= first.isoformat()]
     series_start = date_from(shown[0].measured_on) if shown else None
     series = (
@@ -301,6 +381,16 @@ def bodyweight(on: OnDate = None, days: int = 90) -> BodyweightOut:
             change_pct=_cents(summary.change_pct),
         ),
         series=series,
+        trend=BodyweightTrendOut(
+            window_first=trend.window_first.isoformat(),
+            window_last=trend.window_last.isoformat(),
+            weigh_ins=trend.weigh_ins,
+            first_half=trend.first_half,
+            second_half=trend.second_half,
+            pct_bw_per_week=None if trend.pct is None else str(trend.pct),
+            qualified=trend.pct is not None,
+            band=None if trend.pct is None else classify_trend(trend.pct),
+        ),
     )
 
 
@@ -464,6 +554,7 @@ class ExposureOut(BaseModel):
     performed_time_local: str | None
     planned_workout_name: str | None
     block_week: int | None
+    phase: BlockPhase | None
     sets: list[PerformedSetOut]
 
 
@@ -483,12 +574,30 @@ class RecentSessionOut(BaseModel):
     performed_on: str
     performed_time_local: str | None
     planned_workout_name: str | None
+    planned_work_sets: int | None
+    actual_work_sets: int
     exercises: list[ExerciseSetsOut]
+
+
+Block = tuple[date, int | None]
 
 
 def _active_block_start(connection: sqlite3.Connection) -> str | None:
     version = programs.get_active_version(connection)
     return None if version is None else programs.get_block_start(connection, version.id)
+
+
+def _version_block(connection: sqlite3.Connection, version_id: str | None) -> Block | None:
+    """(start, duration) of a version's block; None: the active version's."""
+    version = (
+        programs.get_active_version(connection)
+        if version_id is None
+        else programs.get_program_version(connection, version_id)
+    )
+    if version is None:
+        return None
+    start = programs.get_block_start(connection, version.id)
+    return None if start is None else (date_from(start), version.duration_weeks)
 
 
 @router.get("/api/history/exercises")
@@ -512,22 +621,29 @@ def exercise_history(exercise_id: str) -> ExerciseHistoryOut:
             raise NotFound(f"no exercise with id {exercise_id!r}")
         start = _active_block_start(connection)
         exposures = history.exercise_history(connection, exercise_id)
-    return ExerciseHistoryOut(
-        exercise=ExerciseOut.of(exercise),
-        block_start_on=start,
-        exposures=[
+        # Each exposure is numbered in the block of its own program version, so activating
+        # a later program (or its block) never renumbers earlier training.
+        blocks = {
+            version_id: _version_block(connection, version_id)
+            for version_id in {item.program_version_id for item in exposures}
+        }
+    shaped: list[ExposureOut] = []
+    for item in exposures:
+        own = blocks[item.program_version_id]
+        performed_on = date_from(item.performed_on)
+        shaped.append(
             ExposureOut(
                 workout_id=item.workout_id,
                 performed_on=item.performed_on,
                 performed_time_local=item.performed_time_local,
                 planned_workout_name=item.planned_workout_name,
-                block_week=None
-                if start is None
-                else block_week(date_from(start), date_from(item.performed_on)),
+                block_week=None if own is None else block_week(own[0], performed_on),
+                phase=None if own is None else block_phase(own[0], own[1], performed_on),
                 sets=[PerformedSetOut.of(performed) for performed in item.sets],
             )
-            for item in exposures
-        ],
+        )
+    return ExerciseHistoryOut(
+        exercise=ExerciseOut.of(exercise), block_start_on=start, exposures=shaped
     )
 
 
@@ -540,12 +656,27 @@ def recent_training(limit: int = 3) -> list[RecentSessionOut]:
             for item in sessions
             for group in item.exercises
         }
+        planned_counts = {
+            item.planned_workout_id: history.planned_work_set_count(
+                connection, item.planned_workout_id
+            )
+            for item in sessions
+            if item.planned_workout_id is not None
+        }
+        actual_counts = {
+            item.workout_id: history.work_set_count(connection, item.workout_id)
+            for item in sessions
+        }
     return [
         RecentSessionOut(
             workout_id=item.workout_id,
             performed_on=item.performed_on,
             performed_time_local=item.performed_time_local,
             planned_workout_name=item.planned_workout_name,
+            planned_work_sets=None
+            if item.planned_workout_id is None
+            else planned_counts[item.planned_workout_id],
+            actual_work_sets=actual_counts[item.workout_id],
             exercises=[
                 ExerciseSetsOut(
                     exercise=ExerciseOut.of(found),

@@ -9,10 +9,16 @@ permanent history.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 
-from fitness_lab.domain.models import PerformedSet, Workout, WorkoutStatus, utc_now_iso
+from fitness_lab.domain.models import (
+    PerformedSet,
+    SetTypeCode,
+    Workout,
+    WorkoutStatus,
+    utc_now_iso,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +35,32 @@ class CompletionReport:
     advisories: tuple[CompletionIssue, ...]
     sets: tuple[PerformedSet, ...]
     renumbered: bool
+
+
+@dataclass(frozen=True, slots=True)
+class WorkSetTotals:
+    """Planned working sets of a session against the working sets actually recorded.
+
+    Totals only: an actual set is never matched to a prescription, so this can say "2 of 23"
+    but never which planned sets were skipped. Warm-ups count on neither side.
+    """
+
+    planned: int
+    actual: int
+
+    @property
+    def short(self) -> bool:
+        return self.actual < self.planned
+
+
+def work_set_totals(
+    planned_types: Iterable[str], performed_types: Iterable[str | None]
+) -> WorkSetTotals:
+    warmup = SetTypeCode.WARMUP.value
+    return WorkSetTotals(
+        planned=sum(1 for kind in planned_types if kind != warmup),
+        actual=sum(1 for kind in performed_types if kind != warmup),
+    )
 
 
 def renumber_sets(sets: Sequence[PerformedSet]) -> tuple[PerformedSet, ...]:

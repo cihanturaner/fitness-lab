@@ -11,10 +11,11 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
+from fitness_lab.domain.completion import work_set_totals
 from fitness_lab.domain.models import Exercise, PerformedSet, Workout
 from fitness_lab.domain.week import SessionFacts
 from fitness_lab.storage.exercises import get_exercise
-from fitness_lab.storage.programs import list_planned_workouts
+from fitness_lab.storage.programs import list_planned_workouts, list_slots
 from fitness_lab.storage.workouts import SET_COLUMNS, row_to_performed_set, row_to_workout
 
 CHRONOLOGICAL = (
@@ -33,6 +34,7 @@ class Exposure:
     performed_on: str
     performed_time_local: str | None
     planned_workout_name: str | None
+    program_version_id: str | None
     sets: tuple[PerformedSet, ...]
 
 
@@ -55,6 +57,7 @@ class RecentSession:
     performed_on: str
     performed_time_local: str | None
     planned_workout_name: str | None
+    planned_workout_id: str | None
     exercises: tuple[ExerciseSets, ...]
 
 
@@ -65,8 +68,8 @@ def _opt(value: object) -> str | None:
 def exercise_history(connection: sqlite3.Connection, exercise_id: str) -> tuple[Exposure, ...]:
     """Every complete workout holding this exact exercise, oldest first, with its sets."""
     workouts = connection.execute(
-        "SELECT w.id, w.performed_on, w.performed_time_local, pw.name AS planned_name "
-        "FROM workout w "
+        "SELECT w.id, w.performed_on, w.performed_time_local, pw.name AS planned_name, "
+        "pw.program_version_id AS version_id FROM workout w "
         "LEFT JOIN workout_plan_origin o ON o.workout_id = w.id "
         "LEFT JOIN planned_workout pw ON pw.id = o.planned_workout_id "
         "WHERE w.status = 'complete' AND EXISTS (SELECT 1 FROM performed_set s "
@@ -87,6 +90,7 @@ def exercise_history(connection: sqlite3.Connection, exercise_id: str) -> tuple[
                 performed_on=str(row["performed_on"]),
                 performed_time_local=_opt(row["performed_time_local"]),
                 planned_workout_name=_opt(row["planned_name"]),
+                program_version_id=_opt(row["version_id"]),
                 sets=tuple(row_to_performed_set(item) for item in sets),
             )
         )
@@ -119,8 +123,8 @@ def exercises_with_history(connection: sqlite3.Connection) -> tuple[ExerciseHist
 def recent_sessions(connection: sqlite3.Connection, *, limit: int) -> tuple[RecentSession, ...]:
     """The latest complete workouts, their sets grouped by exercise in the order trained."""
     workouts = connection.execute(
-        "SELECT w.id, w.performed_on, w.performed_time_local, pw.name AS planned_name "
-        "FROM workout w "
+        "SELECT w.id, w.performed_on, w.performed_time_local, pw.name AS planned_name, "
+        "o.planned_workout_id FROM workout w "
         "LEFT JOIN workout_plan_origin o ON o.workout_id = w.id "
         "LEFT JOIN planned_workout pw ON pw.id = o.planned_workout_id "
         f"WHERE w.status = 'complete' ORDER BY {NEWEST_FIRST} LIMIT ?",
@@ -141,6 +145,7 @@ def recent_sessions(connection: sqlite3.Connection, *, limit: int) -> tuple[Rece
                 performed_on=str(row["performed_on"]),
                 performed_time_local=_opt(row["performed_time_local"]),
                 planned_workout_name=_opt(row["planned_name"]),
+                planned_workout_id=_opt(row["planned_workout_id"]),
                 exercises=tuple(
                     ExerciseSets(exercise_id=key, sets=tuple(value))
                     for key, value in grouped.items()
@@ -190,3 +195,21 @@ def unplanned_between(connection: sqlite3.Connection, first: str, last: str) -> 
         (first, last),
     ).fetchall()
     return tuple(row_to_workout(row) for row in rows)
+
+
+def planned_work_set_count(connection: sqlite3.Connection, planned_workout_id: str) -> int:
+    """Non-warm-up planned sets of one planned workout (the prescription's total)."""
+    kinds = [
+        planned.set_type
+        for slot in list_slots(connection, planned_workout_id)
+        for planned in slot.sets
+    ]
+    return work_set_totals(kinds, ()).planned
+
+
+def work_set_count(connection: sqlite3.Connection, workout_id: str) -> int:
+    """Non-warm-up sets recorded in one workout, extra exercises included."""
+    rows = connection.execute(
+        "SELECT set_type FROM performed_set WHERE workout_id = ?", (workout_id,)
+    ).fetchall()
+    return work_set_totals((), [None if row[0] is None else str(row[0]) for row in rows]).actual

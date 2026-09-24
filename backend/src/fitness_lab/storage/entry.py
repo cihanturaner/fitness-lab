@@ -125,6 +125,7 @@ class WorkoutSummary:
     planned_workout_id: str | None
     origin_name: str | None
     set_count: int
+    work_set_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -681,7 +682,9 @@ def list_recent_workouts(
     rows = connection.execute(
         "SELECT w.id, w.performed_on, w.performed_time_local, w.status, w.notes, "
         "w.entered_at_utc, w.updated_at_utc, o.planned_workout_id, pw.name AS origin_name, "
-        "(SELECT count(*) FROM performed_set s WHERE s.workout_id = w.id) AS set_count "
+        "(SELECT count(*) FROM performed_set s WHERE s.workout_id = w.id) AS set_count, "
+        "(SELECT count(*) FROM performed_set s WHERE s.workout_id = w.id "
+        "AND s.set_type IS NOT 'warmup') AS work_set_count "
         "FROM workout w "
         "LEFT JOIN workout_plan_origin o ON o.workout_id = w.id "
         "LEFT JOIN planned_workout pw ON pw.id = o.planned_workout_id "
@@ -697,6 +700,7 @@ def list_recent_workouts(
             ),
             origin_name=None if row["origin_name"] is None else str(row["origin_name"]),
             set_count=int(row["set_count"]),
+            work_set_count=int(row["work_set_count"]),
         )
         for row in rows
     )

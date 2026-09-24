@@ -11,6 +11,8 @@ import pytest
 from fitness_lab.storage import db
 from fitness_lab.storage.migrations import migrate_to_head
 
+pytest_plugins = ["api_fixtures"]
+
 
 @pytest.fixture
 def db_path(tmp_path: Path) -> Path:

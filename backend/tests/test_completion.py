@@ -11,6 +11,7 @@ from fitness_lab.domain.completion import (
     evaluate_completion,
     renumber_sets,
     reopen_workout,
+    work_set_totals,
 )
 from fitness_lab.domain.models import (
     PerformedSet,
@@ -207,3 +208,25 @@ def test_completion_needs_no_database() -> None:
 
     assert report.ok is True
     assert promoted.status is WorkoutStatus.COMPLETE
+
+
+# --- planned vs recorded working-set totals (no per-set provenance) ---------------------
+
+
+def test_work_set_totals_compare_counts_and_ignore_warm_ups() -> None:
+    totals = work_set_totals(
+        planned_types=["working", "working", "backoff", "warmup"],
+        performed_types=["warmup", "working", None],
+    )
+    assert (totals.planned, totals.actual) == (3, 2)
+    assert totals.short
+
+
+def test_a_session_at_or_over_the_plan_is_not_short() -> None:
+    assert not work_set_totals(["working"], ["working"]).short
+    assert not work_set_totals(["working"], ["working", "working"]).short
+
+
+def test_the_known_case_two_of_twenty_three_is_short() -> None:
+    totals = work_set_totals(["working"] * 23, ["working", "working"])
+    assert (totals.planned, totals.actual, totals.short) == (23, 2, True)

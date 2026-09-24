@@ -2,71 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from fitness_lab.api.app import create_app
+from api_fixtures import session
 from fitness_lab.storage import db
-from fitness_lab.storage.programs import (
-    activate_program_version,
-    import_program_package,
-    set_block_start,
-)
-from program_fixtures import package, seed_exercises
-
-
-@pytest.fixture
-def db_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    path = tmp_path / "api.db"
-    monkeypatch.setenv("FITNESS_LAB_DB", str(path))
-    return path
-
-
-@pytest.fixture
-def client(db_file: Path) -> Iterator[TestClient]:
-    with TestClient(create_app()) as test_client:
-        yield test_client
-
-
-@pytest.fixture
-def seeded(client: TestClient, db_file: Path) -> dict[str, Any]:
-    with db.connection_scope(db_file) as connection:
-        exercises = seed_exercises(connection)
-        version = import_program_package(connection, package()).version
-        activate_program_version(connection, version.id)
-    active = client.get("/api/program/active").json()
-    return {
-        "version": version.id,
-        "exercises": {name: exercise.id for name, exercise in exercises.items()},
-        "upper": active["planned_workouts"][0]["id"],
-        "lower": active["planned_workouts"][1]["id"],
-    }
-
-
-def session(
-    client: TestClient, planned_id: str, day: str, sets: list[tuple[str, str, int, int]]
-) -> str:
-    opened = client.post(f"/api/planned-workouts/{planned_id}/open", json={"performed_on": day})
-    workout_id = str(opened.json()["workout_id"])
-    for exercise_id, load, reps, rir in sets:
-        response = client.post(
-            f"/api/workouts/{workout_id}/sets",
-            json={
-                "exercise_id": exercise_id,
-                "set_type": "working",
-                "load_kg": load,
-                "reps": reps,
-                "rir": rir,
-            },
-        )
-        assert response.status_code == 201, response.text
-    assert client.post(f"/api/workouts/{workout_id}/complete").status_code == 200
-    return workout_id
-
+from fitness_lab.storage.programs import set_block_start
 
 # --- week -----------------------------------------------------------------------------
 
@@ -95,7 +39,12 @@ def test_week_places_sessions_on_their_weekdays_with_status(
     body = client.get("/api/week", params={"date": "2026-09-23"}).json()
 
     assert body["program"]["name"] == "Test Program"
-    assert body["block"] == {"start_on": "2026-09-10", "week": 3, "weeks": 12}
+    assert body["block"] == {
+        "start_on": "2026-09-10",
+        "week": 3,
+        "weeks": 12,
+        "phase": "block",
+    }
     days = {day["weekday"]: day for day in body["days"]}
     assert list(days) == [
         "Monday",
@@ -119,11 +68,14 @@ def test_week_places_sessions_on_their_weekdays_with_status(
     assert days["Wednesday"]["sessions"] == []
     assert days["Thursday"]["unplanned"] == [{"workout_id": unplanned, "status": "draft"}]
 
-    # The following week the completion no longer counts; the draft still resumes.
+    # The following week the completion no longer counts, and the draft dated in the
+    # previous week does not take over the tile: it is listed as an open draft instead.
     later = client.get("/api/week", params={"date": "2026-09-28"}).json()
     upper_next = later["days"][0]["sessions"][0]
     assert (upper_next["status"], upper_next["workout_id"]) == ("not_started", None)
-    assert later["days"][1]["sessions"][0]["status"] == "draft"
+    lower_next = later["days"][1]["sessions"][0]
+    assert (lower_next["status"], lower_next["open_draft_id"]) == ("not_started", draft)
+    assert [item["workout_id"] for item in later["open_drafts"]] == [draft]
     assert later["block"]["week"] == 4
 
 

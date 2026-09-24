@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from fitness_lab import __version__
+from fitness_lab.api.review import router as review_router
 from fitness_lab.api.schemas import (
     ActiveProgramOut,
     CompleteOut,
@@ -52,9 +53,10 @@ from fitness_lab.api.schemas import (
     completion_body,
     parse_load,
 )
+from fitness_lab.api.settings import router as settings_router
 from fitness_lab.api.tracking import router as tracking_router
 from fitness_lab.domain.models import create_exercise
-from fitness_lab.storage import db, entry, migrations, programs
+from fitness_lab.storage import db, entry, history, migrations, programs
 from fitness_lab.storage.exercises import get_exercise, insert_exercise, list_exercises
 from fitness_lab.storage.snapshots import SnapshotError
 from fitness_lab.storage.workouts import get_workout
@@ -235,10 +237,16 @@ def create_app() -> FastAPI:
     @app.get("/api/workouts")
     def recent_workouts(limit: int = 30) -> list[WorkoutSummaryOut]:
         with _connection() as connection:
-            return [
-                WorkoutSummaryOut.summarise(item)
-                for item in entry.list_recent_workouts(connection, limit=max(1, min(limit, 200)))
-            ]
+            planned: dict[str, int] = {}
+            summaries = []
+            for item in entry.list_recent_workouts(connection, limit=max(1, min(limit, 200))):
+                origin = item.planned_workout_id
+                if origin is not None and origin not in planned:
+                    planned[origin] = history.planned_work_set_count(connection, origin)
+                summaries.append(
+                    WorkoutSummaryOut.summarise(item, None if origin is None else planned[origin])
+                )
+            return summaries
 
     @app.get("/api/workouts/{workout_id}/entry")
     def workout_entry(workout_id: str) -> EntryOut:
@@ -361,6 +369,8 @@ def create_app() -> FastAPI:
             )
 
     app.include_router(tracking_router)
+    app.include_router(settings_router)
+    app.include_router(review_router)
 
     # Mounted last so /api/* routes always win. Absent in dev (Vite serves the UI).
     if WEB_DIST.is_dir():

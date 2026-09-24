@@ -27,6 +27,7 @@ from fitness_lab.domain.nutrition import (
 )
 from fitness_lab.domain.week import (
     SessionFacts,
+    block_phase,
     block_week,
     session_status,
     week_bounds,
@@ -254,11 +255,23 @@ def test_weekday_from_the_planned_day_label(label: str | None, index: int | None
     assert weekday_index(label) == index
 
 
-def test_an_open_draft_wins_over_a_completion() -> None:
+WEEK = ("2026-09-21", "2026-09-27")
+
+
+def test_an_open_draft_dated_in_the_week_wins_over_a_completion() -> None:
     facts = SessionFacts(
         open_draft_id="d1", open_draft_on="2026-09-21", completed_in_week=(("c1", "2026-09-21"),)
     )
-    assert session_status(facts) == ("draft", "d1", "2026-09-21")
+    assert session_status(facts, *WEEK) == ("draft", "d1", "2026-09-21")
+
+
+def test_a_draft_dated_in_another_week_does_not_take_over_this_week() -> None:
+    earlier = SessionFacts(
+        open_draft_id="d1", open_draft_on="2026-09-14", completed_in_week=(("c1", "2026-09-22"),)
+    )
+    assert session_status(earlier, *WEEK) == ("complete", "c1", "2026-09-22")
+    nothing = SessionFacts(open_draft_id="d1", open_draft_on="2026-09-30", completed_in_week=())
+    assert session_status(nothing, *WEEK) == ("not_started", None, None)
 
 
 def test_the_latest_completion_in_the_week_is_shown() -> None:
@@ -267,9 +280,33 @@ def test_the_latest_completion_in_the_week_is_shown() -> None:
         open_draft_on=None,
         completed_in_week=(("c1", "2026-09-21"), ("c2", "2026-09-22")),
     )
-    assert session_status(facts) == ("complete", "c2", "2026-09-22")
+    assert session_status(facts, *WEEK) == ("complete", "c2", "2026-09-22")
 
 
 def test_nothing_this_week_is_not_started() -> None:
     facts = SessionFacts(open_draft_id=None, open_draft_on=None, completed_in_week=())
-    assert session_status(facts) == ("not_started", None, None)
+    assert session_status(facts, *WEEK) == ("not_started", None, None)
+
+
+# --- block phases -----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("day", "phase"),
+    [
+        (date(2026, 9, 20), "pre_block"),
+        # Week 1 is the Mon-Sun week containing Thu 1 Oct, but Mon-Wed are still before it.
+        (date(2026, 9, 28), "pre_block"),
+        (date(2026, 9, 30), "pre_block"),
+        (date(2026, 10, 1), "block"),
+        (date(2026, 10, 4), "block"),
+        (date(2026, 12, 20), "block"),  # last day of week 12
+        (date(2026, 12, 21), "post_block"),
+    ],
+)
+def test_block_phase_is_exact_to_the_day(day: date, phase: str) -> None:
+    assert block_phase(date(2026, 10, 1), 12, day) == phase
+
+
+def test_a_block_without_a_duration_never_ends() -> None:
+    assert block_phase(date(2026, 10, 1), None, date(2030, 1, 1)) == "block"
