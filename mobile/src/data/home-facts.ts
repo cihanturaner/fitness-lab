@@ -4,8 +4,8 @@ import type { MacroGrams, MacroTarget } from '@/domain/nutrition';
 import type { SessionFacts } from '@/domain/training';
 
 /**
- * The recorded facts the Home screen is drawn from. This is the persistence seam: M1 fills
- * it from fixtures; a later milestone fills the same shape from on-device storage. Nothing
+ * The recorded facts the Home screen is drawn from, read from the device database by
+ * `facts-source.ts#loadHomeFacts` (tests may build them from fixtures). Nothing
  * here is derived (no calories, no averages, no statuses) — derivation is `domain/`'s job.
  */
 

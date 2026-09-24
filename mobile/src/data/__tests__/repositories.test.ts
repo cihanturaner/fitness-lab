@@ -57,6 +57,32 @@ describe('schema migrations', () => {
     expect(rows).toEqual([{ version: 1, name: 'initial' }]);
   });
 
+  it('holds exactly the V1 tables, with foreign keys enforced', async () => {
+    const db = await openTestDatabase();
+    const tables = await db.all<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    );
+    expect(tables.map((t) => t.name)).toEqual([
+      'bodyweight_entry',
+      'discarded_workout',
+      'exercise',
+      'import_log',
+      'imported_record',
+      'macro_target',
+      'maintenance',
+      'nutrition_day',
+      'performed_set',
+      'performed_set_slot',
+      'replaced_data',
+      'schema_migrations',
+      'training_block',
+      'workout',
+      'workout_slot_substitution',
+    ]);
+    expect(await db.first('PRAGMA foreign_keys')).toEqual({ foreign_keys: 1 });
+    await expect(db.run("INSERT INTO workout_slot_substitution VALUES (999, 'x', 1, 'a', 'a')")).rejects.toThrow(/FOREIGN KEY/);
+  });
+
   it('refuses a database written by a newer build instead of guessing', async () => {
     const db = await openTestDatabase();
     await db.run("INSERT INTO schema_migrations VALUES (2, 'future', 'x')");

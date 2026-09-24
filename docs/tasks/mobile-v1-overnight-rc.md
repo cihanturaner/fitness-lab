@@ -13,7 +13,7 @@ Native iPhone: **NOT YET VERIFIED** for anything in this file unless stated.
 | M3 | Real workout logger (lb → reps → RIR) | done | see log |
 | M4 | Nutrition + bodyweight + Quick Add | done | see log |
 | M5 | History (day-first) + Settings | done | see log |
-| M6 | Local SQLite persistence (expo-sqlite), Clock | queued | — |
+| M6 | Local SQLite persistence (expo-sqlite), Clock | done | see log |
 | M6b | Versioned export (read-only tool) / mobile import | queued | — |
 | VP | Integrated visual consistency pass | queued | — |
 | RC | Blocking review + final gates | queued | — |

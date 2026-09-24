@@ -67,6 +67,13 @@ describe('architecture', () => {
     }
   });
 
+  it('never feeds test fixtures to the running app', () => {
+    for (const file of sources(SRC).filter((f) => !relative(SRC, f).startsWith('data/fixtures'))) {
+      const fixture = imports(file).find((spec) => /(^|\/)fixtures(\/|$)/.test(spec));
+      expect([relative(SRC, file), fixture]).toEqual([relative(SRC, file), undefined]);
+    }
+  });
+
   it('makes no network calls anywhere in the app', () => {
     for (const file of sources(SRC)) {
       expect([relative(SRC, file), NETWORK.test(readFileSync(file, 'utf8'))]).toEqual([
