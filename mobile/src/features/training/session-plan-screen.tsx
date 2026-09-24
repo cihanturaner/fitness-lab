@@ -39,7 +39,7 @@ export function SessionPlanScreen({ facts, date }: { facts: TrainingFacts; date:
             <Text variant="eyebrow" tone={preview.isToday ? 'emerald700' : 'muted'}>
               {[preview.isToday ? 'Today' : null, preview.dateLabel].filter(Boolean).join(' · ')}
             </Text>
-            <Text variant="heroTitle" accessibilityRole="header" style={styles.title}>
+            <Text variant="workoutName" tone="emerald700" accessibilityRole="header" style={styles.title}>
               {preview.name}
             </Text>
             {preview.weekLabel ? (

@@ -134,6 +134,7 @@ const styles = StyleSheet.create({
   custom: { flexDirection: 'row', gap: space.sm },
   input: {
     flex: 1,
+    minWidth: 0,
     height: 48,
     paddingHorizontal: space.md,
     borderRadius: radius.md,

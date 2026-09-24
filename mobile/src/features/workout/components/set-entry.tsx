@@ -177,7 +177,7 @@ export function SetEntry({ number, exerciseName, initial, hints, mode, autoFocus
 
 const styles = StyleSheet.create({
   wrap: { gap: space.xs },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   active: {
     padding: space.xs + 2,
     marginHorizontal: -(space.xs + 2),
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   },
   number: { width: 30 - (space.xs + 2), textAlign: 'center' },
   log: {
-    width: 48,
+    width: 46,
     height: 48,
     borderRadius: radius.md,
     backgroundColor: color.emerald700,

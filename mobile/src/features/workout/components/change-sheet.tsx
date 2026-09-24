@@ -167,6 +167,7 @@ const styles = StyleSheet.create({
   typedRow: { flexDirection: 'row', gap: space.sm },
   input: {
     flex: 1,
+    minWidth: 0,
     height: 48,
     paddingHorizontal: space.md,
     borderRadius: radius.md,

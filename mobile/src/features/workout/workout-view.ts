@@ -15,6 +15,7 @@ import {
 import { approvedSubstitutes, type ApprovedSubstitute } from '@/domain/substitutes';
 import { sessionStatus, type SessionStatus } from '@/domain/training';
 import { formatLb } from '@/domain/units';
+import { shortDay } from '@/features/bodyweight/bodyweight-view';
 import { longDate, weekdayShort } from '@/features/home/format';
 
 /**
@@ -212,7 +213,7 @@ export function buildWorkoutView(facts: WorkoutFacts): WorkoutView {
   const withSets = [...new Set(sets.map((s) => session?.exercises.get(s.exerciseId)?.name ?? 'Exercise'))];
   return {
     name: plan?.name ?? 'Unplanned session',
-    dateLabel: longDate(date),
+    dateLabel: shortDay(date),
     weekLabel: phase ? `Week ${phase.week} of ${phase.weeks}` : null,
     isToday: date === today,
     mode,

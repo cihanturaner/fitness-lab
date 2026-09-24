@@ -15,7 +15,7 @@ Native iPhone: **NOT YET VERIFIED** for anything in this file unless stated.
 | M5 | History (day-first) + Settings | done | see log |
 | M6 | Local SQLite persistence (expo-sqlite), Clock | done | see log |
 | M6b | Versioned export (read-only tool) / mobile import | done | see log |
-| VP | Integrated visual consistency pass | queued | — |
+| VP | Integrated visual consistency pass | done | see log |
 | RC | Blocking review + final gates | queued | — |
 
 Order note: persistence (M6) is built as the repository boundary *during* M3 so the logger

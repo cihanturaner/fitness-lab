@@ -22,7 +22,7 @@ export function WeekStrip({ days }: { days: StripDay[] }) {
           accessibilityState={{ selected: d.isToday }}>
           <View style={[styles.pill, d.isToday && styles.today]}>
             {d.isToday ? (
-              <Text variant="day" tone="onPrimary">
+              <Text variant="day" tone="onPrimary" numberOfLines={1}>
                 {d.weekdayShort} {d.day}
               </Text>
             ) : (
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   today: {
-    paddingHorizontal: space.lg,
+    paddingHorizontal: space.md,
     backgroundColor: color.emerald700,
     boxShadow: shadow.cta,
   },
