@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { ApiError, api } from '@/api/client'
-import type { ActiveProgram, WorkoutSummary } from '@/api/types'
+import type { Week, WorkoutSummary } from '@/api/types'
 import { ChevronRight, ListChecks } from 'lucide-react'
 import { EmptyState, LoadError, PageHeader, Skeleton, StatusDot } from '@/components/app/primitives'
-import { formatShortDate } from '@/lib/format'
+import { daysBetween, formatShortDate, localDate, mondayOf } from '@/lib/format'
 import { workoutHref } from '@/lib/route'
 import { HistoryTabs } from './HistoryScreen'
 
@@ -14,16 +14,17 @@ function message(error: unknown): string {
 /** Every recorded session, newest first: where drafts are resumed and records corrected. */
 export function SessionsScreen() {
   const [recent, setRecent] = useState<WorkoutSummary[] | null>(null)
-  const [program, setProgram] = useState<ActiveProgram | null>(null)
+  const [week, setWeek] = useState<Week | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let live = true
-    Promise.all([api.recentWorkouts(), api.activeProgram()]).then(
-      ([workouts, active]) => {
+    const today = localDate()
+    Promise.all([api.recentWorkouts(), api.week(today, today)]).then(
+      ([workouts, current]) => {
         if (!live) return
         setRecent(workouts)
-        setProgram(active)
+        setWeek(current)
       },
       (failure: unknown) => live && setError(message(failure)),
     )
@@ -31,6 +32,16 @@ export function SessionsScreen() {
       live = false
     }
   }, [])
+
+  const start = week?.block?.start_on ?? null
+  /** Block week of a date (the active block): "Pre" before the start, "Post" after the last week. */
+  const weekLabel = (performedOn: string): string => {
+    if (!start) return ''
+    if (performedOn < start) return 'Pre'
+    const number = Math.floor(daysBetween(mondayOf(start), performedOn) / 7) + 1
+    const weeks = week?.block?.weeks ?? null
+    return weeks !== null && number > weeks ? 'Post' : String(number)
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -59,17 +70,19 @@ export function SessionsScreen() {
           <table className="num w-full text-[14px]">
             <thead className="text-left text-[12px] text-muted-foreground">
               <tr className="border-b border-border">
-                <th className="py-2.5 pl-5 font-medium">Date</th>
+                {start && <th className="w-14 py-2.5 pl-5 font-medium">Wk</th>}
+                <th className={`py-2.5 font-medium ${start ? '' : 'pl-5'}`}>Date</th>
                 <th className="py-2.5 pr-4 font-medium">Session</th>
                 <th className="py-2.5 pr-4 font-medium">Status</th>
-                <th className="py-2.5 pr-4 text-right font-medium">Sets</th>
+                <th className="py-2.5 pr-4 text-right font-medium">Working sets · recorded / planned</th>
                 <th className="w-32" />
               </tr>
             </thead>
             <tbody>
               {recent.map((workout) => (
                 <tr key={workout.id} data-testid="recent-workout" className="border-b border-border last:border-b-0 hover:bg-sunken/40">
-                  <td className="py-2.5 pl-5 whitespace-nowrap">
+                  {start && <td className="py-2.5 pl-5 text-muted-foreground">{weekLabel(workout.performed_on)}</td>}
+                  <td className={`py-2.5 whitespace-nowrap ${start ? '' : 'pl-5'}`}>
                     {formatShortDate(workout.performed_on)}
                     {workout.performed_time_local && (
                       <span className="text-muted-foreground"> {workout.performed_time_local}</span>
@@ -79,7 +92,18 @@ export function SessionsScreen() {
                   <td className="py-2.5 pr-4">
                     {workout.status === 'complete' ? <StatusDot tone="ok">Complete</StatusDot> : <StatusDot tone="warn">Draft</StatusDot>}
                   </td>
-                  <td className="py-2.5 pr-4 text-right">{workout.set_count}</td>
+                  <td data-testid="session-work-sets" className="py-2.5 pr-4 text-right">
+                    {workout.work_set_count}
+                    {workout.planned_work_sets !== null && (
+                      <span className={workout.work_set_count < workout.planned_work_sets ? 'text-foreground' : 'text-muted-foreground'}>
+                        {' '}
+                        / {workout.planned_work_sets}
+                        {workout.status === 'complete' && workout.work_set_count < workout.planned_work_sets && (
+                          <span className="ml-1.5 text-[12px] text-muted-foreground">shortened</span>
+                        )}
+                      </span>
+                    )}
+                  </td>
                   <td className="py-2.5 pr-5 text-right">
                     <a
                       className="inline-flex items-center gap-0.5 text-[13px] font-medium text-muted-foreground hover:text-foreground"
@@ -95,17 +119,13 @@ export function SessionsScreen() {
           </table>
         </div>
       )}
-      {program?.notes_text && (
-        <details className="group text-[13px]">
-          <summary className="inline-flex cursor-pointer list-none items-center gap-1 font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
-            <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" aria-hidden />
-            Program guidance
-          </summary>
-          <pre className="mt-3 max-h-[28rem] overflow-auto rounded-[10px] border border-border bg-card p-5 font-sans text-[13px] leading-relaxed whitespace-pre-wrap">
-            {program.notes_text}
-          </pre>
-        </details>
-      )}
+      <p className="t-micro">
+        Program rules (progression, deload, week-12 benchmark) are in{' '}
+        <a href="#/settings" className="font-medium text-foreground underline">
+          Settings
+        </a>
+        .
+      </p>
     </div>
   )
 }

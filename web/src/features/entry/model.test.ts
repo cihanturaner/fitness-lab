@@ -48,6 +48,7 @@ function entry(slots: EntrySlot[], sets: PerformedSet[]): Entry {
     sets,
     exercises: {},
     last_performance: {},
+    work_sets: null,
   }
 }
 

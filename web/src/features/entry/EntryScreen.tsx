@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Check, Dumbbell, Plus, SlidersHorizontal } from 'lucide-react'
 import { ApiError, api } from '@/api/client'
-import type { CompletionIssue, Entry, Exercise } from '@/api/types'
+import type { CompletionIssue, Entry, Exercise, WorkSets } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Callout, EmptyState, LoadError, Skeleton } from '@/components/app/primitives'
 import { exerciseLabel, formatDate, localDate } from '@/lib/format'
@@ -14,7 +14,7 @@ import type { SetActions } from './SetGrid'
 
 type Feedback =
   | { kind: 'error'; message: string; blockers: CompletionIssue[] }
-  | { kind: 'completed'; advisories: CompletionIssue[] }
+  | { kind: 'completed'; advisories: CompletionIssue[]; workSets: WorkSets | null }
   | null
 
 function errorFeedback(error: unknown): Feedback {
@@ -135,8 +135,17 @@ function describeIssue(issue: CompletionIssue, entry: Entry): string {
 function CompletionFeedback({ feedback, entry }: { feedback: Feedback; entry: Entry }) {
   if (!feedback) return null
   if (feedback.kind === 'completed') {
+    const short = feedback.workSets?.short ? feedback.workSets : null
     return (
-      <Callout tone="ok" role="status" title="Workout completed and saved as evidence.">
+      <Callout
+        tone="ok"
+        role="status"
+        title={
+          short
+            ? `Saved as a shortened session: ${short.actual} of ${short.planned} planned working sets recorded.`
+            : 'Workout completed and saved as evidence.'
+        }
+      >
         {feedback.advisories.length > 0 && (
           <ul className="list-disc pl-4 text-muted-foreground">
             {feedback.advisories.map((issue) => (
@@ -278,8 +287,16 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
       return
     }
     try {
+      // Judge the shortfall on what the server holds now, not on this render's copy.
+      const { work_sets: workSets } = await api.entry(workout.id)
+      if (
+        workSets?.short &&
+        !window.confirm(`${workSets.actual} actual working sets recorded / ${workSets.planned} planned. Complete anyway?`)
+      ) {
+        return
+      }
       const result = await api.complete(workout.id)
-      setFeedback({ kind: 'completed', advisories: result.advisories })
+      setFeedback({ kind: 'completed', advisories: result.advisories, workSets })
     } catch (error) {
       setFeedback(errorFeedback(error))
     } finally {
@@ -314,8 +331,10 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
       (exercise) => exercise.is_active || exercise.id === effectiveId || exercise.id === slotExerciseId,
     )
 
-  const plannedTotal = view.slots.reduce((total, { slot, sharedWith }) => total + (sharedWith === null ? slot.sets.length : 0), 0)
-  const workedTotal = entry.sets.filter((performed) => performed.set_type !== 'warmup').length
+  // Totals from the server: planned non-warm-up sets of the origin vs those recorded.
+  const plannedTotal = entry.work_sets?.planned ?? 0
+  const workedTotal = entry.work_sets?.actual ?? entry.sets.filter((performed) => performed.set_type !== 'warmup').length
+  const shortened = locked && entry.work_sets?.short === true
 
   return (
     <div className="flex flex-col gap-5">
@@ -336,6 +355,11 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
           >
             {locked ? <Check className="size-3.5" strokeWidth={2.5} aria-hidden /> : <span className="size-1.5 rounded-full bg-warn" aria-hidden />}
             <span data-testid="workout-status">{locked ? 'Complete' : 'Draft'}</span>
+            {shortened && (
+              <span data-testid="workout-shortfall" className="font-medium">
+                · shortened
+              </span>
+            )}
           </span>
           <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
             <span className="sr-only">Date performed</span>
@@ -446,7 +470,12 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
           </div>
         )}
         {locked && (
-          <p className="t-micro">Complete. Reopen it to correct sets, substitutions or details.</p>
+          <p className="t-micro">
+            {shortened && entry.work_sets
+              ? `Complete as a shortened session: ${entry.work_sets.actual} of ${entry.work_sets.planned} planned working sets were recorded. `
+              : 'Complete. '}
+            Reopen it to correct sets, substitutions or details.
+          </p>
         )}
         {!locked && workout.performed_on !== today && (
           <Callout tone="warn" role="status" testId="draft-date-notice" title={`This draft is dated ${formatDate(workout.performed_on)}, not today (${formatDate(today)}).`}>

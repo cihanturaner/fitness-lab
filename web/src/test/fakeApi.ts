@@ -1,5 +1,14 @@
 import { vi } from 'vitest'
-import type { ActiveProgram, Bodyweight, Entry, Exercise, Nutrition, Week, WeekSession } from '@/api/types'
+import type {
+  ActiveProgram,
+  Bodyweight,
+  Entry,
+  Exercise,
+  Nutrition,
+  NutritionReview,
+  Week,
+  WeekSession,
+} from '@/api/types'
 
 export interface Call {
   method: string
@@ -190,11 +199,12 @@ export function entryFixture(overrides: Partial<Entry> = {}): Entry {
         ],
       },
     },
+    work_sets: { planned: 2, actual: 0, short: true },
     ...overrides,
   }
 }
 
-function session(overrides: Partial<WeekSession>): WeekSession {
+export function session(overrides: Partial<WeekSession>): WeekSession {
   return {
     planned_workout_id: 'pw-upper',
     workout_key: 'upper_a',
@@ -205,6 +215,10 @@ function session(overrides: Partial<WeekSession>): WeekSession {
     status: 'not_started',
     workout_id: null,
     workout_on: null,
+    planned_work_sets: 23,
+    actual_work_sets: null,
+    open_draft_id: null,
+    open_draft_on: null,
     ...overrides,
   }
 }
@@ -212,6 +226,8 @@ function session(overrides: Partial<WeekSession>): WeekSession {
 /** Week of Mon 5 – Sun 11 Oct 2026, block week 2: Upper A done, Lower A a draft. */
 export const WEEK: Week = {
   date: '2026-10-07',
+  today: '2026-10-07',
+  is_current_week: true,
   week_start: '2026-10-05',
   week_end: '2026-10-11',
   program: {
@@ -220,17 +236,21 @@ export const WEEK: Week = {
     version_label: '1.0.0',
     duration_weeks: 12,
   },
-  block: { start_on: '2026-10-01', week: 2, weeks: 12 },
+  block: { start_on: '2026-10-01', week: 2, weeks: 12, phase: 'block' },
   days: [
     {
       date: '2026-10-05',
       weekday: 'Monday',
-      sessions: [session({ status: 'complete', workout_id: 'w-done', workout_on: '2026-10-05' })],
+      phase: 'block',
+      sessions: [
+        session({ status: 'complete', workout_id: 'w-done', workout_on: '2026-10-05', actual_work_sets: 23 }),
+      ],
       unplanned: [],
     },
     {
       date: '2026-10-06',
       weekday: 'Tuesday',
+      phase: 'block',
       sessions: [
         session({
           planned_workout_id: 'pw-lower',
@@ -240,14 +260,19 @@ export const WEEK: Week = {
           status: 'draft',
           workout_id: 'draft-1',
           workout_on: '2026-10-06',
+          planned_work_sets: 18,
+          actual_work_sets: 4,
+          open_draft_id: 'draft-1',
+          open_draft_on: '2026-10-06',
         }),
       ],
       unplanned: [],
     },
-    { date: '2026-10-07', weekday: 'Wednesday', sessions: [], unplanned: [] },
+    { date: '2026-10-07', weekday: 'Wednesday', phase: 'block', sessions: [], unplanned: [] },
     {
       date: '2026-10-08',
       weekday: 'Thursday',
+      phase: 'block',
       sessions: [
         session({ planned_workout_id: 'pw-upper-b', workout_key: 'upper_b', name: 'Upper B', day_label: 'Thursday' }),
       ],
@@ -256,15 +281,17 @@ export const WEEK: Week = {
     {
       date: '2026-10-09',
       weekday: 'Friday',
+      phase: 'block',
       sessions: [
         session({ planned_workout_id: 'pw-lower-b', workout_key: 'lower_b', name: 'Lower B', day_label: 'Friday' }),
       ],
       unplanned: [],
     },
-    { date: '2026-10-10', weekday: 'Saturday', sessions: [], unplanned: [] },
-    { date: '2026-10-11', weekday: 'Sunday', sessions: [], unplanned: [] },
+    { date: '2026-10-10', weekday: 'Saturday', phase: 'block', sessions: [], unplanned: [] },
+    { date: '2026-10-11', weekday: 'Sunday', phase: 'block', sessions: [], unplanned: [] },
   ],
   unscheduled: [],
+  open_drafts: [],
 }
 
 export const BODYWEIGHT: Bodyweight = {
@@ -286,6 +313,16 @@ export const BODYWEIGHT: Bodyweight = {
     { date: '2026-10-06', bodyweight_kg: '72.4', avg7_kg: '72.25' },
     { date: '2026-10-07', bodyweight_kg: '72.6', avg7_kg: '72.30' },
   ],
+  trend: {
+    window_first: '2026-09-24',
+    window_last: '2026-10-07',
+    weigh_ins: 2,
+    first_half: 0,
+    second_half: 2,
+    pct_bw_per_week: null,
+    qualified: false,
+    band: null,
+  },
 }
 
 export const NUTRITION: Nutrition = {
@@ -296,8 +333,61 @@ export const NUTRITION: Nutrition = {
   target_history: [],
 }
 
+/** A review not due: block week 1, nothing to decide yet. */
+export const REVIEW: NutritionReview = {
+  available: true,
+  reason: null,
+  today: '2026-10-07',
+  block_start_on: '2026-10-01',
+  weeks_in_block: 12,
+  review: {
+    phase: 'early',
+    block_week: 1,
+    week_start: '2026-09-28',
+    week_end: '2026-10-04',
+    trend: null,
+    status: 'INSUFFICIENT_DATA',
+    sustained: null,
+    decision_due: false,
+    already_decided: false,
+    next_decision_week: 3,
+    next_decision_on: '2026-10-18',
+    recommended_action: null,
+    recommended_delta_kcal: null,
+    current_target_kcal: null,
+    recommended_target_kcal: null,
+    recommended_carbs_g: null,
+    failed_corrections: 0,
+    note: 'Weeks 1-2: no routine bodyweight-driven changes.',
+    decision: null,
+  },
+  weeks: [],
+  decisions: [],
+  gates: [],
+  gate_checks: [
+    'tracking_method_consistent',
+    'food_logging_consistent',
+    'restaurant_unlogged_intake_reviewed',
+    'weighing_protocol_consistent',
+    'activity_NEAT_changed',
+    'training_workload_changed',
+    'sleep_recovery_changed',
+    'illness_travel',
+    'adherence_consistent',
+  ],
+  reliability_checks: [
+    'tracking_method_consistent',
+    'food_logging_consistent',
+    'restaurant_unlogged_intake_reviewed',
+    'weighing_protocol_consistent',
+    'adherence_consistent',
+  ],
+  week_1_2_exceptions: ['GI intolerance', 'obvious logging error', 'illness', 'clearly falling trend', 'implementation mistake'],
+}
+
 /** Routes the home screen reads, answering every date with the fixtures above. */
 export const HOME_ROUTES: Record<string, Handler> = {
+  'GET /api/nutrition/review': () => ({ body: REVIEW }),
   'GET /api/week': () => ({ body: WEEK }),
   'GET /api/bodyweight': () => ({ body: BODYWEIGHT }),
   'GET /api/nutrition': () => ({ body: NUTRITION }),

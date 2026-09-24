@@ -32,9 +32,11 @@ describe('home: the week', () => {
     fakeApi({ ...SYSTEM_ROUTES, ...HOME_ROUTES })
     render(<App />)
     const bodyweight = await screen.findByTestId('home-bodyweight')
+    // The source's display metric (7-day average) leads; the latest weigh-in is secondary.
+    expect(within(bodyweight).getByTestId('home-bw-avg')).toHaveTextContent('72.30 kg7-day average · 7/7 days')
     expect(within(bodyweight).getByTestId('home-bw-latest')).toHaveTextContent('72.6 kg')
-    expect(within(bodyweight).getByTestId('home-bw-avg')).toHaveTextContent('72.30 kg (7/7 days)')
-    expect(within(bodyweight).getByTestId('home-bw-change')).toHaveTextContent('+0.70 kg · +0.98%')
+    // Two weigh-ins are no trend: no single-day change is presented as a rate.
+    expect(within(bodyweight).getByTestId('home-bw-trend')).toHaveTextContent('not enough weigh-ins (2/14)')
     const nutrition = screen.getByTestId('home-nutrition')
     expect(within(nutrition).getByTestId('home-nut-protein')).toHaveTextContent('150 gtarget 145 g')
     expect(within(nutrition).getByTestId('home-nut-fat')).toHaveTextContent('62 gtarget 60 g')

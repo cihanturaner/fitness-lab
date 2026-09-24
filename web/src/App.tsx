@@ -6,6 +6,7 @@ import { HistoryScreen } from '@/features/history/HistoryScreen'
 import { SessionsScreen } from '@/features/history/SessionsScreen'
 import { HomeScreen } from '@/features/home/HomeScreen'
 import { NutritionScreen } from '@/features/nutrition/NutritionScreen'
+import { SettingsScreen } from '@/features/settings/SettingsScreen'
 import { formatShortDate, localDate } from '@/lib/format'
 import { useRoute, type Route } from '@/lib/route'
 import { installUnloadGuard } from '@/lib/unsaved'
@@ -105,6 +106,7 @@ const NAV: { label: string; href: string; routes: Route['name'][] }[] = [
   { label: 'Bodyweight', href: '#/bodyweight', routes: ['bodyweight'] },
   { label: 'Nutrition', href: '#/nutrition', routes: ['nutrition'] },
   { label: 'History', href: '#/history', routes: ['history', 'sessions'] },
+  { label: 'Settings', href: '#/settings', routes: ['settings'] },
 ]
 
 function Screen({ route }: { route: Route }) {
@@ -119,8 +121,10 @@ function Screen({ route }: { route: Route }) {
       return <HistoryScreen exerciseId={route.exerciseId} />
     case 'sessions':
       return <SessionsScreen />
+    case 'settings':
+      return <SettingsScreen />
     default:
-      return <HomeScreen />
+      return <HomeScreen key={route.week ?? 'current'} week={route.week} />
   }
 }
 

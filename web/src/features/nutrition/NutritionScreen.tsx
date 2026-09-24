@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Check, ChevronLeft, ChevronRight, Utensils } from 'lucide-react'
 import { ApiError, api } from '@/api/client'
-import type { Nutrition, NutritionDay } from '@/api/types'
+import type { CalorieTarget, Nutrition, NutritionDay, NutritionReview } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { DateField, EmptyState, LoadError, Meter, PageHeader, Skeleton } from '@/components/app/primitives'
 import { addDays, formatLongDate, formatShortDate, localDate } from '@/lib/format'
 import { parseWhole } from '@/lib/numbers'
 import { confirmLeave, markUnsaved, useUnsavedKey } from '@/lib/unsaved'
+import { WeeklyReview } from './WeeklyReview'
 
 // Mirrors backend domain/nutrition.py; the server enforces the same limits.
 const FIXED_PROTEIN_FAT_KCAL = 1120
@@ -59,6 +60,7 @@ function MacroMeter({
   unit,
   testId,
   unknown,
+  minimum = false,
 }: {
   label: string
   logged: number | null
@@ -66,6 +68,8 @@ function MacroMeter({
   unit: string
   testId: string
   unknown: string
+  /** Protein is a floor: meeting it earns a check. For the rest, over is just "over". */
+  minimum?: boolean
 }) {
   const diff = logged !== null && target !== null ? logged - target : null
   return (
@@ -76,7 +80,7 @@ function MacroMeter({
           <span className={`num text-[12px] ${diff >= 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
             {diff >= 0 ? (
               <span className="inline-flex items-center gap-1">
-                <Check className="size-3.5 text-ok" strokeWidth={2.5} aria-hidden />
+                {minimum && <Check className="size-3.5 text-ok" strokeWidth={2.5} aria-hidden />}
                 {diff === 0 ? 'on target' : `${diff} ${unit} over`}
               </span>
             ) : (
@@ -105,15 +109,29 @@ function MacroMeter({
   )
 }
 
-function CalorieTargetForm({ today, onSaved }: { today: string; onSaved: () => Promise<void> }) {
+function CalorieTargetForm({
+  today,
+  calibrated,
+  exceptions,
+  onSaved,
+}: {
+  today: string
+  calibrated: boolean
+  /** Weeks 1-2 with a target already in force: only the source's exceptions justify a change. */
+  exceptions: string[] | null
+  onSaved: () => Promise<void>
+}) {
   const [open, setOpen] = useState(false)
   const [kcal, setKcal] = useState('')
   const [from, setFrom] = useState(today)
   const [notes, setNotes] = useState('')
+  const [intake, setIntake] = useState('')
   const [problem, setProblem] = useState<string | null>(null)
   const parsed = parseWhole(kcal, 10000)
   const value = parsed.ok ? parsed.value : null
   const valid = value !== null && value >= FIXED_PROTEIN_FAT_KCAL
+  const stable = parseWhole(intake, 9850)
+  const starting = stable.ok && stable.value !== null && stable.value + 150 >= FIXED_PROTEIN_FAT_KCAL ? stable.value + 150 : null
 
   if (!open) {
     return (
@@ -135,6 +153,10 @@ function CalorieTargetForm({ today, onSaved }: { today: string; onSaved: () => P
           setProblem(`Enter whole kcal of at least ${FIXED_PROTEIN_FAT_KCAL} (protein and fat alone).`)
           return
         }
+        if (exceptions && notes.trim() === '') {
+          setProblem('Weeks 1–2 allow no routine change: choose the exception that applies.')
+          return
+        }
         void api
           .addCalorieTarget(from, value, notes.trim() === '' ? null : notes.trim())
           .then(async () => {
@@ -150,6 +172,45 @@ function CalorieTargetForm({ today, onSaved }: { today: string; onSaved: () => P
         Your decision, recorded as-is. The app never sets or changes calories on its own; carbohydrate
         becomes (calories − 1120) / 4.
       </p>
+      {!calibrated && (
+        <div className="flex flex-wrap items-end gap-2 rounded-md bg-card/70 p-3">
+          <label className="flex flex-col gap-0.5 text-muted-foreground">
+            Recent stable intake kcal
+            <input
+              aria-label="Recent stable intake in kcal"
+              inputMode="numeric"
+              className={`${inputClass} w-24 text-right`}
+              value={intake}
+              onChange={(event) => setIntake(event.target.value)}
+            />
+          </label>
+          <p className="num pb-2">
+            Starting rule: recent stable intake + 150
+            {starting !== null && (
+              <>
+                {' '}= <strong data-testid="starting-target">{starting} kcal</strong> · carbs {carbsFor(starting)} g
+              </>
+            )}
+          </p>
+          {starting !== null && (
+            <Button
+              variant="outline"
+              className="h-9 border-border-strong bg-card"
+              onPress={() => {
+                setKcal(String(starting))
+                setNotes(`Starting rule: recent stable intake ${starting - 150} + 150`)
+              }}
+            >
+              Use {starting}
+            </Button>
+          )}
+        </div>
+      )}
+      {exceptions && (
+        <p className="text-warn">
+          Weeks 1–2: no routine bodyweight-driven changes. Record a change only for one of the source’s exceptions.
+        </p>
+      )}
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-0.5 text-muted-foreground">
           Calories kcal
@@ -168,10 +229,24 @@ function CalorieTargetForm({ today, onSaved }: { today: string; onSaved: () => P
           From
           <DateField aria-label="Target effective from" className="w-[9.5rem]" value={from} onChange={(event) => setFrom(event.target.value)} />
         </label>
-        <label className="flex min-w-40 flex-1 flex-col gap-0.5 text-muted-foreground">
-          Reason (optional)
-          <input aria-label="Target reason" className={inputClass} value={notes} onChange={(event) => setNotes(event.target.value)} />
-        </label>
+        {exceptions ? (
+          <label className="flex min-w-40 flex-1 flex-col gap-0.5 text-muted-foreground">
+            Exception
+            <select aria-label="Target reason" className={inputClass} value={notes} onChange={(event) => setNotes(event.target.value)}>
+              <option value="">Choose…</option>
+              {exceptions.map((item) => (
+                <option key={item} value={`Weeks 1–2 exception: ${item}`}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label className="flex min-w-40 flex-1 flex-col gap-0.5 text-muted-foreground">
+            Reason (optional)
+            <input aria-label="Target reason" className={inputClass} value={notes} onChange={(event) => setNotes(event.target.value)} />
+          </label>
+        )}
         <Button type="submit" className="h-9">
           Record target
         </Button>
@@ -193,6 +268,60 @@ function CalorieTargetForm({ today, onSaved }: { today: string; onSaved: () => P
   )
 }
 
+/** The calorie target in force on a day: latest effective on or before it, ties by recording. */
+function targetOn(history: CalorieTarget[], day: string): number | null {
+  const found = history
+    .filter((item) => item.effective_on <= day)
+    .sort((a, b) => (a.effective_on === b.effective_on ? b.set_at_utc.localeCompare(a.set_at_utc) : b.effective_on.localeCompare(a.effective_on)))[0]
+  return found ? found.calories_kcal : null
+}
+
+/** Every calorie-target decision, newest first, append-only: corrections are new rows. */
+function TargetHistory({ history }: { history: CalorieTarget[] }) {
+  if (history.length === 0) return null
+  const ordered = [...history].sort((a, b) =>
+    a.effective_on === b.effective_on ? b.set_at_utc.localeCompare(a.set_at_utc) : b.effective_on.localeCompare(a.effective_on),
+  )
+  return (
+    <section aria-label="Calorie target history" className="flex flex-col gap-3">
+      <div className="flex items-baseline justify-between">
+        <h2 className="t-section">Calorie target history</h2>
+        <span className="t-micro">Never edited; to correct one, record a new target for the same date.</span>
+      </div>
+      <table className="num w-full text-[14px]">
+        <thead className="text-left text-[12px] text-muted-foreground">
+          <tr className="border-b border-border-strong">
+            <th className="py-2 pr-4 font-medium">From</th>
+            <th className="py-2 pr-4 text-right font-medium">Calories · kcal</th>
+            <th className="py-2 pr-4 text-right font-medium">Change</th>
+            <th className="py-2 pr-4 text-right font-medium">Carbs · g</th>
+            <th className="py-2 pl-4 font-medium">Reason</th>
+            <th className="py-2 pl-4 font-medium">Recorded</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ordered.map((item, index) => {
+            const previous = ordered[index + 1]
+            const change = previous ? item.calories_kcal - previous.calories_kcal : null
+            return (
+              <tr key={item.id} data-testid="target-row" className="border-b border-border">
+                <td className="py-2 pr-4">{formatShortDate(item.effective_on)}</td>
+                <td className="py-2 pr-4 text-right font-medium">{item.calories_kcal}</td>
+                <td className="py-2 pr-4 text-right text-muted-foreground">
+                  {change === null ? 'first' : change === 0 ? '±0' : `${change > 0 ? '+' : '−'}${Math.abs(change)}`}
+                </td>
+                <td className="py-2 pr-4 text-right">{carbsFor(item.calories_kcal)}</td>
+                <td className="max-w-80 truncate py-2 pl-4 text-muted-foreground">{item.notes ?? '—'}</td>
+                <td className="py-2 pl-4 text-muted-foreground">{item.set_at_utc.slice(0, 10)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </section>
+  )
+}
+
 export function NutritionScreen() {
   const today = localDate()
   const [day, setDay] = useState(today)
@@ -202,6 +331,9 @@ export function NutritionScreen() {
   const [problem, setProblem] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [review, setReview] = useState<NutritionReview | null>(null)
+  // A new calorie target changes the review; remounting it re-reads it.
+  const [reviewKey, setReviewKey] = useState(0)
   const unsavedKey = useUnsavedKey()
   const saved_ = draftOf(data?.day ?? null)
   const typed = (Object.keys(saved_) as (keyof Draft)[]).some((key) => draft[key].trim() !== saved_[key].trim())
@@ -292,6 +424,7 @@ export function NutritionScreen() {
 
   const { targets, recent } = data
   const logged = data.day
+  const hasTargets = data.target_history.length > 0
   const isToday = day === today
 
   return (
@@ -341,7 +474,7 @@ export function NutritionScreen() {
               testId="nut-target-calories"
               unknown="Calorie target not calibrated yet."
             />
-            <MacroMeter label="Protein" logged={logged?.protein_g ?? null} target={targets.protein_g} unit="g" testId="nut-target-protein" unknown="" />
+            <MacroMeter label="Protein" logged={logged?.protein_g ?? null} target={targets.protein_g} unit="g" testId="nut-target-protein" unknown="" minimum />
             <MacroMeter
               label="Carbs"
               logged={logged?.carbs_g ?? null}
@@ -367,7 +500,17 @@ export function NutritionScreen() {
                 </>
               )}
             </p>
-            <CalorieTargetForm today={today} onSaved={() => load(day)} />
+            <CalorieTargetForm
+              today={today}
+              calibrated={targets.calories_kcal !== null}
+              exceptions={
+                review?.review?.phase === 'early' && review.review.current_target_kcal !== null ? review.week_1_2_exceptions : null
+              }
+              onSaved={async () => {
+                await load(day)
+                setReviewKey((key) => key + 1)
+              }}
+            />
           </div>
         </section>
 
@@ -437,6 +580,8 @@ export function NutritionScreen() {
         </form>
       </div>
 
+      <WeeklyReview key={reviewKey} today={today} onDecided={() => load(day)} onLoaded={setReview} />
+
       <section aria-label="Recent days" className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
           <h2 className="t-section">Last 14 days</h2>
@@ -461,18 +606,19 @@ export function NutritionScreen() {
             <thead className="text-left text-[12px] text-muted-foreground">
               <tr className="border-b border-border-strong">
                 <th className="py-2 pr-4 font-medium">Date</th>
-                <th className="py-2 pr-4 text-right font-medium">Calories</th>
-                {targets.calories_kcal !== null && <th className="py-2 pr-4 text-right font-medium">vs target</th>}
-                <th className="py-2 pr-4 text-right font-medium">Protein</th>
-                <th className="py-2 pr-4 text-right font-medium">Carbs</th>
-                <th className="py-2 pr-4 text-right font-medium">Fat</th>
+                <th className="py-2 pr-4 text-right font-medium">Calories · kcal</th>
+                {hasTargets && <th className="py-2 pr-4 text-right font-medium">vs target that day</th>}
+                <th className="py-2 pr-4 text-right font-medium">Protein · g</th>
+                <th className="py-2 pr-4 text-right font-medium">Carbs · g</th>
+                <th className="py-2 pr-4 text-right font-medium">Fat · g</th>
                 <th className="py-2 pl-4 font-medium">Note</th>
               </tr>
             </thead>
             <tbody>
               {recent.map((row) => {
-                const kcalDiff =
-                  targets.calories_kcal !== null && row.calories_kcal !== null ? row.calories_kcal - targets.calories_kcal : null
+                // Each day against the target in force on that day, never today's.
+                const rowTarget = targetOn(data.target_history, row.logged_on)
+                const kcalDiff = rowTarget !== null && row.calories_kcal !== null ? row.calories_kcal - rowTarget : null
                 const proteinMet = row.protein_g !== null && row.protein_g >= targets.protein_g
                 return (
                   <tr
@@ -494,7 +640,7 @@ export function NutritionScreen() {
                       </button>
                     </td>
                     <td className="py-2 pr-4 text-right font-medium">{row.calories_kcal ?? '—'}</td>
-                    {targets.calories_kcal !== null && (
+                    {hasTargets && (
                       <td className="py-2 pr-4 text-right text-muted-foreground">
                         {kcalDiff === null ? '' : `${kcalDiff > 0 ? '+' : kcalDiff < 0 ? '−' : ''}${Math.abs(kcalDiff)}`}
                       </td>
@@ -518,6 +664,7 @@ export function NutritionScreen() {
           </table>
         )}
       </section>
+      <TargetHistory history={data.target_history} />
     </div>
   )
 }

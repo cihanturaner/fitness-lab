@@ -5,10 +5,19 @@ import type { Bodyweight } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { EmptyChartFrame, TrendChart } from '@/components/chart/TrendChart'
 import { DateField, EmptyState, LoadError, PageHeader, Skeleton } from '@/components/app/primitives'
-import { formatShortDate, localDate, signed } from '@/lib/format'
+import { daysBetween, formatShortDate, localDate, signed } from '@/lib/format'
 import { parseBodyweight } from '@/lib/numbers'
 import { markUnsaved, useUnsavedKey } from '@/lib/unsaved'
 
+// Display-only: a 7-day mean of fewer weigh-ins is not compared (single_day_change_actionable: false).
+const MIN_COMPARABLE = 4
+// Mirrors backend domain/nutrition_controller.py MIN_WEIGH_INS_PER_HALF (an app choice).
+const TREND_MIN_PER_HALF = 6
+const BAND_TEXT: Record<string, string> = {
+  UNDER_GAIN: 'below the 0.10–0.25 band',
+  IN_RANGE: 'inside the 0.10–0.25 band',
+  OVER_GAIN: 'above the 0.10–0.25 band',
+}
 const inputClass =
   'num h-9 rounded-md border border-input bg-card px-2.5 text-[14px] outline-none transition-colors ' +
   'hover:border-border-strong focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 ' +
@@ -133,16 +142,18 @@ export function BodyweightScreen() {
     )
   }
 
-  const { summary, series, entries } = data
+  const { summary, series, entries, trend } = data
   const avgByDate = new Map(series.map((point) => [point.date, point.avg7_kg]))
-  const change = summary.change_kg === null ? null : Number(summary.change_kg)
+  // A mean of one or two weigh-ins is a single-day comparison in disguise: not shown as a change.
+  const comparable = summary.current_count >= MIN_COMPARABLE && summary.previous_count >= MIN_COMPARABLE
+  const change = summary.change_kg === null || !comparable ? null : Number(summary.change_kg)
   const ChangeIcon = change === null || change === 0 ? Minus : change > 0 ? ArrowUpRight : ArrowDownRight
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Bodyweight"
-        meta="Morning, after the bathroom, before food or fluid, same scale."
+        meta="Morning, after the bathroom, before food or fluid, same scale, similar clothing."
         aside={
           <form onSubmit={(event) => void save(event)} className="flex items-end gap-2" aria-label="Log a weigh-in">
             <label className="flex flex-col gap-1 text-[12px] text-muted-foreground">
@@ -213,45 +224,72 @@ export function BodyweightScreen() {
       )}
 
       <section aria-label="Summary" className="flex flex-wrap items-stretch gap-x-8 gap-y-4">
-        <Stat label="Latest" testId="bw-latest" hero>
-          {summary.latest ? (
+        {/* The source's display metric is the 7-day average; a single weigh-in is secondary. */}
+        <Stat label="7-day average" testId="bw-avg7" hero>
+          {summary.current_avg_kg !== null ? (
             <>
-              <Metric value={summary.latest.bodyweight_kg} hero />
-              <span className="t-micro"> {formatShortDate(summary.latest.measured_on)}</span>
+              <Metric value={summary.current_avg_kg} hero /> <span className="t-micro">({summary.current_count}/7 days)</span>
             </>
           ) : (
             <>
               <span className="t-hero text-faint">—</span>
-              <span className="t-micro">no weigh-in yet</span>
+              <span className="t-micro">no weigh-in this week</span>
             </>
           )}
         </Stat>
-        <Stat label="7-day average" testId="bw-avg7">
-          <Metric value={summary.current_avg_kg ?? '—'} faint={summary.current_avg_kg === null} />{' '}
-          <span className="t-micro">({summary.current_count}/7 days)</span>
+        <Stat label="Latest" testId="bw-latest">
+          {summary.latest ? (
+            <>
+              <Metric value={summary.latest.bodyweight_kg} />
+              <span className="t-micro"> {formatShortDate(summary.latest.measured_on)}</span>
+            </>
+          ) : (
+            <span className="t-metric text-faint">—</span>
+          )}
         </Stat>
         <Stat label="Previous 7 days" testId="bw-prev7">
           <Metric value={summary.previous_avg_kg ?? '—'} faint={summary.previous_avg_kg === null} />{' '}
           <span className="t-micro">({summary.previous_count}/7 days)</span>
         </Stat>
-        <Stat label="Change" testId="bw-change" caption={summary.change_kg === null ? undefined : 'vs previous 7 days'}>
-          {summary.change_kg === null ? (
+        <Stat label="Change of the average" testId="bw-change" caption={change === null ? undefined : 'vs previous 7 days'}>
+          {change === null || summary.change_kg === null ? (
             <>
               <span className="t-metric text-faint">—</span>
-              <span className="t-micro">after a week of weigh-ins on each side</span>
+              <span className="t-micro">needs {MIN_COMPARABLE} weigh-ins in each week</span>
             </>
           ) : (
+            <span className="flex items-baseline gap-1">
+              <ChangeIcon className="size-6 self-center text-muted-foreground" strokeWidth={2} aria-hidden />
+              <span className="t-metric">{signed(summary.change_kg)}</span>
+              <span className="t-unit"> kg</span>
+            </span>
+          )}
+        </Stat>
+        <Stat
+          label="14-day trend"
+          testId="bw-trend"
+          caption={`${formatShortDate(trend.window_first)} – ${formatShortDate(trend.window_last)} · ${trend.weigh_ins}/14 weigh-ins`}
+        >
+          {trend.qualified && trend.pct_bw_per_week !== null ? (
+            <span className="flex items-baseline gap-1">
+              <span className="t-metric">{signed(trend.pct_bw_per_week)}</span>
+              <span className="t-unit"> % BW/week</span>
+              <span className="t-meta"> · {BAND_TEXT[trend.band ?? ''] ?? ''}</span>
+            </span>
+          ) : (
             <>
-              <span className="flex items-baseline gap-1">
-                <ChangeIcon className="size-6 self-center text-muted-foreground" strokeWidth={2} aria-hidden />
-                <span className="t-metric">{signed(summary.change_kg)}</span>
-                <span className="t-unit"> kg</span>
-                <span className="t-meta"> · {signed(summary.change_pct ?? '0')}%</span>
+              <span className="t-metric text-faint">—</span>
+              <span className="t-micro">
+                not qualified: needs {TREND_MIN_PER_HALF} weigh-ins in each week ({trend.first_half} + {trend.second_half})
               </span>
             </>
           )}
         </Stat>
       </section>
+      <p className="-mt-4 t-micro">
+        Calorie decisions use only the qualified 14-day trend, reviewed on Nutrition from the end of week 3; one day on the
+        scale is never acted on.
+      </p>
 
       {entries.length === 0 ? (
         <section className="rounded-[10px] border border-border bg-card p-5">
@@ -266,7 +304,11 @@ export function BodyweightScreen() {
           <section aria-label="Trend" className="flex flex-col gap-3 rounded-[10px] border border-border bg-card p-5 lg:col-span-8">
             <div className="flex items-baseline justify-between">
               <h2 className="t-section">Trend</h2>
-              <span className="t-micro">Last 90 days</span>
+              <span className="t-micro">
+                {series[0] && daysBetween(series[0].date, summary.reference_on) < 89
+                  ? `Since ${formatShortDate(series[0].date)}`
+                  : 'Last 90 days'}
+              </span>
             </div>
             <TrendChart
               label="Daily bodyweight and 7-day average"

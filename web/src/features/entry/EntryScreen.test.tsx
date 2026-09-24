@@ -41,7 +41,12 @@ const posts = (calls: Call[]) =>
   calls.filter((call) => call.method === 'POST' && call.url.endsWith('/sets'))
 
 describe('EntryScreen — one compact block per exercise', () => {
-  beforeEach(() => vi.unstubAllGlobals())
+  beforeEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    // A shortened session asks first; these tests accept unless they say otherwise.
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+  })
 
   it('names the exercise once, with the target and last performance as one line each', async () => {
     serve(entryFixture())
@@ -561,5 +566,62 @@ describe('EntryScreen — one compact block per exercise', () => {
     await waitFor(() =>
       expect(within(block).getByRole('textbox', { name: 'Load in kg, new set 3' })).toHaveFocus(),
     )
+  })
+
+  describe('a session with fewer working sets than planned', () => {
+    const short = () =>
+      entryFixture({
+        sets: [performed(1), performed(2)],
+        work_sets: { planned: 23, actual: 2, short: true },
+      })
+    const completed = () => {
+      const done = short()
+      done.workout = { ...done.workout, status: 'complete' }
+      return done
+    }
+
+    it('asks before completing, and declining completes nothing', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      const server = serve(short(), {
+        'POST /api/workouts/w1/complete': () => ({ body: { workout: completed().workout, advisories: [], renumbered: false } }),
+      })
+      const user = userEvent.setup()
+      render(<EntryScreen workoutId="w1" />)
+      await user.click(await screen.findByRole('button', { name: 'Complete workout' }))
+      await waitFor(() =>
+        expect(confirm).toHaveBeenCalledWith('2 actual working sets recorded / 23 planned. Complete anyway?'),
+      )
+      expect(server.calls.some((call) => call.url.endsWith('/complete'))).toBe(false)
+      expect(screen.getByTestId('workout-status')).toHaveTextContent('Draft')
+    })
+
+    it('completes when the lifter accepts, and never shows it as a full session', async () => {
+      const server = serve(short(), {
+        'POST /api/workouts/w1/complete': () => {
+          server.set(completed())
+          return { body: { workout: completed().workout, advisories: [], renumbered: false } }
+        },
+      })
+      const user = userEvent.setup()
+      render(<EntryScreen workoutId="w1" />)
+      await user.click(await screen.findByRole('button', { name: 'Complete workout' }))
+      await waitFor(() => expect(screen.getByTestId('workout-status')).toHaveTextContent('Complete'))
+      expect(screen.getByTestId('workout-shortfall')).toHaveTextContent('shortened')
+      expect(screen.getByRole('status')).toHaveTextContent('Saved as a shortened session: 2 of 23 planned working sets recorded.')
+    })
+
+    it('does not ask when the plan was met', async () => {
+      const confirm = vi.spyOn(window, 'confirm')
+      const full = entryFixture({ sets: [performed(1), performed(2)], work_sets: { planned: 2, actual: 2, short: false } })
+      const server = serve(full, {
+        'POST /api/workouts/w1/complete': () => ({ body: { workout: full.workout, advisories: [], renumbered: false } }),
+      })
+      const user = userEvent.setup()
+      render(<EntryScreen workoutId="w1" />)
+      await user.click(await screen.findByRole('button', { name: 'Complete workout' }))
+      await waitFor(() => expect(server.calls.some((call) => call.url.endsWith('/complete'))).toBe(true))
+      expect(confirm).not.toHaveBeenCalled()
+      expect(screen.queryByTestId('workout-shortfall')).not.toBeInTheDocument()
+    })
   })
 })

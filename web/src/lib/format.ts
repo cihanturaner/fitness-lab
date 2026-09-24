@@ -135,3 +135,15 @@ export function addDays(isoDate: string, days: number): string {
   const [year, month, day] = isoDate.split('-').map(Number)
   return localDate(new Date(year ?? 1970, (month ?? 1) - 1, (day ?? 1) + days))
 }
+
+/** The Monday of the Monday–Sunday week containing a civil date. */
+export function mondayOf(isoDate: string): string {
+  const date = civil(isoDate)
+  if (!date) return isoDate
+  return addDays(isoDate, -((date.getDay() + 6) % 7))
+}
+
+/** The last day (a Sunday) of a block of `weeks` weeks whose week 1 contains `startIso`. */
+export function blockEnd(startIso: string, weeks: number): string {
+  return addDays(mondayOf(startIso), 7 * weeks - 1)
+}

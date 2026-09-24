@@ -1,5 +1,10 @@
 import type {
   ActiveProgram,
+  Backup,
+  BlockStartResult,
+  GateAudit,
+  NutritionReview,
+  ReviewDecision,
   Bodyweight,
   BodyweightEntry,
   CalorieTarget,
@@ -91,7 +96,7 @@ export const api = {
     }),
   createWorkout: (performedOn: string) =>
     request<Workout>('POST', '/api/workouts', { performed_on: performedOn }),
-  recentWorkouts: () => request<WorkoutSummary[]>('GET', '/api/workouts'),
+  recentWorkouts: (limit = 200) => request<WorkoutSummary[]>('GET', `/api/workouts?limit=${limit}`),
   entry: (workoutId: string) => request<Entry>('GET', `/api/workouts/${workoutId}/entry`),
   patchWorkout: (
     workoutId: string,
@@ -117,7 +122,7 @@ export const api = {
     request<Exercise>('POST', '/api/exercises', { name, equipment_label: equipmentLabel }),
   lastPerformance: (exerciseId: string) =>
     request<LastPerformance | null>('GET', `/api/exercises/${exerciseId}/last-performance`),
-  week: (date: string) => request<Week>('GET', `/api/week?date=${date}`),
+  week: (date: string, today: string = date) => request<Week>('GET', `/api/week?date=${date}&today=${today}`),
   bodyweight: (date: string, days = 90) =>
     request<Bodyweight>('GET', `/api/bodyweight?date=${date}&days=${days}`),
   putBodyweight: (date: string, bodyweightKg: string, notes: string | null) =>
@@ -137,4 +142,30 @@ export const api = {
   exerciseHistory: (exerciseId: string) =>
     request<ExerciseHistory>('GET', `/api/exercises/${exerciseId}/history`),
   recentTraining: (limit = 3) => request<RecentSession[]>('GET', `/api/history/recent?limit=${limit}`),
+  nutritionReview: (date: string, compositionConcern = false) =>
+    request<NutritionReview>(
+      'GET',
+      `/api/nutrition/review?date=${date}${compositionConcern ? '&composition_concern=true' : ''}`,
+    ),
+  decideReview: (fields: {
+    date: string
+    block_week: number
+    choice: 'APPLIED' | 'KEPT'
+    expected_status: string
+    expected_delta_kcal: number | null
+    expected_target_kcal: number | null
+    composition_concern: boolean
+    notes: string | null
+  }) => request<ReviewDecision>('POST', '/api/nutrition/review/decision', fields),
+  recordGate: (fields: {
+    date: string
+    block_week: number
+    checks: Record<string, boolean>
+    result: GateAudit['result']
+    notes: string | null
+  }) => request<GateAudit>('POST', '/api/nutrition/review/gate', fields),
+  putBlockStart: (startOn: string) =>
+    request<BlockStartResult>('PUT', '/api/program/block-start', { start_on: startOn }),
+  backup: () => request<Backup>('POST', '/api/backup', {}),
+  backups: () => request<Backup[]>('GET', '/api/backups'),
 }

@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Nutrition } from '@/api/types'
-import { NUTRITION, fakeApi } from '@/test/fakeApi'
+import { NUTRITION, REVIEW, fakeApi } from '@/test/fakeApi'
 import { NutritionScreen } from './NutritionScreen'
 
 const EMPTY: Nutrition = { ...NUTRITION, day: null, recent: [] }
@@ -11,7 +11,8 @@ describe('NutritionScreen', () => {
   beforeEach(() => vi.unstubAllGlobals())
 
   it('shows the locked targets and an uncalibrated calorie target truthfully', async () => {
-    fakeApi({ 'GET /api/nutrition': () => ({ body: NUTRITION }) })
+    fakeApi({ 'GET /api/nutrition': () => ({ body: NUTRITION }),
+      'GET /api/nutrition/review': () => ({ body: REVIEW }), })
     render(<NutritionScreen />)
     expect(await screen.findByTestId('nut-target-protein')).toHaveTextContent('145 g')
     expect(screen.getByTestId('nut-target-fat')).toHaveTextContent('60 g')
@@ -23,6 +24,7 @@ describe('NutritionScreen', () => {
   it('saves the day with exactly what was typed; an empty field is unknown, not zero', async () => {
     const calls = fakeApi({
       'GET /api/nutrition': () => ({ body: EMPTY }),
+      'GET /api/nutrition/review': () => ({ body: REVIEW }),
       'PUT /api/nutrition/2026-09-01': () => ({ body: NUTRITION.day }),
     })
     const user = userEvent.setup()
@@ -46,7 +48,8 @@ describe('NutritionScreen', () => {
   })
 
   it('refuses decimals and empty days', async () => {
-    const calls = fakeApi({ 'GET /api/nutrition': () => ({ body: EMPTY }) })
+    const calls = fakeApi({ 'GET /api/nutrition': () => ({ body: EMPTY }),
+      'GET /api/nutrition/review': () => ({ body: REVIEW }), })
     const user = userEvent.setup()
     render(<NutritionScreen />)
     await user.click(await screen.findByRole('button', { name: 'Save day' }))
@@ -60,6 +63,7 @@ describe('NutritionScreen', () => {
   it('records a calorie target only when the lifter sets one, showing the derived carbohydrate', async () => {
     const calls = fakeApi({
       'GET /api/nutrition': () => ({ body: NUTRITION }),
+      'GET /api/nutrition/review': () => ({ body: REVIEW }),
       'POST /api/nutrition/calorie-targets': () => ({
         status: 201,
         body: { id: 't', effective_on: '2026-10-07', calories_kcal: 2650, notes: null, set_at_utc: 'x' },
@@ -78,7 +82,8 @@ describe('NutritionScreen', () => {
   })
 
   it('refuses a calorie target below protein and fat alone', async () => {
-    const calls = fakeApi({ 'GET /api/nutrition': () => ({ body: NUTRITION }) })
+    const calls = fakeApi({ 'GET /api/nutrition': () => ({ body: NUTRITION }),
+      'GET /api/nutrition/review': () => ({ body: REVIEW }), })
     const user = userEvent.setup()
     render(<NutritionScreen />)
     await user.click(await screen.findByRole('button', { name: 'Set calorie target…' }))

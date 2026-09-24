@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowDownRight, ArrowUpRight, History as HistoryIcon, Search } from 'lucide-react'
 import { ApiError, api } from '@/api/client'
-import type { Exercise, ExerciseHistory, HistoryExercise, PerformedSet } from '@/api/types'
+import type { Exercise, ExerciseHistory, Exposure, HistoryExercise, PerformedSet } from '@/api/types'
 import { TrendChart } from '@/components/chart/TrendChart'
 import { EmptyState, LoadError, PageHeader, Skeleton } from '@/components/app/primitives'
 import { compactSet, exerciseLabel, formatShortDate } from '@/lib/format'
@@ -71,23 +71,40 @@ function Delta({ value }: { value: ReturnType<typeof delta> }) {
   )
 }
 
-function SetChip({ performed }: { performed: PerformedSet }) {
-  const warm = performed.set_type === 'warmup'
+/** "82.5 kg × 6 @ RIR 2": one working set with every unit spelled out. */
+function SetCell({ performed }: { performed: PerformedSet | undefined }) {
+  if (!performed) return <span className="text-faint">·</span>
   return (
-    <span
-      data-testid="history-set"
-      className={`rounded px-1.5 py-0.5 whitespace-nowrap ${warm ? 'text-muted-foreground' : 'bg-sunken font-medium'}`}
-    >
-      {compactSet(performed)}
-      {warm && <sup className="ml-px text-[10px]">w</sup>}
-      {performed.set_type === 'backoff' && <sup className="ml-px text-[10px]">b</sup>}
+    <span data-testid="history-set" className="whitespace-nowrap">
+      <span className="font-medium">{performed.load_kg === null ? '–' : `${performed.load_kg} kg`}</span>
+      <span className="text-muted-foreground"> × </span>
+      {performed.reps ?? '?'}
+      {performed.rir !== null && <span className="text-muted-foreground"> @ RIR {performed.rir}</span>}
+      {performed.set_type === 'backoff' && (
+        <sup className="ml-0.5 text-[10px] text-muted-foreground" title="back-off set">
+          b
+        </sup>
+      )}
     </span>
   )
+}
+
+/** "Pre" before the block, "Post" after it, the block week inside it. */
+function weekLabel(exposure: Exposure): string {
+  if (exposure.phase === 'pre_block') return 'Pre'
+  if (exposure.phase === 'post_block') return 'Post'
+  return exposure.block_week === null ? '–' : String(exposure.block_week)
+}
+
+/** A top set with its unit: "85 kg × 6 @ 2". */
+function topLabel(top: PerformedSet | null): string {
+  return top ? `${compactSet(top).replace('×', ' kg × ').replace('@', ' @ ')}` : '—'
 }
 
 function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
   const [history, setHistory] = useState<ExerciseHistory | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [session, setSession] = useState<string | null>(null)
 
   useEffect(() => {
     let live = true
@@ -103,26 +120,71 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
   if (!history) {
     return error ? <LoadError what="this exercise" detail={error} /> : <Skeleton label="Loading…" blocks={['h-8 w-64', 'h-20', 'h-48']} />
   }
-  const { exposures } = history
+  const name = (exposure: Exposure) => exposure.planned_workout_name ?? 'Unplanned'
+  const sessions = [...new Set(history.exposures.map(name))]
+  const exposures = history.exposures.filter((exposure) => session === null || name(exposure) === session)
   const tops = exposures.map((exposure) => topSet(exposure.sets))
-  const latestTop = tops.at(-1) ?? null
-  const firstTop = tops.find((top) => top !== null) ?? null
-  const overall = tops.length > 1 ? delta(latestTop, firstTop) : null
-  const last = exposures.at(-1)
+  const working = exposures.map((exposure) => exposure.sets.filter((performed) => performed.set_type !== 'warmup'))
+  const columns = Math.max(1, ...working.map((sets) => sets.length))
+  const hasWeeks = exposures.some((exposure) => exposure.phase !== null)
+  /** The same session's previous exposure: week-to-week, never Upper B against Upper A. */
+  const previousIndex = (index: number) => {
+    for (let earlier = index - 1; earlier >= 0; earlier -= 1) {
+      if (name(exposures[earlier] as Exposure) === name(exposures[index] as Exposure)) return earlier
+    }
+    return -1
+  }
+  const lastIndex = exposures.length - 1
+  const last = exposures[lastIndex]
+  const latestTop = tops[lastIndex] ?? null
+  // "Since week 1": from the first in-block exposure of the latest one's session.
+  const baselineIndex = last
+    ? exposures.findIndex(
+        (exposure, index) => name(exposure) === name(last) && tops[index] !== null && (!hasWeeks || exposure.phase === 'block'),
+      )
+    : -1
+  const baseline = baselineIndex >= 0 ? exposures[baselineIndex] : undefined
+  const overall = baselineIndex >= 0 && baselineIndex < lastIndex ? delta(latestTop, tops[baselineIndex] ?? null) : null
+  const sinceLabel =
+    baseline && hasWeeks && baseline.phase === 'block' && baseline.block_week !== null
+      ? `Since week ${baseline.block_week}`
+      : 'Since first session'
 
   return (
     <section aria-label={`History, ${exerciseLabel(history.exercise)}`} className="flex min-w-0 flex-col gap-6">
       <header className="flex flex-col gap-4">
-        <h2 className="text-[22px] leading-7 font-semibold tracking-[-0.02em]">{exerciseLabel(history.exercise)}</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-[22px] leading-7 font-semibold tracking-[-0.02em]">{exerciseLabel(history.exercise)}</h2>
+          {sessions.length > 1 && (
+            <div role="group" aria-label="Session" className="flex gap-1 rounded-lg bg-sunken p-1">
+              {[null, ...sessions].map((option) => (
+                <button
+                  key={option ?? 'all'}
+                  type="button"
+                  aria-pressed={session === option}
+                  className={`rounded-md px-3 py-1 text-[13px] font-medium transition-colors ${
+                    session === option ? 'bg-card text-foreground shadow-[0_0_0_1px_var(--border-strong)]' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  onClick={() => setSession(option)}
+                >
+                  {option ?? 'All sessions'}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         {exposures.length > 0 && (
           <dl className="num flex flex-wrap gap-x-10 gap-y-3">
             <div className="flex flex-col gap-1">
-              <dt className="t-micro font-medium">Latest top set</dt>
-              <dd className="t-stat">{latestTop ? compactSet(latestTop) : '—'}</dd>
+              <dt className="t-micro font-medium">Latest top set · kg × reps @ RIR</dt>
+              <dd className="t-stat">{topLabel(latestTop)}</dd>
             </div>
             <div className="flex flex-col gap-1">
-              <dt className="t-micro font-medium">Since first session</dt>
-              <dd className="t-stat">
+              <dt className="t-micro font-medium">
+                {sinceLabel}
+                {last && sessions.length > 1 ? ` · ${name(last)}` : ''}
+              </dt>
+              <dd data-testid="history-since" className="t-stat">
                 <Delta value={overall} />
               </dd>
             </div>
@@ -149,55 +211,61 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
             <table className="num w-full text-[14px]" aria-label="Exposures">
               <thead className="text-left text-[12px] text-muted-foreground">
                 <tr className="border-b border-border">
-                  {history.block_start_on && <th className="w-14 py-2.5 pl-5 font-medium">Wk</th>}
-                  <th className={`py-2.5 pr-6 font-medium ${history.block_start_on ? '' : 'pl-5'}`}>Date</th>
-                  <th className="py-2.5 pr-6 font-medium">Session</th>
-                  <th className="py-2.5 pr-6 font-medium">Sets · kg × reps @ RIR</th>
-                  <th className="py-2.5 pr-6 text-right font-medium">Top set</th>
-                  <th className="py-2.5 pr-5 text-right font-medium">vs previous</th>
+                  {hasWeeks && <th className="w-14 py-2.5 pl-5 font-medium">Week</th>}
+                  <th className={`py-2.5 pr-5 font-medium ${hasWeeks ? '' : 'pl-5'}`}>Date</th>
+                  <th className="py-2.5 pr-5 font-medium">Session</th>
+                  {Array.from({ length: columns }, (_, index) => (
+                    <th key={index} className="py-2.5 pr-5 font-medium">
+                      Set {index + 1}
+                    </th>
+                  ))}
+                  <th className="py-2.5 pr-5 text-right font-medium">vs previous {sessions.length > 1 ? 'same session' : ''}</th>
                 </tr>
               </thead>
               <tbody>
-                {exposures.map((exposure, index) => (
-                  <tr key={exposure.workout_id} data-testid="history-exposure" className="border-b border-border last:border-b-0 hover:bg-sunken/40">
-                    {history.block_start_on && (
-                      <td className="py-2.5 pl-5 text-muted-foreground">
-                        {exposure.block_week !== null && exposure.block_week >= 1 ? exposure.block_week : '–'}
+                {exposures.map((exposure, index) => {
+                  const warmups = exposure.sets.length - (working[index]?.length ?? 0)
+                  const before = previousIndex(index)
+                  return (
+                    <tr key={exposure.workout_id} data-testid="history-exposure" className="border-b border-border last:border-b-0 hover:bg-sunken/40">
+                      {hasWeeks && (
+                        <td data-testid="history-week" className="py-2.5 pl-5 text-muted-foreground">
+                          {weekLabel(exposure)}
+                        </td>
+                      )}
+                      <td className={`py-2.5 pr-5 whitespace-nowrap ${hasWeeks ? '' : 'pl-5'}`}>
+                        <a href={workoutHref(exposure.workout_id)} className="hover:underline">
+                          {formatShortDate(exposure.performed_on)}
+                        </a>
                       </td>
-                    )}
-                    <td className={`py-2.5 pr-6 whitespace-nowrap ${history.block_start_on ? '' : 'pl-5'}`}>
-                      <a href={workoutHref(exposure.workout_id)} className="hover:underline">
-                        {formatShortDate(exposure.performed_on)}
-                      </a>
-                    </td>
-                    <td className="py-2.5 pr-6 whitespace-nowrap text-muted-foreground">
-                      {exposure.planned_workout_name ?? 'Unplanned'}
-                    </td>
-                    <td className="py-2 pr-6">
-                      <span className="flex flex-wrap gap-1">
-                        {exposure.sets.map((performed) => (
-                          <SetChip key={performed.id} performed={performed} />
-                        ))}
-                      </span>
-                    </td>
-                    <td className="py-2.5 pr-6 text-right font-semibold whitespace-nowrap">
-                      {tops[index] ? compactSet(tops[index]) : '—'}
-                    </td>
-                    <td className="py-2.5 pr-5 text-right whitespace-nowrap">
-                      <Delta value={index === 0 ? null : delta(tops[index] ?? null, tops[index - 1] ?? null)} />
-                    </td>
-                  </tr>
-                ))}
+                      <td className="py-2.5 pr-5 whitespace-nowrap text-muted-foreground">
+                        {name(exposure)}
+                        {warmups > 0 && <span className="block text-[12px] text-faint">+{warmups} warm-up</span>}
+                      </td>
+                      {Array.from({ length: columns }, (_, column) => (
+                        <td key={column} className="py-2.5 pr-5">
+                          <SetCell performed={working[index]?.[column]} />
+                        </td>
+                      ))}
+                      <td className="py-2.5 pr-5 text-right whitespace-nowrap">
+                        <Delta value={before < 0 ? null : delta(tops[index] ?? null, tops[before] ?? null)} />
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
           <p className="-mt-3 t-micro">
-            Oldest first. Warm-ups are marked <sup>w</sup>, back-off sets <sup>b</sup>. Top set is the heaviest working set.
+            Oldest first. Each working set is kg × reps @ RIR; warm-ups are counted, not listed; <sup>b</sup> marks a
+            back-off set. “vs previous” compares the heaviest working set with the previous session of the same name; it
+            does not consider RIR, so it is not a progression verdict.
+            {hasWeeks && ' Pre / Post: before the block start / after its last week.'}
           </p>
-          {exposures.length >= 2 && (
+          {exposures.length >= 2 && (sessions.length === 1 || session !== null) && (
             <div className="flex flex-col gap-2 rounded-[10px] border border-border bg-card p-5">
               <div className="flex items-baseline justify-between">
-                <h3 className="t-section">Top load per session</h3>
+                <h3 className="t-section">Top load per session · kg</h3>
                 <span className="t-micro">Reps above each point</span>
               </div>
               <TrendChart
@@ -218,6 +286,9 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
                 ]}
               />
             </div>
+          )}
+          {exposures.length >= 2 && sessions.length > 1 && session === null && (
+            <p className="t-micro">Pick one session above to chart its top load; different sessions prescribe different reps.</p>
           )}
         </>
       )}

@@ -86,6 +86,14 @@ export interface Entry {
   sets: PerformedSet[]
   exercises: Record<string, Exercise>
   last_performance: Record<string, LastPerformance | null>
+  /** Planned non-warm-up sets of the origin vs those recorded; null when unplanned. */
+  work_sets: WorkSets | null
+}
+
+export interface WorkSets {
+  planned: number
+  actual: number
+  short: boolean
 }
 
 export interface ProgramVersion {
@@ -131,6 +139,8 @@ export interface WorkoutSummary extends Workout {
   planned_workout_id: string | null
   origin_name: string | null
   set_count: number
+  work_set_count: number
+  planned_work_sets: number | null
 }
 
 export interface CompletionIssue {
@@ -157,6 +167,7 @@ export interface SetFields {
 // --- V2: week, bodyweight, nutrition, history ------------------------------------------
 
 export type SessionStatus = 'complete' | 'draft' | 'not_started'
+export type BlockPhase = 'pre_block' | 'block' | 'post_block'
 
 export interface WeekSession {
   planned_workout_id: string
@@ -168,23 +179,42 @@ export interface WeekSession {
   status: SessionStatus
   workout_id: string | null
   workout_on: string | null
+  planned_work_sets: number
+  /** Non-warm-up sets recorded in the workout shown; null when none is shown. */
+  actual_work_sets: number | null
+  /** The planned workout's open draft whatever its date (Start resumes it). */
+  open_draft_id: string | null
+  open_draft_on: string | null
+}
+
+export interface OpenDraft {
+  workout_id: string
+  planned_workout_id: string
+  name: string
+  performed_on: string
+  block_week: number | null
 }
 
 export interface WeekDay {
   date: string
   weekday: string
+  phase: BlockPhase | null
   sessions: WeekSession[]
   unplanned: { workout_id: string; status: WorkoutStatus }[]
 }
 
 export interface Week {
   date: string
+  today: string
+  is_current_week: boolean
   week_start: string
   week_end: string
   program: { id: string; name: string; version_label: string | null; duration_weeks: number | null } | null
-  block: { start_on: string; week: number; weeks: number | null } | null
+  /** `week` and `phase` are those of `date`; a day of week 1 before the start is pre-block. */
+  block: { start_on: string; week: number; weeks: number | null; phase: BlockPhase } | null
   days: WeekDay[]
   unscheduled: WeekSession[]
+  open_drafts: OpenDraft[]
 }
 
 export interface BodyweightEntry {
@@ -210,10 +240,22 @@ export interface SeriesPoint {
   avg7_kg: string | null
 }
 
+export interface BodyweightTrend {
+  window_first: string
+  window_last: string
+  weigh_ins: number
+  first_half: number
+  second_half: number
+  pct_bw_per_week: string | null
+  qualified: boolean
+  band: string | null
+}
+
 export interface Bodyweight {
   entries: BodyweightEntry[]
   summary: BodyweightSummary
   series: SeriesPoint[]
+  trend: BodyweightTrend
 }
 
 export interface NutritionDay {
@@ -269,6 +311,7 @@ export interface Exposure {
   performed_time_local: string | null
   planned_workout_name: string | null
   block_week: number | null
+  phase: BlockPhase | null
   sets: PerformedSet[]
 }
 
@@ -283,5 +326,117 @@ export interface RecentSession {
   performed_on: string
   performed_time_local: string | null
   planned_workout_name: string | null
+  planned_work_sets: number | null
+  actual_work_sets: number
   exercises: { exercise: Exercise; sets: PerformedSet[] }[]
+}
+
+// --- V3: nutrition review, settings ---------------------------------------------------
+
+export type ReviewStatus =
+  | 'INSUFFICIENT_DATA'
+  | 'UNDER_GAIN'
+  | 'IN_RANGE'
+  | 'OVER_GAIN'
+  | 'DIAGNOSTIC_GATE'
+  | 'COMPOSITION_REASSESSMENT'
+  | 'UNKNOWN'
+
+export interface ReviewTrend {
+  window_first: string
+  window_last: string
+  weigh_ins: number
+  first_half: number
+  second_half: number
+  pct_bw_per_week: string | null
+  reason: 'OK' | 'TOO_FEW_WEIGH_INS' | 'WAITING_FOR_NEW_TREND'
+  band: string | null
+}
+
+export interface ReviewDecision {
+  id: string
+  block_week: number
+  decided_on: string
+  trend_pct_bw_per_week: string
+  weigh_ins: number
+  status: ReviewStatus
+  recommended_action: string
+  recommended_delta_kcal: number | null
+  previous_calorie_target_kcal: number
+  user_choice: 'APPLIED' | 'KEPT'
+  new_calorie_target_kcal: number | null
+  composition_concern: boolean
+  notes: string | null
+  recorded_at_utc: string
+}
+
+export interface GateAudit {
+  id: string
+  block_week: number
+  decided_on: string
+  checks: Record<string, boolean>
+  result: 'GENUINE_UNDERFEEDING_CONFIRMED' | 'INPUTS_UNRELIABLE'
+  notes: string | null
+  recorded_at_utc: string
+}
+
+export interface Review {
+  phase: 'pre_block' | 'early' | 'decision' | 'post_block'
+  block_week: number | null
+  week_start: string | null
+  week_end: string | null
+  trend: ReviewTrend | null
+  status: ReviewStatus
+  sustained: boolean | null
+  decision_due: boolean
+  already_decided: boolean
+  next_decision_week: number | null
+  next_decision_on: string | null
+  recommended_action: string | null
+  recommended_delta_kcal: number | null
+  current_target_kcal: number | null
+  recommended_target_kcal: number | null
+  recommended_carbs_g: number | null
+  failed_corrections: number
+  note: string | null
+  decision: ReviewDecision | null
+}
+
+export interface ReviewWeek {
+  block_week: number
+  week_end: string
+  avg7_kg: string | null
+  avg7_count: number
+  trend: ReviewTrend
+  target_kcal: number | null
+  decision: ReviewDecision | null
+}
+
+export interface NutritionReview {
+  available: boolean
+  reason: 'no_program' | 'no_block' | null
+  today: string
+  block_start_on: string | null
+  weeks_in_block: number | null
+  review: Review | null
+  weeks: ReviewWeek[]
+  decisions: ReviewDecision[]
+  gates: GateAudit[]
+  gate_checks: string[]
+  reliability_checks: string[]
+  week_1_2_exceptions: string[]
+}
+
+export interface BlockStartResult {
+  version_id: string
+  start_on: string
+  week_1_start: string
+  week_1_end: string
+}
+
+export interface Backup {
+  name: string
+  kind: 'manual' | 'pre-migration' | 'pre-delete' | 'other'
+  created_at_utc: string
+  size_bytes: number
 }
