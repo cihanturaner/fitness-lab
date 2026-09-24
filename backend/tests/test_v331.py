@@ -95,7 +95,7 @@ def test_placement_keeps_two_slots_of_one_exercise_apart_and_legacy_sets_go_firs
         SetFacts("legacy", "curl", 4),
         SetFacts("extra", "dip", 5),
     ]
-    placed = {"a": "s1", "b": "s2", "c": "s2"}
+    placed: dict[str, str | None] = {"a": "s1", "b": "s2", "c": "s2"}
     assert place_sets(slots, sets, placed) == {
         "a": "s1",
         "b": "s2",
@@ -110,6 +110,8 @@ def test_placement_keeps_two_slots_of_one_exercise_apart_and_legacy_sets_go_firs
         (None, ("extra",)),
     ]
     assert [group.planned_exercise_id for group in groups] == ["pressdown", "pec-deck", None]
+    # A set recorded as extra work stays extra, even when a slot performs its exercise.
+    assert place_sets(slots, sets, {**placed, "legacy": None})["legacy"] is None
 
 
 # --- free-text replacement -----------------------------------------------------------------
@@ -179,6 +181,18 @@ def test_a_typed_exercise_is_refused_when_blank_retired_or_the_workout_is_comple
     assert names.count("Old Curl") == 1
 
     add_in_slot(client, workout_id, slot_named(entry, "Cable Pressdown"), "50", 10)
+    # An active identity spelled alike wins over the retired one.
+    with db.connection_scope(db_file) as connection:
+        connection.execute(
+            "INSERT INTO exercise (id, name, equipment_label, notes, is_active, created_at_utc, "
+            "updated_at_utc) VALUES ('active1', 'Old  Curl', NULL, NULL, 1, 'x', 'x')"
+        )
+    reused = typed(client, workout_id, slot_id, "old curl")
+    assert reused.status_code == 200
+    slot = next(item for item in reused.body["slots"] if item["id"] == slot_id)
+    assert slot["effective_exercise_id"] == "active1"
+    typed(client, workout_id, slot_id, "Cable Pressdown")  # back to the plan
+
     complete(client, workout_id)
     assert typed(client, workout_id, slot_id, "Triceps Curl").status_code == 409
 
@@ -280,6 +294,49 @@ def test_changing_a_slot_after_sets_moves_them_to_extra_work_never_to_another_sl
     assert back.status_code == 200
     fresh = add_in_slot(client, workout_id, pressdown, "50", 9)
     assert fresh["slot_id"] == pressdown["id"]
+    placed = {item["id"]: item["slot_id"] for item in entry_of(client, workout_id)["sets"]}
+    assert placed == {saved["id"]: None, fresh["id"]: pressdown["id"]}
+
+
+def test_sets_left_by_a_changed_slot_never_move_into_another_slot_of_their_exercise(
+    client: TestClient, locked: dict[str, Any]
+) -> None:
+    entry = open_session(client, locked["planned"]["Upper B"], DAY)
+    workout_id = entry["workout"]["id"]
+    pressdown = slot_named(entry, "Cable Pressdown")
+    pec_deck = slot_named(entry, "Reverse Pec Deck")
+    typed(client, workout_id, pressdown["id"], "Triceps Curl")
+    typed(client, workout_id, pec_deck["id"], "Triceps Curl")
+    current = entry_of(client, workout_id)
+    first = next(item for item in current["slots"] if item["id"] == pressdown["id"])
+    kept = add_in_slot(client, workout_id, first, "40", 12)
+    second = next(item for item in current["slots"] if item["id"] == pec_deck["id"])
+    other = add_in_slot(client, workout_id, second, "25", 15)
+
+    # Slot 7 goes back to Cable Pressdown: its Triceps Curl set is extra work now — it is not
+    # counted in slot 6, which is also performed as Triceps Curl.
+    client.put(
+        f"/api/workouts/{workout_id}/slots/{pressdown['id']}/exercise",
+        json={"exercise_id": pressdown["exercise_id"]},
+    )
+    placed = {item["id"]: item["slot_id"] for item in entry_of(client, workout_id)["sets"]}
+    assert placed == {kept["id"]: None, other["id"]: pec_deck["id"]}
+
+    # Extra work recorded as such stays extra, even of an exercise a slot performs.
+    extra = client.post(
+        f"/api/workouts/{workout_id}/sets",
+        json={"exercise_id": first["effective_exercise_id"], "slot_id": None, "reps": 10},
+    )
+    assert extra.status_code == 201
+    placed = {item["id"]: item["slot_id"] for item in entry_of(client, workout_id)["sets"]}
+    assert placed[extra.json()["id"]] is None
+    complete(client, workout_id)
+    day = client.get("/api/history/days").json()["days"][0]["workouts"][0]["exercises"]
+    curls = [item for item in day if item["exercise"]["name"] == "Triceps Curl"]
+    assert sorted((item["slot_id"] is None, len(item["sets"])) for item in curls) == [
+        (False, 1),
+        (True, 2),
+    ]
 
 
 def test_a_set_is_refused_in_a_slot_of_another_exercise_or_another_workout(

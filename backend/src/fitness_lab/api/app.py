@@ -319,6 +319,8 @@ def create_app() -> FastAPI:
                 rir=body.rir,
                 notes=body.notes,
                 slot_id=body.slot_id,
+                # An explicit "slot_id": null is extra work; omitted, no placement is recorded.
+                extra="slot_id" in body.model_fields_set and body.slot_id is None,
             )
             return PerformedSetOut.of(performed, body.slot_id)
 

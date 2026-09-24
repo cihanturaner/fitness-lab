@@ -118,6 +118,8 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
     return error ? <LoadError what="this exercise" detail={error} /> : <Skeleton label="Loading…" blocks={['h-8 w-64', 'h-20', 'h-48']} />
   }
   const name = (exposure: Exposure) => exposure.planned_workout_name ?? 'Unplanned'
+  /** One series is one session's one slot: two slots of this exercise in a session never compare. */
+  const series = (exposure: Exposure) => `${name(exposure)}\u0000${exposure.slot_id ?? ''}`
   const sessions = [...new Set(history.exposures.map(name))]
   const exposures = history.exposures.filter((exposure) => session === null || name(exposure) === session)
   const tops = exposures.map((exposure) => topSet(exposure.sets))
@@ -127,7 +129,7 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
   /** The same session's previous exposure: week-to-week, never Upper B against Upper A. */
   const previousIndex = (index: number) => {
     for (let earlier = index - 1; earlier >= 0; earlier -= 1) {
-      if (name(exposures[earlier] as Exposure) === name(exposures[index] as Exposure)) return earlier
+      if (series(exposures[earlier] as Exposure) === series(exposures[index] as Exposure)) return earlier
     }
     return -1
   }
@@ -137,7 +139,7 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
   // "Since week 1": from the first in-block exposure of the latest one's session.
   const baselineIndex = last
     ? exposures.findIndex(
-        (exposure, index) => name(exposure) === name(last) && tops[index] !== null && (!hasWeeks || exposure.phase === 'block'),
+        (exposure, index) => series(exposure) === series(last) && tops[index] !== null && (!hasWeeks || exposure.phase === 'block'),
       )
     : -1
   const baseline = baselineIndex >= 0 ? exposures[baselineIndex] : undefined

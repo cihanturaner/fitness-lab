@@ -145,6 +145,42 @@ describe('HistoryScreen', () => {
     expect(screen.getByRole('img', { name: 'Top recorded load per session' })).toBeInTheDocument()
   })
 
+  it('keeps two slots of one session apart: each compares with its own slot a week earlier', async () => {
+    const exposure = (id: string, workout: string, day: string, slot: string, load: string, replaced = INCLINE) => ({
+      workout_id: workout,
+      performed_on: day,
+      performed_time_local: null,
+      planned_workout_name: 'Upper B',
+      replaced,
+      slot_id: slot,
+      block_week: day === '2026-10-08' ? 2 : 3,
+      phase: 'block' as const,
+      sets: [set(`${id}-1`, load, 12, 2)],
+    })
+    fakeApi({
+      'GET /api/history/exercises': () => ({ body: [{ exercise: BENCH, exposures: 2, last_performed_on: '2026-10-15' }] }),
+      'GET /api/exercises/bench/history': () => ({
+        body: {
+          exercise: BENCH,
+          block_start_on: '2026-10-01',
+          exposures: [
+            exposure('a', 'w1', '2026-10-08', 's7', '40'),
+            exposure('b', 'w1', '2026-10-08', 's6', '25'),
+            exposure('c', 'w2', '2026-10-15', 's7', '42.5'),
+            exposure('d', 'w2', '2026-10-15', 's6', '25'),
+          ],
+        } satisfies ExerciseHistory,
+      }),
+    })
+    render(<HistoryScreen exerciseId={null} />)
+    const rows = await screen.findAllByTestId('history-exposure')
+    expect(rows).toHaveLength(4)
+    // Row b is slot 6's first exposure: nothing earlier to compare, never slot 7's 40 lb.
+    expect(rows[1]).not.toHaveTextContent('−15 lb')
+    expect(rows[2]).toHaveTextContent('+2.5 lb')
+    expect(rows[3]).toHaveTextContent('same')
+  })
+
   it('says so when nothing is complete yet', async () => {
     fakeApi({ 'GET /api/history/exercises': () => ({ body: [] }) })
     render(<HistoryScreen exerciseId={null} />)

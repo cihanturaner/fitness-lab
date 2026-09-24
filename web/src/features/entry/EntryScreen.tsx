@@ -283,10 +283,12 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
   ])
   const addable = exercises.filter((exercise) => exercise.is_active && !shownExercises.has(exercise.id))
 
-  /** A set added in a slot is recorded in that slot, so two slots of one exercise stay apart. */
+  /**
+   * A set added in a slot is recorded in that slot, so two slots of one exercise stay apart;
+   * one added as extra work is recorded as extra (slot_id null), so it never slides into a slot.
+   */
   const actionsFor = (slotId: string | null): SetActions => ({
-    add: (exerciseId, fields) =>
-      run(() => api.addSet(workout.id, { ...fields, exercise_id: exerciseId, ...(slotId ? { slot_id: slotId } : {}) })),
+    add: (exerciseId, fields) => run(() => api.addSet(workout.id, { ...fields, exercise_id: exerciseId, slot_id: slotId })),
     patch: (setId, fields) => run(() => api.patchSet(setId, fields)),
     remove: (setId) => void run(() => api.deleteSet(setId)),
     reorder: (setIds) => void run(() => api.reorderSets(workout.id, setIds)),

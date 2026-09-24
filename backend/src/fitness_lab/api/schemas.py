@@ -138,8 +138,9 @@ class SetFieldsIn(RequestModel):
 
 class SetCreateIn(SetFieldsIn):
     exercise_id: str
-    # The planned slot the set is recorded in (V3.3.1); absent: extra work, or the pre-V3.3.1
-    # rule (the first slot performed as this exercise).
+    # The planned slot the set is recorded in (V3.3.1); null: extra work, in no slot. Omitted:
+    # nothing is recorded and the pre-V3.3.1 rule applies (the first slot performed as this
+    # exercise).
     slot_id: str | None = None
 
 

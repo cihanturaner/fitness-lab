@@ -327,14 +327,19 @@ def add_set(
     rir: int | None,
     notes: str | None,
     slot_id: str | None = None,
+    extra: bool = False,
     now: str | None = None,
 ) -> PerformedSet:
     """Append one actual set at the end of the session's chronological order.
 
     ``slot_id``: the planned slot it was recorded in (V3.3.1), which must be performed as
-    ``exercise_id`` in this workout. The placement is written in the same transaction, so two
-    slots performed as one exercise keep their own sets.
+    ``exercise_id`` in this workout. ``extra``: recorded as extra work, in no slot. Either
+    placement is written in the same transaction, so two slots performed as one exercise keep
+    their own sets and extra work never slides into a slot. Neither: no placement is recorded
+    (the pre-V3.3.1 rule applies).
     """
+    if slot_id is not None and extra:
+        raise ValueError("a set is either in a slot or extra work, not both")
     stamp = now if now is not None else utc_now_iso()
     with db.immediate_transaction(connection):
         _require_draft(connection, workout_id)
@@ -371,7 +376,30 @@ def add_set(
                 "slot_id, created_at_utc) VALUES (?, ?, ?, ?, ?)",
                 (performed.id, workout_id, slot.planned_workout_id, slot.id, stamp),
             )
+        elif extra:
+            _mark_extra(connection, workout_id, (performed.id,), stamp)
     return performed
+
+
+def _mark_extra(
+    connection: sqlite3.Connection, workout_id: str, set_ids: Sequence[str], stamp: str
+) -> None:
+    """Record these sets of a planned workout as extra work, in no slot.
+
+    A set with no placement at all would be shown by the pre-V3.3.1 rule, under the first slot
+    performed as its exercise — possibly another slot than the one it was recorded in. An
+    unplanned workout has no slots, so nothing needs recording there.
+    """
+    origin = get_origin(connection, workout_id)
+    if origin is None:
+        return
+    for set_id in set_ids:
+        connection.execute("DELETE FROM performed_set_slot WHERE set_id = ?", (set_id,))
+        connection.execute(
+            "INSERT INTO performed_set_slot (set_id, workout_id, planned_workout_id, slot_id, "
+            "created_at_utc) VALUES (?, ?, ?, NULL, ?)",
+            (set_id, workout_id, origin.planned_workout_id, stamp),
+        )
 
 
 def _optional(value: object, kind: type, field: str) -> object:
@@ -406,7 +434,12 @@ def edit_set(
             _require_exercise(connection, exercise_id)
             if exercise_id != current.exercise_id:
                 # Another exercise is no longer the slot's: the set becomes extra work.
-                connection.execute("DELETE FROM performed_set_slot WHERE set_id = ?", (set_id,))
+                _mark_extra(
+                    connection,
+                    current.workout_id,
+                    (set_id,),
+                    now if now is not None else utc_now_iso(),
+                )
             updated = replace(updated, exercise_id=exercise_id)
         if "set_type" in changes:
             code = changes["set_type"]
@@ -649,14 +682,13 @@ def use_typed_exercise(
     with db.immediate_transaction(connection):
         slot = _require_slot_of_draft(connection, workout_id, slot_id)
         key = name_key(name)
-        exercise = next(
-            (
-                item
-                for item in list_exercises(connection, include_inactive=True)
-                if item.equipment_label is None and name_key(item.name) == key
-            ),
-            None,
-        )
+        same = [
+            item
+            for item in list_exercises(connection, include_inactive=True)
+            if item.equipment_label is None and name_key(item.name) == key
+        ]
+        # An active identity wins over a retired one spelled alike ("Triceps  Curl").
+        exercise = next((item for item in same if item.is_active), same[0] if same else None)
         if exercise is None:
             exercise = create_exercise(name, None, now=now)
             insert_exercise(connection, exercise)
@@ -694,12 +726,16 @@ def _substitute(
     if exercise_id != slot.exercise_id:
         _require_exercise(connection, exercise_id)
     # Sets recorded in this slot as another exercise stay what they are — extra work of their
-    # own exercise — rather than being counted as the new one.
-    connection.execute(
-        "DELETE FROM performed_set_slot WHERE workout_id = ? AND slot_id = ? AND set_id IN "
-        "(SELECT id FROM performed_set WHERE workout_id = ? AND exercise_id IS NOT ?)",
-        (workout_id, slot_id, workout_id, exercise_id),
-    )
+    # own exercise — rather than being counted as the new one, or moving to another slot.
+    leaving = [
+        str(row[0])
+        for row in connection.execute(
+            "SELECT p.set_id FROM performed_set_slot p JOIN performed_set s ON s.id = p.set_id "
+            "WHERE p.workout_id = ? AND p.slot_id = ? AND s.exercise_id IS NOT ?",
+            (workout_id, slot_id, exercise_id),
+        ).fetchall()
+    ]
+    _mark_extra(connection, workout_id, leaving, stamp)
     if exercise_id == slot.exercise_id:
         connection.execute(
             "DELETE FROM workout_slot_substitution WHERE workout_id = ? AND slot_id = ?",
@@ -723,12 +759,17 @@ def _substitutions(connection: sqlite3.Connection, workout_id: str) -> dict[str,
     return {str(row["slot_id"]): str(row["exercise_id"]) for row in rows}
 
 
-def recorded_placements(connection: sqlite3.Connection, workout_id: str) -> dict[str, str]:
-    """Set id -> the slot it was recorded in, for sets recorded since V3.3.1."""
+def recorded_placements(connection: sqlite3.Connection, workout_id: str) -> dict[str, str | None]:
+    """Set id -> the slot it was recorded in (None: recorded as extra work).
+
+    Sets recorded before V3.3.1 are absent.
+    """
     rows = connection.execute(
         "SELECT set_id, slot_id FROM performed_set_slot WHERE workout_id = ?", (workout_id,)
     ).fetchall()
-    return {str(row["set_id"]): str(row["slot_id"]) for row in rows}
+    return {
+        str(row["set_id"]): None if row["slot_id"] is None else str(row["slot_id"]) for row in rows
+    }
 
 
 def slot_facts(slots: Sequence[SlotRow], substitutions: Mapping[str, str]) -> tuple[SlotFacts, ...]:

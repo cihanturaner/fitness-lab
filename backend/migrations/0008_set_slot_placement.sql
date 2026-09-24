@@ -10,8 +10,11 @@
 --   exactly like workout_slot_substitution.
 -- - A placement names a planned SLOT (an occurrence of an exercise in the session), never a
 --   planned_set: an actual set still carries no link to a prescription (M2 invariant 8).
--- - Nothing is backfilled. Sets recorded before 0008 have no placement and are shown by the
---   pre-0008 rule (the first slot performing their exercise), as before.
+-- - Nothing is backfilled. Sets recorded before 0008 have no placement row and are shown by
+--   the pre-0008 rule (the first slot performing their exercise), as before.
+-- - A row with slot_id NULL records that a set of a planned workout is extra work — added as
+--   extra, or left behind when its slot was changed to another exercise — so the pre-0008 rule
+--   can never move it into a slot.
 --
 -- Guarantees (composite keys and triggers, like workout_slot_substitution):
 -- - the slot belongs to the planned workout the set's workout was opened from;
@@ -25,7 +28,7 @@ CREATE TABLE performed_set_slot (
         REFERENCES performed_set(id) ON DELETE CASCADE,
     workout_id         TEXT NOT NULL,
     planned_workout_id TEXT NOT NULL,
-    slot_id            TEXT NOT NULL,
+    slot_id            TEXT,             -- NULL: extra work, in no slot
     created_at_utc     TEXT NOT NULL,
     FOREIGN KEY (workout_id, planned_workout_id)
         REFERENCES workout_plan_origin (workout_id, planned_workout_id) ON DELETE CASCADE,
@@ -43,7 +46,8 @@ BEGIN
 END;
 
 CREATE TRIGGER trg_set_slot_exercise BEFORE INSERT ON performed_set_slot
-WHEN (SELECT exercise_id FROM performed_set WHERE id = NEW.set_id) IS NOT coalesce(
+WHEN NEW.slot_id IS NOT NULL
+ AND (SELECT exercise_id FROM performed_set WHERE id = NEW.set_id) IS NOT coalesce(
     (SELECT exercise_id FROM workout_slot_substitution
      WHERE workout_id = NEW.workout_id AND slot_id = NEW.slot_id),
     (SELECT exercise_id FROM planned_exercise_slot WHERE id = NEW.slot_id))
@@ -73,7 +77,7 @@ END;
 -- A placed set keeps the exercise of its slot.
 CREATE TRIGGER trg_set_slot_set_exercise BEFORE UPDATE OF exercise_id ON performed_set
 WHEN NEW.exercise_id IS NOT OLD.exercise_id AND EXISTS (
-    SELECT 1 FROM performed_set_slot WHERE set_id = OLD.id)
+    SELECT 1 FROM performed_set_slot WHERE set_id = OLD.id AND slot_id IS NOT NULL)
 BEGIN
     SELECT RAISE(ABORT, 'a set placed in a slot keeps that slot''s exercise; unplace it first');
 END;

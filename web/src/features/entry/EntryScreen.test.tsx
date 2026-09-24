@@ -523,14 +523,17 @@ describe('EntryScreen — one compact block per exercise', () => {
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Reps, set 1' })).toBeEnabled())
   })
 
-  it('records extra exercises outside the plan', async () => {
-    serve(entryFixture())
+  it('records extra exercises outside the plan, as extra work in no slot', async () => {
+    const server = serve(entryFixture(), {
+      'POST /api/workouts/w1/sets': () => ({ status: 201, body: performed(1, { exercise_id: 'curl' }) }),
+    })
     const user = userEvent.setup()
     render(<EntryScreen workoutId="w1" />)
     await user.selectOptions(await screen.findByRole('combobox', { name: 'Add an exercise' }), 'curl')
     const extra = await screen.findByTestId('extra-curl')
     expect(within(extra).getByText('Preacher Curl')).toBeInTheDocument()
-    expect(within(extra).getByRole('textbox', { name: 'Reps, new set 1' })).toBeInTheDocument()
+    await user.type(within(extra).getByRole('textbox', { name: 'Reps, new set 1' }), '10{Enter}')
+    await waitFor(() => expect(posts(server.calls)[0]?.body).toMatchObject({ exercise_id: 'curl', slot_id: null }))
   })
 
   it('keeps a failed edit visibly unsaved next to the field, and retries it', async () => {

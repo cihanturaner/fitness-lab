@@ -1,8 +1,9 @@
 """Which planned slot each recorded set of a workout belongs to (V3.3.1).
 
 A set recorded in a slot carries that placement (``performed_set_slot``), so two slots
-performed as the same exercise keep their own sets. A set without one — recorded before
-V3.3.1, or through the API without a slot — belongs, as it always did, to the first slot (by
+performed as the same exercise keep their own sets; a placement without a slot (None) is
+recorded extra work and stays extra work. A set with no placement at all — recorded before
+V3.3.1, or through the API without saying — belongs, as it always did, to the first slot (by
 position) performed as its exercise; any other set is extra work of its own exercise.
 
 Pure: no I/O. Groups are returned in the order they were trained (their first set's order).
@@ -49,18 +50,22 @@ class SetGroup:
 def place_sets(
     slots: Sequence[SlotFacts],
     sets: Sequence[SetFacts],
-    placed: Mapping[str, str],
+    placed: Mapping[str, str | None],
 ) -> dict[str, str | None]:
-    """Each set's slot id (None: extra work). ``placed`` maps set id -> recorded slot id."""
+    """Each set's slot id (None: extra work).
+
+    ``placed`` maps set id -> the slot it was recorded in, or None when it was recorded as
+    extra work; a set absent from it has no recorded placement.
+    """
     by_id = {slot.slot_id: slot for slot in slots}
     first_for: dict[str, str] = {}
     for slot in sorted(slots, key=lambda item: item.position):
         first_for.setdefault(slot.performed_exercise_id, slot.slot_id)
     result: dict[str, str | None] = {}
     for performed in sets:
-        recorded = placed.get(performed.set_id)
-        if recorded is not None and recorded in by_id:
-            result[performed.set_id] = recorded
+        if performed.set_id in placed:
+            recorded = placed[performed.set_id]
+            result[performed.set_id] = recorded if recorded in by_id else None
         else:
             result[performed.set_id] = first_for.get(performed.exercise_id)
     return result
@@ -69,7 +74,7 @@ def place_sets(
 def group_sets(
     slots: Sequence[SlotFacts],
     sets: Sequence[SetFacts],
-    placed: Mapping[str, str],
+    placed: Mapping[str, str | None],
 ) -> tuple[SetGroup, ...]:
     """The workout's sets by slot (and extra exercise), in the order they were trained."""
     by_id = {slot.slot_id: slot for slot in slots}
