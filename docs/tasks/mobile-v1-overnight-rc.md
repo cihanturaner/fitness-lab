@@ -16,7 +16,7 @@ Native iPhone: **NOT YET VERIFIED** for anything in this file unless stated.
 | M6 | Local SQLite persistence (expo-sqlite), Clock | done | see log |
 | M6b | Versioned export (read-only tool) / mobile import | done | see log |
 | VP | Integrated visual consistency pass | done | see log |
-| RC | Blocking review + final gates | in progress | — |
+| RC | Blocking review + final gates | done | `3763b5c` |
 
 Order note: persistence (M6) is built as the repository boundary *during* M3 so the logger
 is real from the start; the M6 commit adds migrations tests, cold-restart and the Clock.
@@ -140,6 +140,7 @@ is real from the start; the M6 commit adds migrations tests, cold-restart and th
 | `8d93a93` | Jest per-test budget 20 s (cold-cache first test) |
 | `553a4ec` | Day rollover while the app stays open |
 | `9c41a64` | Ledger: commit list |
+| `3763b5c` | RC blocker B1: queue every write, double-tap guards (+ review nits) |
 
 ## DONE criteria
 
@@ -167,7 +168,35 @@ The mission's 30-point RC definition; status in "RC checklist" below.
   `git add -A` while it existed for about a second; removed in the fix commit (no history
   rewrite).
 
-## Physical iPhone verification needed
+## RC checklist (final, at `3763b5c`)
 
-- Safe areas, keyboard feel, haptics, SF Symbols, Dynamic Type, VoiceOver, performance,
-  real-file import of the canonical DB, final design approval.
+Clean clone of the branch: `npm ci` ok · typecheck ok · lint 0 warnings · jest 20 suites /
+282 tests (cold transform cache) · `npx expo export --platform ios` ok (Hermes 3.2 MB; no
+sql.js or fixtures inside) · exporter unittest 8/8 (Python 3.11 and 3.13) · all 121+ files
+under mobile/src and tools tracked (root `data/` rule handled by `mobile/.gitignore`
+`!/src/data/`) · `git diff mobile-m2-frozen..HEAD -- web backend` empty · blocking review:
+1 blocker found and fixed, 0 open.
+
+Journeys: J1 (fresh / pre-block / rest / post-block) RTL · J2 RTL + browser · J3 RTL (Training
+→ logger for today/past, plan for future) · J4 RTL + browser · J5 RTL + browser · J6 RTL +
+browser · J7 RTL (reopen from file bytes) + browser reload · J8 RTL + browser (file chooser).
+
+## Physical iPhone verification needed (not verified here)
+
+1. Install a development build (`npx expo run:ios` or EAS development profile — the app now
+   uses expo-sqlite, expo-file-system, expo-document-picker, expo-sharing).
+2. Safe areas: Dynamic Island / home indicator around every tab and the floating bar.
+3. Logger keyboard: number / decimal pads, the "Next · Log set" bar above the keyboard,
+   scrolling the open row above the keyboard, one-hand reach of the ✓ button.
+4. Quick Add form sheet: sizes to content; the kg / macro fields stay above the keyboard.
+5. SF Symbols for every icon (incl. new: ellipsis, trash, arrow.left.arrow.right,
+   square.and.arrow.up/down, scope, list.bullet.rectangle).
+6. Anatomy SVG (radial gradients, mirrored halves) and the calorie half-ring on iOS.
+7. Dynamic Type at larger sizes; VoiceOver order on Home, logger rows, Nutrition, History.
+8. Cold restart on device keeps data; app open across midnight rolls to the new day.
+9. Export → share sheet → Files; import that file back into a fresh install.
+10. Real import: stop the desktop app, run
+    `python3 tools/export/fitness_lab_export.py --db data/fitness_lab.db --out ~/Desktop/fitness-lab-export-v1.json`,
+    AirDrop/Files it to the iPhone, Settings › Your data › Import a file; check History.
+11. Performance feel while logging; haptics (none are implemented yet).
+12. Final design approval against the reference screenshots.
