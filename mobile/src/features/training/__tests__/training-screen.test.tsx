@@ -55,6 +55,15 @@ describe('TrainingScreen', () => {
     expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/plan/[date]', params: { date: '2026-10-08' } });
   });
 
+  it('draws the anatomy only for a workout whose focus a source states', async () => {
+    await render(<TrainingScreen facts={trainingFixture} />);
+    expect(screen.getByLabelText('Focus: Back, Chest, Shoulders, Triceps, Biceps')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Friday 9 October: Lower B, planned' }));
+    expect(screen.getByRole('header', { name: 'Lower B' })).toBeOnTheScreen();
+    expect(screen.queryByTestId('anatomy-figure', { includeHiddenElements: true })).toBeNull();
+  });
+
   it('selects a rest day and navigates weeks within the block', async () => {
     await render(<TrainingScreen facts={trainingFixture} />);
 

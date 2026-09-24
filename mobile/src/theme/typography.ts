@@ -32,7 +32,26 @@ const tabular: TextStyle['fontVariant'] = ['tabular-nums'];
 export const type = {
   largeTitle: { fontFamily: font.heavy, fontSize: 28, lineHeight: 34, letterSpacing: -0.8 },
   heroTitle: { fontFamily: font.heavy, fontSize: 30, lineHeight: 34, letterSpacing: -0.8 },
+  /** A tab screen's own title: compact, not a dashboard banner. */
+  screenTitle: { fontFamily: font.bold, fontSize: 23, lineHeight: 28, letterSpacing: -0.6 },
+  /** The workout on a hero card, in capitals like a label on kit. */
+  workoutName: {
+    fontFamily: font.heavy,
+    fontSize: 23,
+    lineHeight: 28,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
   title: { fontFamily: font.bold, fontSize: 19, lineHeight: 24, letterSpacing: -0.3 },
+  section: { fontFamily: font.bold, fontSize: 20, lineHeight: 25, letterSpacing: -0.4 },
+  cardTitle: { fontFamily: font.semibold, fontSize: 15, lineHeight: 19, letterSpacing: -0.2 },
+  stat: {
+    fontFamily: font.bold,
+    fontSize: 26,
+    lineHeight: 30,
+    letterSpacing: -0.8,
+    fontVariant: tabular,
+  },
   metric: {
     fontFamily: font.bold,
     fontSize: 30,
@@ -54,7 +73,16 @@ export const type = {
     textTransform: 'uppercase',
   },
   button: { fontFamily: font.bold, fontSize: 17, lineHeight: 22, letterSpacing: -0.2 },
+  /** The hero call to action: short, spaced capitals. */
+  cta: {
+    fontFamily: font.bold,
+    fontSize: 15,
+    lineHeight: 20,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+  },
   tab: { fontFamily: font.semibold, fontSize: 11, lineHeight: 13, letterSpacing: 0.1 },
+  day: { fontFamily: font.semibold, fontSize: 17, lineHeight: 21, fontVariant: tabular },
 } as const satisfies Record<string, TextStyle>;
 
 export type TypeVariant = keyof typeof type;

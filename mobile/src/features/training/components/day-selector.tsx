@@ -1,18 +1,18 @@
 import { StyleSheet, View } from 'react-native';
 
-import { color, radius, space } from '@/theme/tokens';
+import { color, radius, shadow, space } from '@/theme/tokens';
 import { Pressable } from '@/ui/pressable';
+import { STATUS_TONE } from '@/ui/status-chip';
 import { Text } from '@/ui/text';
 
 import type { PlannerDay } from '../training-view';
-import { STATUS_TONE } from './status-chip';
 
 type Props = { days: PlannerDay[]; onSelect: (date: string) => void };
 
 /**
- * The seven days of the shown block week. A filled tile is the selected day, a ringed one
- * is today; under the number a dot says what the day holds (hollow = planned, filled =
- * recorded, a short dash = rest). Days outside the block are dimmed.
+ * The seven days of the shown block week, as light capsules on the page. The filled
+ * capsule is the selected day, a ringed one is today; under it a mark says what the day
+ * holds (ring = planned, dot = recorded, dash = rest). Days outside the block are dimmed.
  */
 export function DaySelector({ days, onSelect }: Props) {
   return (
@@ -28,24 +28,26 @@ export function DaySelector({ days, onSelect }: Props) {
           accessibilityState={{ selected: d.isSelected }}
           aria-selected={d.isSelected}
           style={styles.column}>
-          <Text
-            variant="caption"
-            tone={d.isSelected || d.isToday ? 'emerald700' : 'muted'}
-            style={[styles.weekday, d.kind === 'outside' && styles.dim]}>
-            {d.weekday}
-          </Text>
           <View
             style={[
-              styles.tile,
+              styles.capsule,
               d.kind === 'outside' && styles.dim,
               d.isToday && !d.isSelected && styles.today,
               d.isSelected && styles.selected,
             ]}>
-            <Text variant="bodyStrong" tone={d.isSelected ? 'onPrimary' : 'ink'} style={styles.day}>
+            <Text
+              variant="caption"
+              tone={d.isSelected ? 'emerald100' : d.isToday ? 'emerald700' : 'muted'}
+              style={styles.weekday}>
+              {d.weekday.slice(0, 1)}
+            </Text>
+            <Text
+              variant="day"
+              tone={d.isSelected ? 'onPrimary' : d.kind === 'workout' ? 'ink' : 'faint'}>
               {d.day}
             </Text>
-            <Mark day={d} />
           </View>
+          <Mark day={d} />
         </Pressable>
       ))}
     </View>
@@ -54,41 +56,39 @@ export function DaySelector({ days, onSelect }: Props) {
 
 function Mark({ day }: { day: PlannerDay }) {
   if (day.kind !== 'workout' || !day.status) {
-    const tint = day.isSelected ? color.emerald300 : color.hairline;
-    return <View style={[styles.dash, { backgroundColor: day.kind === 'rest' ? tint : 'transparent' }]} />;
+    return (
+      <View
+        style={[styles.dash, { backgroundColor: day.kind === 'rest' ? color.hairline : 'transparent' }]}
+      />
+    );
   }
   const hollow = day.status === 'planned' || day.status === 'not-recorded';
-  const tone = day.isSelected ? color.onPrimary : STATUS_TONE[day.status].fg;
-  const fill =
-    day.status === 'in-progress' ? (day.isSelected ? color.emerald300 : color.emerald500) : tone;
+  const tone = STATUS_TONE[day.status].fg;
+  const fill = day.status === 'in-progress' ? color.emerald500 : tone;
   return (
     <View
-      style={[
-        styles.dot,
-        hollow ? { borderWidth: 1.5, borderColor: tone } : { backgroundColor: fill },
-      ]}
+      style={[styles.dot, hollow ? { borderWidth: 1.5, borderColor: tone } : { backgroundColor: fill }]}
     />
   );
 }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: space.xs },
-  column: { flex: 1, alignItems: 'center', gap: space.sm, minHeight: 88 },
-  weekday: { fontSize: 12 },
-  tile: {
+  column: { flex: 1, alignItems: 'center', gap: 6, minHeight: 74 },
+  capsule: {
     width: '100%',
-    maxWidth: 50,
+    maxWidth: 46,
     height: 62,
-    borderRadius: radius.lg,
-    backgroundColor: color.card,
+    borderRadius: radius.round,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: 2,
   },
-  today: { borderWidth: 1.5, borderColor: color.emerald700 },
-  selected: { backgroundColor: color.emerald700 },
+  weekday: { fontSize: 12, lineHeight: 15 },
+  today: { borderWidth: 1.5, borderColor: color.emerald600 },
+  selected: { backgroundColor: color.emerald700, boxShadow: shadow.cta },
   dim: { opacity: 0.45 },
-  day: { fontSize: 18, lineHeight: 22, fontVariant: ['tabular-nums'] },
-  dot: { width: 7, height: 7, borderRadius: 4 },
-  dash: { width: 10, height: 2, borderRadius: 1 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  dash: { width: 9, height: 2, borderRadius: 1, marginVertical: 2 },
 });
+

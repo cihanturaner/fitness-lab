@@ -14,6 +14,8 @@ export type DayMark = SessionStatus | 'not-recorded' | 'rest';
 export type StripDay = {
   date: IsoDate;
   weekday: string;
+  /** "Thu" — today's pill spells the weekday out. */
+  weekdayShort: string;
   day: number;
   isToday: boolean;
   mark: DayMark;
@@ -208,6 +210,7 @@ export function buildHomeView(facts: HomeFacts): HomeView {
     return {
       date,
       weekday: weekdayShort(date).slice(0, 1),
+      weekdayShort: weekdayShort(date),
       day: dayOfMonth(date),
       isToday: date === facts.today,
       mark,

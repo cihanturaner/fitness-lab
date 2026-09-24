@@ -1,66 +1,72 @@
 import { StyleSheet, View } from 'react-native';
 
-import { color, radius, space } from '@/theme/tokens';
+import { color, radius, shadow, space } from '@/theme/tokens';
 import { Text } from '@/ui/text';
 
 import type { DayMark, StripDay } from '../home-view';
 
-/** The current Monday–Sunday week. A dot under a date says what that day held. */
+/**
+ * The current Monday–Sunday week as one light row of dates. Today is the filled pill
+ * ("Thu 8"); a training day's number is ink, a rest day's is faint, and a small mark under
+ * a training day says what it held (filled = recorded, ring = planned).
+ */
 export function WeekStrip({ days }: { days: StripDay[] }) {
   return (
     <View style={styles.row} accessibilityRole="list" accessibilityLabel="This week">
       {days.map((d) => (
         <View
           key={d.date}
-          style={styles.column}
+          style={[styles.cell, d.isToday && styles.todayCell]}
           accessible
           accessibilityLabel={d.accessibilityLabel}
           accessibilityState={{ selected: d.isToday }}>
-          <Text variant="caption" tone={d.isToday ? 'emerald700' : 'faint'} style={styles.weekday}>
-            {d.weekday}
-          </Text>
-          <View style={[styles.tile, d.isToday && styles.today]}>
-            <Text
-              variant="bodyStrong"
-              tone={d.isToday ? 'onPrimary' : 'ink'}
-              style={styles.day}>
-              {d.day}
-            </Text>
-            <Mark mark={d.mark} onToday={d.isToday} />
+          <View style={[styles.pill, d.isToday && styles.today]}>
+            {d.isToday ? (
+              <Text variant="day" tone="onPrimary">
+                {d.weekdayShort} {d.day}
+              </Text>
+            ) : (
+              <Text variant="day" tone={d.mark === 'rest' ? 'faint' : 'ink'}>
+                {d.day}
+              </Text>
+            )}
           </View>
+          <Mark mark={d.mark} />
         </View>
       ))}
     </View>
   );
 }
 
-function Mark({ mark, onToday }: { mark: DayMark; onToday: boolean }) {
+function Mark({ mark }: { mark: DayMark }) {
   if (mark === 'rest') return <View style={styles.dot} />;
   const filled: Partial<Record<DayMark, string>> = {
-    done: onToday ? color.onPrimary : color.emerald600,
-    shortened: onToday ? color.warnSurface : color.warn,
-    'in-progress': onToday ? color.emerald300 : color.emerald500,
+    done: color.emerald600,
+    shortened: color.warn,
+    'in-progress': color.emerald500,
   };
   const fill = filled[mark];
   if (fill) return <View style={[styles.dot, { backgroundColor: fill }]} />;
-  const ring = mark === 'planned' ? (onToday ? color.onPrimary : color.plan) : color.faint;
+  const ring = mark === 'planned' ? color.plan : color.faint;
   return <View style={[styles.dot, styles.ring, { borderColor: ring }]} />;
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'space-between' },
-  column: { alignItems: 'center', gap: space.sm, flex: 1 },
-  weekday: { fontSize: 12 },
-  tile: {
-    width: 46,
-    height: 58,
-    borderRadius: radius.lg,
+  row: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  cell: { flex: 1, alignItems: 'center', gap: 5 },
+  todayCell: { flex: 2 },
+  pill: {
+    height: 42,
+    minWidth: 42,
+    borderRadius: radius.round,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
   },
-  today: { backgroundColor: color.emerald700 },
-  day: { fontSize: 18, lineHeight: 22, fontVariant: ['tabular-nums'] },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-  ring: { borderWidth: 1.5 },
+  today: {
+    paddingHorizontal: space.lg,
+    backgroundColor: color.emerald700,
+    boxShadow: shadow.cta,
+  },
+  dot: { width: 5, height: 5, borderRadius: 3 },
+  ring: { borderWidth: 1.2 },
 });

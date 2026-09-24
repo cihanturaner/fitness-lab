@@ -7,39 +7,40 @@ import { Text } from '@/ui/text';
 
 type Props = { dateLabel: string; blockLabel: string | null; onOpenSettings: () => void };
 
+/** A compact personal header: today and the block week, with Settings within reach. */
 export function HomeHeader({ dateLabel, blockLabel, onOpenSettings }: Props) {
   return (
     <View style={styles.row}>
       <View style={styles.titles}>
-        {blockLabel ? (
-          <Text variant="eyebrow" tone="emerald700">
-            {blockLabel}
-          </Text>
-        ) : null}
         <Text
-          variant="largeTitle"
+          variant="screenTitle"
           accessibilityRole="header"
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.85}>
           {dateLabel}
         </Text>
+        {blockLabel ? (
+          <Text variant="label" tone="emerald700">
+            {blockLabel}
+          </Text>
+        ) : null}
       </View>
       <Pressable
         onPress={onOpenSettings}
         accessibilityRole="button"
         accessibilityLabel="Settings"
-        hitSlop={8}
+        hitSlop={4}
         style={styles.settings}>
-        <Icon name="settings" size={20} color={color.inkSoft} />
+        <Icon name="settings" size={19} color={color.inkSoft} />
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-end', gap: space.md },
-  titles: { flex: 1, gap: space.xs },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 56 },
+  titles: { flex: 1, gap: 2 },
   settings: {
     width: hitTarget,
     height: hitTarget,
@@ -48,6 +49,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     boxShadow: shadow.card,
-    marginBottom: space.xxs,
   },
 });

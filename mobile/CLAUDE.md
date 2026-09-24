@@ -42,8 +42,11 @@ here unchanged; this file does not restate it. Progress lives in `docs/tasks/mob
   the Quick Add button beside the bar. Tab screens pad their scroll content with
   `tabBarClearance()`. The `TabList`/`TabTrigger` JSX must stay in `src/app/(tabs)/_layout.tsx`
   (expo-router reads the tab routes from it).
-- Muscle artwork: replace `muscleArt()` in `src/features/home/muscle-art.ts`; the focus is
-  always also stated in text.
+- Muscle artwork: `src/ui/anatomy/` — original front/back figures drawn with
+  `react-native-svg` from the plate paths in `anatomy-art.ts` (left half only, mirrored).
+  Only a focus a source states is highlighted; with none the body stays neutral. The figure
+  is hidden from assistive technology, so the focus is always also stated in text
+  (`MuscleFocus`).
 
 ## Verification (from `mobile/`)
 

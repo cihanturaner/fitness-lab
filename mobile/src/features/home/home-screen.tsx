@@ -9,8 +9,7 @@ import { color, gutter, space } from '@/theme/tokens';
 import { Text } from '@/ui/text';
 
 import { HomeHeader } from './components/home-header';
-import { NutritionCard } from './components/nutrition-card';
-import { BodyweightCard, WeekCard } from './components/summary-cards';
+import { ProgressCards } from './components/progress-cards';
 import { WeekStrip } from './components/week-strip';
 import { WorkoutHero } from './components/workout-hero';
 import { buildHomeView } from './home-view';
@@ -42,14 +41,10 @@ export function HomeScreen({ facts }: { facts: HomeFacts }) {
           onOpenWorkout={() => router.navigate('/training')}
         />
 
-        <Text variant="title" accessibilityRole="header" style={styles.section}>
-          Today
+        <Text variant="section" accessibilityRole="header" style={styles.section}>
+          Progress
         </Text>
-        <NutritionCard nutrition={view.nutrition} />
-        <View style={styles.pair}>
-          <BodyweightCard bodyweight={view.bodyweight} />
-          <WeekCard week={view.week} />
-        </View>
+        <ProgressCards nutrition={view.nutrition} bodyweight={view.bodyweight} week={view.week} />
       </ScrollView>
     </View>
   );
@@ -58,8 +53,7 @@ export function HomeScreen({ facts }: { facts: HomeFacts }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.paper },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: gutter, paddingTop: space.md },
-  strip: { marginTop: space.xl, marginBottom: space.xl },
-  section: { marginTop: space.xxxl, marginBottom: space.md },
-  pair: { flexDirection: 'row', gap: space.md, marginTop: space.md },
+  content: { paddingHorizontal: gutter, paddingTop: space.sm },
+  strip: { marginTop: space.md, marginBottom: space.lg },
+  section: { marginTop: space.xxl, marginBottom: space.md },
 });

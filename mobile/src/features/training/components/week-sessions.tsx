@@ -5,10 +5,10 @@ import { color, radius, space } from '@/theme/tokens';
 import { Card } from '@/ui/card';
 import { ProgressBar } from '@/ui/progress-bar';
 import { Pressable } from '@/ui/pressable';
+import { StatusChip } from '@/ui/status-chip';
 import { Text } from '@/ui/text';
 
 import type { SessionRow } from '../training-view';
-import { StatusChip } from './status-chip';
 
 type Props = {
   sessions: SessionRow[];
@@ -17,7 +17,7 @@ type Props = {
   onSelect: (date: string) => void;
 };
 
-/** The week's scheduled sessions as one list; rest days fold into a single line below it. */
+/** The week's scheduled sessions as one light list; rest days fold into a line below it. */
 export function WeekSessions({ sessions, restLabel, outsideLabel, onSelect }: Props) {
   return (
     <View style={styles.stack}>
@@ -33,11 +33,14 @@ export function WeekSessions({ sessions, restLabel, outsideLabel, onSelect }: Pr
                 accessibilityState={{ selected: s.isSelected }}
                 aria-selected={s.isSelected}
                 style={[styles.row, s.isSelected && styles.rowSelected]}>
-                <View style={styles.date}>
-                  <Text variant="caption" tone={s.isToday ? 'emerald700' : 'muted'}>
+                <View style={[styles.date, s.isSelected && styles.dateSelected]}>
+                  <Text
+                    variant="caption"
+                    tone={s.isSelected ? 'emerald100' : s.isToday ? 'emerald700' : 'muted'}
+                    style={styles.weekday}>
                     {s.weekday}
                   </Text>
-                  <Text variant="bodyStrong" style={styles.dayNumber}>
+                  <Text variant="day" tone={s.isSelected ? 'onPrimary' : 'ink'}>
                     {s.day}
                   </Text>
                 </View>
@@ -46,7 +49,7 @@ export function WeekSessions({ sessions, restLabel, outsideLabel, onSelect }: Pr
                     <Text variant="bodyStrong" numberOfLines={1} style={styles.name}>
                       {s.name}
                     </Text>
-                    <StatusChip status={s.status} label={s.statusLabel} />
+                    <StatusChip status={s.status} label={s.statusLabel} plain />
                   </View>
                   <Text variant="caption" tone="muted" numberOfLines={1}>
                     {s.detailLabel}
@@ -74,38 +77,39 @@ export function WeekSessions({ sessions, restLabel, outsideLabel, onSelect }: Pr
 
 function Line({ text }: { text: string }) {
   return (
-    <View style={styles.line}>
-      <Text variant="caption" tone="muted">
-        {text}
-      </Text>
-    </View>
+    <Text variant="caption" tone="muted" style={styles.line}>
+      {text}
+    </Text>
   );
 }
 
 const styles = StyleSheet.create({
   stack: { gap: space.sm },
-  card: { padding: space.xs },
+  card: { padding: space.sm - 2 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
-    minHeight: 68,
-    paddingHorizontal: space.md,
-    paddingVertical: space.md,
+    minHeight: 64,
+    paddingHorizontal: space.sm + 2,
+    paddingVertical: space.sm + 2,
     borderRadius: radius.lg,
   },
   rowSelected: { backgroundColor: color.emerald50 },
-  rule: { height: 1, backgroundColor: color.hairline, marginHorizontal: space.md },
-  date: { width: 34, alignItems: 'center' },
-  dayNumber: { fontSize: 18, lineHeight: 22, fontVariant: ['tabular-nums'] },
-  body: { flex: 1, gap: space.xxs },
+  rule: { height: StyleSheet.hairlineWidth, backgroundColor: color.hairline, marginHorizontal: space.md },
+  date: {
+    width: 44,
+    height: 48,
+    borderRadius: radius.md + 2,
+    backgroundColor: color.sunken,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateSelected: { backgroundColor: color.emerald700 },
+  weekday: { fontSize: 11, lineHeight: 13 },
+  body: { flex: 1, gap: 2 },
+  bar: { marginTop: space.xs },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
   name: { flexShrink: 1 },
-  bar: { marginTop: space.xs },
-  line: {
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-    borderRadius: radius.lg,
-    backgroundColor: color.sunken,
-  },
+  line: { paddingHorizontal: space.sm },
 });

@@ -27,7 +27,7 @@ export function PlaceholderScreen({ title, icon, note, inTabs = true }: Props) {
           },
         ]}>
         {inTabs ? (
-          <Text variant="largeTitle" accessibilityRole="header">
+          <Text variant="screenTitle" accessibilityRole="header">
             {title}
           </Text>
         ) : null}

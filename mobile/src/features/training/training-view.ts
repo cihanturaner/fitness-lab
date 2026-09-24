@@ -59,6 +59,8 @@ export type SelectedWorkout = {
   metaLabel: string;
   /** Null when no source states the workout's focus. */
   focusLabel: string | null;
+  /** The stated focus for the anatomy figure and its caption; empty when none is stated. */
+  focus: { groups: readonly MuscleGroup[]; names: string[] };
   progress: { value: number; label: string; percentLabel: string } | null;
   planAccessibilityLabel: string;
 };
@@ -162,9 +164,9 @@ function sessionFacts(facts: TrainingFacts, date: IsoDate, workout: ProgramWorko
   };
 }
 
-function focusLabel(facts: TrainingFacts, workout: ProgramWorkout): string | null {
-  const groups = facts.focus[workout.key];
-  return groups?.length ? groups.map((m) => MUSCLE_LABEL[m]).join(' · ') : null;
+function statedFocus(facts: TrainingFacts, workout: ProgramWorkout): SelectedWorkout['focus'] {
+  const groups = facts.focus[workout.key] ?? [];
+  return { groups, names: groups.map((m) => MUSCLE_LABEL[m]) };
 }
 
 function hasProgress(status: DayStatus): boolean {
@@ -239,6 +241,7 @@ function buildSelected(
   const status = dayStatus(session, date, facts.today);
   const progress = sessionProgress(session);
   const minutes = `${workout.estimatedMinutes.min}–${workout.estimatedMinutes.max} min`;
+  const focus = statedFocus(facts, workout);
   return {
     kind: 'workout',
     date,
@@ -248,7 +251,8 @@ function buildSelected(
     status,
     statusLabel: STATUS_LABEL[status],
     metaLabel: `${plural(workout.exercises.length, 'exercise')} · ${plural(session.plannedWorkSets, 'work set')} · ${minutes}`,
-    focusLabel: focusLabel(facts, workout),
+    focusLabel: focus.names.length ? focus.names.join(' · ') : null,
+    focus,
     progress: hasProgress(status)
       ? {
           value: progress,

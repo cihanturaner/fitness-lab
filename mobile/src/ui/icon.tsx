@@ -16,7 +16,14 @@ const symbols = {
   check: { ios: 'checkmark', android: 'check', web: 'check' },
   chevronRight: { ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' },
   chevronLeft: { ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' },
-  bodyweight: { ios: 'scalemass', android: 'monitor_weight', web: 'monitor_weight' },
+  bodyweight: { ios: 'scalemass.fill', android: 'monitor_weight', web: 'monitor_weight' },
+  calories: {
+    ios: 'flame.fill',
+    android: 'local_fire_department',
+    web: 'local_fire_department',
+  },
+  macros: { ios: 'chart.pie.fill', android: 'pie_chart', web: 'pie_chart' },
+  week: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' },
   figure: {
     ios: 'figure.strengthtraining.traditional',
     android: 'person',

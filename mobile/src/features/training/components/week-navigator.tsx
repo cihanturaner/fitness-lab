@@ -16,14 +16,14 @@ type Props = {
   onCurrent: () => void;
 };
 
-/** Previous / next block week, the week's dates, and a way back to this week. */
+/** One compact pill: previous / next block week around the week's dates. */
 export function WeekNavigator(props: Props) {
   return (
-    <View style={styles.row}>
+    <View style={styles.pill}>
       <StepButton icon="chevronLeft" {...props.previous} onPress={props.onPrevious} />
       <View style={styles.center}>
         <Text
-          variant="title"
+          variant="bodyStrong"
           accessibilityRole="header"
           accessibilityLabel={props.rangeAccessibilityLabel}
           numberOfLines={1}
@@ -43,7 +43,7 @@ export function WeekNavigator(props: Props) {
             accessibilityLabel="Back to this week"
             hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}
             style={styles.back}>
-            <Text variant="label" tone="emerald700">
+            <Text variant="label" tone="emerald700" style={styles.backText}>
               Back to this week
             </Text>
           </Pressable>
@@ -70,25 +70,33 @@ function StepButton({ icon, enabled, accessibilityLabel, onPress }: StepProps) {
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: !enabled }}
       style={[styles.step, !enabled && styles.stepDisabled]}>
-      <Icon name={icon} size={17} color={enabled ? color.emerald700 : color.faint} />
+      <Icon name={icon} size={16} color={enabled ? color.emerald700 : color.faint} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  center: { flex: 1, alignItems: 'center', gap: space.xxs },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    padding: 5,
+    borderRadius: radius.round,
+    backgroundColor: color.card,
+    boxShadow: shadow.card,
+  },
+  center: { flex: 1, alignItems: 'center' },
   range: { fontVariant: ['tabular-nums'] },
-  caption: { lineHeight: 20 },
-  back: { minHeight: 20, justifyContent: 'center' },
+  caption: { lineHeight: 17 },
+  back: { minHeight: 17, justifyContent: 'center' },
+  backText: { fontSize: 13, lineHeight: 17 },
   step: {
     width: hitTarget,
     height: hitTarget,
     borderRadius: radius.round,
-    backgroundColor: color.card,
+    backgroundColor: color.emerald50,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: shadow.card,
   },
-  stepDisabled: { backgroundColor: color.sunken, boxShadow: 'none' },
+  stepDisabled: { backgroundColor: color.sunken },
 });

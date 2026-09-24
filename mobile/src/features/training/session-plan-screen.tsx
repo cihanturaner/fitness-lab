@@ -8,7 +8,7 @@ import { color, gutter, radius, space } from '@/theme/tokens';
 import { Card } from '@/ui/card';
 import { Text } from '@/ui/text';
 
-import { StatusChip } from './components/status-chip';
+import { StatusChip } from '@/ui/status-chip';
 import { buildSessionPreview, type PlanExercise } from './training-view';
 
 /**

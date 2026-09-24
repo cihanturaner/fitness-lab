@@ -56,14 +56,14 @@ export function TrainingScreen({ facts }: { facts: TrainingFacts }) {
         contentContainerStyle={[styles.content, { paddingBottom: tabBarClearance(insets.bottom) }]}
         showsVerticalScrollIndicator={false}>
         <View style={styles.titles}>
+          <Text variant="screenTitle" accessibilityRole="header">
+            Training
+          </Text>
           {view.kind === 'planner' ? (
-            <Text variant="eyebrow" tone="emerald700">
+            <Text variant="label" tone="emerald700">
               {view.blockLabel}
             </Text>
           ) : null}
-          <Text variant="largeTitle" accessibilityRole="header">
-            Training
-          </Text>
         </View>
 
         {view.kind === 'planner' && selection ? (
@@ -85,10 +85,10 @@ export function TrainingScreen({ facts }: { facts: TrainingFacts }) {
               <SelectedSession selected={view.selected} onViewPlan={openPlan} />
             </View>
             <View style={styles.sectionHead}>
-              <Text variant="title" accessibilityRole="header">
+              <Text variant="section" accessibilityRole="header">
                 Sessions
               </Text>
-              <Text variant="caption" tone="muted" style={styles.summary}>
+              <Text variant="caption" tone="muted">
                 {view.summaryLabel}
               </Text>
             </View>
@@ -115,18 +115,10 @@ export function TrainingScreen({ facts }: { facts: TrainingFacts }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.paper },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: gutter, paddingTop: space.md },
-  titles: { gap: space.xs },
-  navigator: { marginTop: space.xl, marginBottom: space.lg },
-  selected: { marginTop: space.lg },
-  sectionHead: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: space.md,
-    marginTop: space.xxxl,
-    marginBottom: space.md,
-  },
-  summary: { flexShrink: 1, textAlign: 'right' },
+  content: { paddingHorizontal: gutter, paddingTop: space.sm },
+  titles: { gap: 2, minHeight: 56, justifyContent: 'center' },
+  navigator: { marginTop: space.md, marginBottom: space.lg },
+  selected: { marginTop: space.md },
+  sectionHead: { gap: 2, marginTop: space.xxl, marginBottom: space.md },
   noBlock: { marginTop: space.xl, gap: space.xs },
 });

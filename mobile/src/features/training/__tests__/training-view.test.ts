@@ -107,6 +107,10 @@ describe('buildTrainingView (fixture week 2)', () => {
       statusLabel: 'In progress',
       metaLabel: '8 exercises · 21 work sets · 80–95 min',
       focusLabel: 'Back · Chest · Shoulders · Triceps · Biceps',
+      focus: {
+        groups: ['back', 'chest', 'shoulders', 'triceps', 'biceps'],
+        names: ['Back', 'Chest', 'Shoulders', 'Triceps', 'Biceps'],
+      },
       progress: { value: 9 / 21, label: '9 of 21 work sets', percentLabel: '43%' },
       planAccessibilityLabel: 'View plan, Upper B, Thursday 8 October',
     });
@@ -168,16 +172,22 @@ describe('buildTrainingView (other days and weeks)', () => {
   it('shows no focus for workouts without a source focus, never an inferred one', () => {
     const labels = ['2026-10-12', '2026-10-13', '2026-10-15', '2026-10-16'].map((date) => {
       const view = planner(trainingFixture, { week: 3, date });
-      return view.selected.kind === 'workout' ? [view.selected.name, view.selected.focusLabel] : null;
+      return view.selected.kind === 'workout'
+        ? [view.selected.name, view.selected.focusLabel, view.selected.focus.groups.length]
+        : null;
     });
     expect(labels).toEqual([
-      ['Upper A', null],
-      ['Lower A', null],
-      ['Upper B', 'Back · Chest · Shoulders · Triceps · Biceps'],
-      ['Lower B', null],
+      ['Upper A', null, 0],
+      ['Lower A', null, 0],
+      ['Upper B', 'Back · Chest · Shoulders · Triceps · Biceps', 5],
+      ['Lower B', null, 0],
     ]);
     const none = planner({ ...trainingFixture, focus: {} }, start);
-    expect(none.selected).toMatchObject({ name: 'Upper B', focusLabel: null });
+    expect(none.selected).toMatchObject({
+      name: 'Upper B',
+      focusLabel: null,
+      focus: { groups: [], names: [] },
+    });
   });
 
   it('never presents a shortened session as done', () => {

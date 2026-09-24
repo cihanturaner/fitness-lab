@@ -47,6 +47,17 @@ describe('HomeScreen', () => {
     expect(mockRouter.push).toHaveBeenCalledWith('/settings');
   });
 
+  it('draws the stated focus on the front/back figures, and invents none when there is none', async () => {
+    await render(<HomeScreen facts={homeFixture} />);
+    expect(screen.getByTestId('anatomy-figure', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText('Back · Chest · Shoulders · Triceps · Biceps')).toBeOnTheScreen();
+
+    const noFocus = { ...homeFixture, todayWorkout: homeFixture.todayWorkout && { ...homeFixture.todayWorkout, focus: [] } };
+    await render(<HomeScreen facts={noFocus} />);
+    expect(screen.getByLabelText('No muscle focus stated for this workout')).toBeOnTheScreen();
+    expect(screen.queryByLabelText(/^Focus:/)).toBeNull();
+  });
+
   it('shows no workout CTA on a rest day', async () => {
     await render(<HomeScreen facts={{ ...homeFixture, today: '2026-10-07', todayWorkout: null }} />);
 

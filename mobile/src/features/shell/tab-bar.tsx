@@ -8,7 +8,7 @@ import { Icon, type IconName } from '@/ui/icon';
 import { Pressable } from '@/ui/pressable';
 import { Text } from '@/ui/text';
 
-const BAR_HEIGHT = 66;
+const BAR_HEIGHT = 68;
 
 function barBottom(insetBottom: number): number {
   return Math.max(insetBottom - 6, space.md);
@@ -45,7 +45,7 @@ export function BarLayout({ children, style, ...rest }: TabListProps) {
         accessibilityRole="button"
         accessibilityLabel="Quick add"
         style={styles.quickAdd}>
-        <Icon name="add" size={26} color={color.ink} />
+        <Icon name="add" size={28} color={color.ink} />
       </Pressable>
     </View>
   );
@@ -54,7 +54,7 @@ export function BarLayout({ children, style, ...rest }: TabListProps) {
 type TabButtonProps = TabTriggerSlotProps & { icon: IconName; label: string };
 
 export function TabButton({ icon, label, isFocused, ...rest }: TabButtonProps) {
-  const tint = isFocused ? color.emerald700 : color.muted;
+  const tint = isFocused ? color.emerald700 : color.inkSoft;
   return (
     <Pressable
       {...rest}
@@ -62,8 +62,8 @@ export function TabButton({ icon, label, isFocused, ...rest }: TabButtonProps) {
       accessibilityLabel={label}
       accessibilityState={{ selected: isFocused }}
       style={[styles.tab, isFocused && styles.tabActive]}>
-      <Icon name={icon} size={22} color={tint} />
-      <Text variant="tab" style={{ color: isFocused ? color.emerald800 : color.muted }}>
+      <Icon name={icon} size={23} color={tint} />
+      <Text variant="tab" style={{ color: isFocused ? color.emerald800 : color.inkSoft }}>
         {label}
       </Text>
     </Pressable>
@@ -84,20 +84,20 @@ const styles = StyleSheet.create({
     height: BAR_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 7,
     backgroundColor: color.card,
-    borderRadius: radius.hero,
-    boxShadow: shadow.raised,
+    borderRadius: BAR_HEIGHT / 2,
+    boxShadow: shadow.dock,
   },
   tab: {
     flex: 1,
-    height: BAR_HEIGHT - 12,
-    borderRadius: radius.xl,
+    height: BAR_HEIGHT - 14,
+    borderRadius: (BAR_HEIGHT - 14) / 2,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
   },
-  tabActive: { backgroundColor: color.emerald50 },
+  tabActive: { backgroundColor: color.emerald100 },
   quickAdd: {
     width: BAR_HEIGHT,
     height: BAR_HEIGHT,
@@ -105,6 +105,6 @@ const styles = StyleSheet.create({
     backgroundColor: color.card,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: shadow.raised,
+    boxShadow: shadow.dock,
   },
 });
