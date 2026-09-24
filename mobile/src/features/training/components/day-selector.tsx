@@ -23,7 +23,10 @@ export function DaySelector({ days, onSelect }: Props) {
           onPress={() => onSelect(d.date)}
           accessibilityRole="tab"
           accessibilityLabel={d.accessibilityLabel}
+          // accessibilityState reaches iOS/Android; react-native-web reads only aria-selected
+          // (an RN prop too), so both carry the same value.
           accessibilityState={{ selected: d.isSelected }}
+          aria-selected={d.isSelected}
           style={styles.column}>
           <Text
             variant="caption"

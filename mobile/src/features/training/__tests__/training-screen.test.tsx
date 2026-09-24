@@ -71,6 +71,36 @@ describe('TrainingScreen', () => {
   });
 });
 
+describe('TrainingScreen day selector accessibility', () => {
+  it('exposes selected on exactly one day, keeps today and each day’s status in the labels', async () => {
+    await render(<TrainingScreen facts={trainingFixture} />);
+
+    const days = screen.getAllByRole('tab', { name: /October/ });
+    expect(days).toHaveLength(7);
+    expect(days.map((d) => [d.props.accessibilityLabel, d.props.accessibilityState?.selected])).toEqual([
+      ['Monday 5 October: Upper A, done', false],
+      ['Tuesday 6 October: Lower A, done', false],
+      ['Wednesday 7 October: rest day', false],
+      ['Thursday 8 October, today: Upper B, in progress', true],
+      ['Friday 9 October: Lower B, planned', false],
+      ['Saturday 10 October: rest day', false],
+      ['Sunday 11 October: rest day', false],
+    ]);
+    expect(screen.getByRole('tab', { name: /today/ })).toBeSelected();
+    expect(screen.getByRole('tab', { name: 'Friday 9 October: Lower B, planned' })).not.toBeSelected();
+  });
+
+  it('moves selected with the selection; today stays labelled as today', async () => {
+    await render(<TrainingScreen facts={trainingFixture} />);
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Wednesday 7 October: rest day' }));
+    expect(screen.getByRole('tab', { name: 'Wednesday 7 October: rest day' })).toBeSelected();
+    const today = screen.getByRole('tab', { name: 'Thursday 8 October, today: Upper B, in progress' });
+    expect(today).not.toBeSelected();
+    expect(today.props.accessibilityState).toEqual({ selected: false });
+  });
+});
+
 describe('TrainingScreen entry', () => {
   const todayTab = 'Thursday 8 October, today: Upper B, in progress';
 

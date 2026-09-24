@@ -31,6 +31,7 @@ export function WeekSessions({ sessions, restLabel, outsideLabel, onSelect }: Pr
                 accessibilityRole="button"
                 accessibilityLabel={s.accessibilityLabel}
                 accessibilityState={{ selected: s.isSelected }}
+                aria-selected={s.isSelected}
                 style={[styles.row, s.isSelected && styles.rowSelected]}>
                 <View style={styles.date}>
                   <Text variant="caption" tone={s.isToday ? 'emerald700' : 'muted'}>
