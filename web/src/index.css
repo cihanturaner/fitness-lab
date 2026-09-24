@@ -258,33 +258,35 @@
   /* Surfaces. A card floats on the paper by shadow alone; a well sits inside a card. */
   .surface {
     background: var(--card);
-    border-radius: 22px;
+    border-radius: 14px;
     box-shadow: var(--shadow-card);
   }
   .well {
     background: var(--sunken);
-    border-radius: 14px;
+    border-radius: 10px;
   }
-  /* Interactive surfaces rise a little under the pointer or the keyboard. */
+  /* Interactive surfaces rise 2px under the pointer or the keyboard, onto a deeper shadow. */
   .lift {
-    transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
+    transition: transform 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
   }
   .lift:hover,
   .lift:focus-within {
     transform: translateY(-2px);
     box-shadow: var(--shadow-raised);
   }
-  /* A tactile press for every button-like control. */
+  /* A tactile press for every button-like control: a quick, visible compression. React
+     Aria buttons report the press as [data-pressed] rather than :active. */
   .press {
-    transition: transform 120ms var(--ease-out), background-color 150ms, box-shadow 150ms, color 150ms;
+    transition: transform 100ms var(--ease-out), background-color 150ms, box-shadow 150ms, color 150ms;
   }
-  .press:active {
-    transform: scale(0.97);
+  .press:active,
+  .press[data-pressed] {
+    transform: scale(0.96);
   }
   /* The one bold surface: today's session. */
   .hero-surface {
     color: #fff;
-    border-radius: 26px;
+    border-radius: 18px;
     background:
       radial-gradient(640px 280px at 100% 0%, rgb(143 208 178 / 0.30), transparent 65%),
       radial-gradient(420px 240px at 0% 100%, rgb(15 63 48 / 0.55), transparent 70%),
@@ -294,61 +296,68 @@
 
   /* --- motion ----------------------------------------------------------------------- */
 
-  /* One orchestrated entrance per screen: its direct children rise in, 45 ms apart. */
-  .enter > * {
-    animation: rise 320ms var(--ease-out) both;
+  /* One entrance per screen, as a whole: a 210 ms fade and 6 px rise when its content
+     arrives (every route change, every week). No per-child stagger. */
+  .enter {
+    animation: rise 210ms var(--ease-out) both;
   }
-  .enter > :nth-child(2) { animation-delay: 45ms; }
-  .enter > :nth-child(3) { animation-delay: 90ms; }
-  .enter > :nth-child(4) { animation-delay: 135ms; }
-  .enter > :nth-child(5) { animation-delay: 180ms; }
-  .enter > :nth-child(n + 6) { animation-delay: 220ms; }
+  /* A loading placeholder shows only if loading takes a moment: no flash on a fast load. */
+  .skeleton-in {
+    animation: fade 200ms ease-out 120ms both;
+  }
+
+  /* The main navigation's indicator slides to the active screen. */
+  .nav-indicator {
+    transition: left 200ms var(--ease-out), width 200ms var(--ease-out);
+  }
 
   /* A bar that fills from its left edge when it first appears; later changes glide. */
   .fill-in {
     transform-origin: left center;
-    animation: fill-in 650ms var(--ease-out) both;
-    transition: width 450ms var(--ease-out), background-color 300ms;
+    animation: fill-in 300ms var(--ease-out) both;
+    transition: width 300ms var(--ease-out), background-color 300ms;
   }
 
   /* A just-saved set: a brief emerald wash that settles into the row. */
   .just-saved > td {
-    animation: saved-wash 1100ms var(--ease-out) both;
+    animation: saved-wash 900ms var(--ease-out) both;
   }
   .pop-in {
-    animation: pop-in 260ms var(--ease-out) both;
+    animation: pop-in 220ms var(--ease-out) both;
   }
-  /* A check that appears over a saved set's number, holds, then gives the number back. */
+  /* A check pops over a saved set's number (220 ms), holds, then gives the number back. */
   .confirm {
-    animation: confirm 1400ms var(--ease-out) both;
+    animation:
+      confirm-pop 220ms var(--ease-out) both,
+      confirm-out 260ms ease-in 950ms forwards;
   }
 
   /* A ring's arc sweeps in from zero, then glides between values. */
   .ring-arc {
-    animation: ring-in 800ms var(--ease-out) both;
-    transition: stroke-dashoffset 500ms var(--ease-out);
+    animation: ring-in 320ms var(--ease-out) both;
+    transition: stroke-dashoffset 300ms var(--ease-out);
   }
 
   .ring-segment {
-    animation: segment-in 800ms var(--ease-out) both;
-    transition: stroke-dasharray 500ms var(--ease-out), stroke-dashoffset 500ms var(--ease-out);
+    animation: segment-in 320ms var(--ease-out) both;
+    transition: stroke-dasharray 300ms var(--ease-out), stroke-dashoffset 300ms var(--ease-out);
   }
 
   /* A chart's lines draw themselves once; points fade in after. */
   .draw {
     stroke-dasharray: 1;
     stroke-dashoffset: 1;
-    animation: draw 900ms var(--ease-out) 80ms forwards;
+    animation: draw 600ms var(--ease-out) 60ms forwards;
   }
   .fade-late {
-    animation: fade 400ms ease-out 350ms both;
+    animation: fade 300ms ease-out 250ms both;
   }
 
   /* An accordion: rows animate between 0fr and 1fr, content stays in the document. */
   .accordion-body {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 240ms var(--ease-out), opacity 200ms ease-out;
+    transition: grid-template-rows 220ms var(--ease-out), opacity 200ms ease-out;
     opacity: 0;
   }
   .accordion-body[data-open='true'] {
@@ -362,7 +371,7 @@
 }
 
 @keyframes rise {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
 @keyframes fade {
@@ -378,18 +387,21 @@
   100% { background-color: transparent; }
 }
 @keyframes pop-in {
-  from { opacity: 0; transform: scale(0.6); }
-  to { opacity: 1; transform: scale(1); }
+  0% { opacity: 0; transform: scale(0.6); }
+  70% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
 }
 @keyframes ring-in {
   from { stroke-dashoffset: var(--ring-c); }
 }
-@keyframes confirm {
-  0% { opacity: 0; transform: scale(0.5); }
-  14% { opacity: 1; transform: scale(1.08); }
-  24% { transform: scale(1); }
-  72% { opacity: 1; }
-  100% { opacity: 0; }
+@keyframes confirm-pop {
+  0% { opacity: 0; transform: scale(0.4); }
+  65% { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes confirm-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 @keyframes segment-in {
   from { stroke-dasharray: 0 var(--ring-c); }

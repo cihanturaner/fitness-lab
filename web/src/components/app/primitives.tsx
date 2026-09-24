@@ -59,7 +59,7 @@ export function EmptyState({
 }) {
   return (
     <div className={`flex flex-col items-center justify-center gap-3 px-6 py-8 text-center ${className}`}>
-      <span className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-700 shadow-[inset_0_0_0_1px_rgb(27_104_79/0.08)]">
+      <span className="flex size-12 items-center justify-center rounded-[12px] bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-700 shadow-[inset_0_0_0_1px_rgb(27_104_79/0.08)]">
         <Icon className="size-5" strokeWidth={1.75} aria-hidden />
       </span>
       <div className="flex max-w-sm flex-col gap-1">
@@ -74,9 +74,9 @@ export function EmptyState({
 /** Placeholder blocks while a screen loads; announced once for assistive tech. */
 export function Skeleton({ label, blocks = ['h-8 w-72', 'h-28', 'h-56'] }: { label: string; blocks?: string[] }) {
   return (
-    <div role="status" aria-label={label} className="flex animate-in flex-col gap-6 fade-in duration-300">
+    <div role="status" aria-label={label} className="skeleton-in flex flex-col gap-6">
       {blocks.map((block, index) => (
-        <div key={index} className={`animate-pulse rounded-[22px] bg-card/70 ${block}`} />
+        <div key={index} className={`animate-pulse rounded-[14px] bg-card/70 ${block}`} />
       ))}
       <span className="sr-only">{label}</span>
     </div>

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { confirmLeave } from './unsaved'
 
 export type Route =
-  | { name: 'home'; week: string | null }
+  | { name: 'home' }
+  | { name: 'training'; week: string | null }
   | { name: 'workout'; id: string }
   | { name: 'bodyweight' }
   | { name: 'nutrition' }
@@ -11,9 +12,10 @@ export type Route =
   | { name: 'settings' }
 
 /**
- * Hash routes survive a reload and need no server-side fallback: `#/`, `#/week/<date>`,
- * `#/workouts/<id>`, `#/bodyweight`, `#/nutrition`, `#/history`, `#/history/<exerciseId>`,
- * `#/sessions`, `#/settings`.
+ * Hash routes survive a reload and need no server-side fallback: `#/` (Home), `#/training`,
+ * `#/training/<date>`, `#/workouts/<id>`, `#/bodyweight`, `#/nutrition`, `#/history`,
+ * `#/history/<exerciseId>`, `#/sessions`, `#/settings`. The pre-V3.2 `#/week/<date>` still
+ * opens that week, now on Training.
  */
 export function parseRoute(hash: string): Route {
   const workout = /^#\/workouts\/([A-Za-z0-9]+)$/.exec(hash)
@@ -24,14 +26,38 @@ export function parseRoute(hash: string): Route {
   if (hash === '#/nutrition') return { name: 'nutrition' }
   if (hash === '#/sessions') return { name: 'sessions' }
   if (hash === '#/settings') return { name: 'settings' }
-  const week = /^#\/week\/(\d{4}-\d{2}-\d{2})$/.exec(hash)
-  if (week?.[1]) return { name: 'home', week: week[1] }
-  return { name: 'home', week: null }
+  if (hash === '#/training') return { name: 'training', week: null }
+  const week = /^#\/(?:training|week)\/(\d{4}-\d{2}-\d{2})$/.exec(hash)
+  if (week?.[1]) return { name: 'training', week: week[1] }
+  return { name: 'home' }
 }
 
-/** The week containing `date`; `#/` is always the current week. */
+/** The Training week containing `date`; `#/training` is always the current week. */
 export function weekHref(date: string): string {
-  return `#/week/${date}`
+  return `#/training/${date}`
+}
+
+export const TRAINING_HREF = '#/training'
+
+const BACK_LABELS: Partial<Record<Route['name'], string>> = {
+  home: 'Home',
+  training: 'Training',
+  history: 'History',
+  sessions: 'All sessions',
+}
+
+// The last screen that is not a workout: where a workout's Back link returns to.
+let back = { href: '#/', label: 'Home' }
+
+function remember(hash: string): void {
+  const route = parseRoute(hash)
+  const label = BACK_LABELS[route.name]
+  if (label) back = { href: hash === '' ? '#/' : hash, label }
+}
+
+/** Where "Back" on a workout goes: the screen it was opened from (default Home). */
+export function backTarget(): { href: string; label: string } {
+  return back
 }
 
 export function historyHref(exerciseId: string): string {
@@ -52,7 +78,10 @@ export function navigate(href: string): void {
  * dropped; declining puts the screen's address back without a new history entry.
  */
 export function useRoute(): Route {
-  const [route, setRoute] = useState(() => parseRoute(window.location.hash))
+  const [route, setRoute] = useState(() => {
+    remember(window.location.hash)
+    return parseRoute(window.location.hash)
+  })
   useEffect(() => {
     let current = window.location.hash
     const onChange = () => {
@@ -63,6 +92,7 @@ export function useRoute(): Route {
         return
       }
       current = next
+      remember(next)
       setRoute(parseRoute(next))
     }
     window.addEventListener('hashchange', onChange)

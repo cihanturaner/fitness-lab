@@ -116,7 +116,7 @@ function GateAuditForm({
   }
 
   return (
-    <fieldset aria-label="Diagnostic gate audit" className="flex flex-col gap-3 rounded-[16px] border border-warn/25 bg-warn-surface p-4 text-[13px]">
+    <fieldset aria-label="Diagnostic gate audit" className="flex flex-col gap-3 rounded-[12px] border border-warn/25 bg-warn-surface p-4 text-[13px]">
       <legend className="px-1 font-medium">Audit before continuing</legend>
       <p className="text-muted-foreground">
         Two +150 kcal corrections in a row did not bring the trend into the band. Answer every check; only reliable inputs

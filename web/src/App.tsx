@@ -7,6 +7,7 @@ import { SessionsScreen } from '@/features/history/SessionsScreen'
 import { HomeScreen } from '@/features/home/HomeScreen'
 import { NutritionScreen } from '@/features/nutrition/NutritionScreen'
 import { SettingsScreen } from '@/features/settings/SettingsScreen'
+import { TrainingScreen } from '@/features/training/TrainingScreen'
 import { formatShortDate, localDate } from '@/lib/format'
 import { useRoute, type Route } from '@/lib/route'
 import { installUnloadGuard } from '@/lib/unsaved'
@@ -104,14 +105,15 @@ function Mark() {
 }
 
 const NAV: { label: string; href: string; routes: Route['name'][] }[] = [
-  { label: 'Week', href: '#/', routes: ['home', 'workout'] },
+  { label: 'Home', href: '#/', routes: ['home'] },
+  { label: 'Training', href: '#/training', routes: ['training', 'workout'] },
   { label: 'Bodyweight', href: '#/bodyweight', routes: ['bodyweight'] },
   { label: 'Nutrition', href: '#/nutrition', routes: ['nutrition'] },
   { label: 'History', href: '#/history', routes: ['history', 'sessions'] },
   { label: 'Settings', href: '#/settings', routes: ['settings'] },
 ]
 
-/** A pill navigation whose emerald indicator slides to the active screen. */
+/** A segmented navigation whose emerald indicator slides to the active screen. */
 function MainNav({ active }: { active: Route['name'] }) {
   const list = useRef<HTMLDivElement>(null)
   const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null)
@@ -131,11 +133,12 @@ function MainNav({ active }: { active: Route['name'] }) {
 
   return (
     <nav aria-label="Main" className="flex items-center">
-      <div ref={list} className="relative flex items-center gap-0.5 rounded-full bg-sunken/80 p-1 shadow-[inset_0_0_0_1px_rgb(16_52_38/0.05)]">
+      <div ref={list} className="relative flex items-center gap-0.5 rounded-[12px] bg-sunken/80 p-1 shadow-[inset_0_0_0_1px_rgb(16_52_38/0.05)]">
         {indicator && (
           <span
             aria-hidden
-            className="absolute top-1 bottom-1 rounded-full bg-gradient-to-b from-emerald-600 to-emerald-700 shadow-[0_1px_2px_rgb(15_63_48/0.3),0_6px_14px_-6px_rgb(27_104_79/0.6)] transition-[left,width] duration-300 ease-[var(--ease-out)]"
+            data-testid="nav-indicator"
+            className="nav-indicator absolute top-1 bottom-1 rounded-[9px] bg-gradient-to-b from-emerald-600 to-emerald-700 shadow-[0_1px_2px_rgb(15_63_48/0.3),0_6px_14px_-6px_rgb(27_104_79/0.6)]"
             style={{ left: indicator.left, width: indicator.width }}
           />
         )}
@@ -146,7 +149,7 @@ function MainNav({ active }: { active: Route['name'] }) {
               key={item.href}
               href={item.href}
               aria-current={isActive ? 'page' : undefined}
-              className={`press relative z-10 flex h-8 items-center rounded-full px-3.5 text-[14px] font-medium transition-colors duration-200 ${
+              className={`press relative z-10 flex h-8 items-center rounded-[9px] px-3.5 text-[14px] font-medium ${
                 isActive ? 'text-white' : 'text-muted-foreground hover:text-foreground'
               } ${isActive && !indicator ? 'bg-emerald-700' : ''}`}
             >
@@ -173,8 +176,10 @@ function Screen({ route }: { route: Route }) {
       return <SessionsScreen />
     case 'settings':
       return <SettingsScreen />
+    case 'training':
+      return <TrainingScreen key={route.week ?? 'current'} week={route.week} />
     default:
-      return <HomeScreen key={route.week ?? 'current'} week={route.week} />
+      return <HomeScreen />
   }
 }
 

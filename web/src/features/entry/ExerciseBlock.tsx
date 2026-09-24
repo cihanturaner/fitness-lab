@@ -17,7 +17,6 @@ function LastLine({ performance }: { performance: LastPerformance | null | undef
           {index > 0 && <span className="text-muted-foreground"> · </span>}
           {compactSet(performed)}
           {performed.set_type === 'warmup' && <sup className="ml-px text-[10px]">w</sup>}
-          {performed.set_type === 'backoff' && <sup className="ml-px text-[10px]">b</sup>}
         </span>
       ))}
       <span className="text-muted-foreground">
@@ -79,7 +78,7 @@ export function ExerciseBlock({
   const worked = sets.filter((performed) => performed.set_type !== 'warmup').length
   const planned = plannedSets.length
   const iconButton =
-    'press inline-flex size-7 items-center justify-center rounded-lg text-faint transition-colors hover:bg-sunken ' +
+    'press inline-flex size-7 items-center justify-center rounded-lg text-faint hover:bg-sunken ' +
     'hover:text-foreground aria-expanded:bg-emerald-50 aria-expanded:text-emerald-700'
   const met = planned > 0 && worked >= planned
 

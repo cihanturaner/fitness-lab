@@ -147,7 +147,7 @@ function CalorieTargetForm({
     return (
       <button
         type="button"
-        className="press self-start rounded-full bg-emerald-50 px-3.5 py-1.5 text-[13px] font-semibold text-emerald-800 shadow-[inset_0_0_0_1px_rgb(47_154_114/0.3)] hover:bg-emerald-100"
+        className="press self-start rounded-md bg-emerald-50 px-3.5 py-1.5 text-[13px] font-semibold text-emerald-800 shadow-[inset_0_0_0_1px_rgb(47_154_114/0.3)] hover:bg-emerald-100"
         onClick={() => setOpen(true)}
       >
         Set calorie target…
@@ -456,7 +456,7 @@ export function NutritionScreen() {
         }
         aside={
           <div className="flex items-center gap-1.5">
-            <Button variant="outline" size="icon" className="rounded-full" aria-label="Previous day" onPress={() => goTo(addDays(day, -1))}>
+            <Button variant="outline" size="icon" aria-label="Previous day" onPress={() => goTo(addDays(day, -1))}>
               <ChevronLeft aria-hidden />
             </Button>
             <DateField
@@ -466,10 +466,10 @@ export function NutritionScreen() {
               max={today}
               onChange={(event) => event.target.value && goTo(event.target.value)}
             />
-            <Button variant="outline" size="icon" className="rounded-full" aria-label="Next day" isDisabled={day >= today} onPress={() => goTo(addDays(day, 1))}>
+            <Button variant="outline" size="icon" aria-label="Next day" isDisabled={day >= today} onPress={() => goTo(addDays(day, 1))}>
               <ChevronRight aria-hidden />
             </Button>
-            <Button variant="outline" className="ml-1 h-9 rounded-full px-3.5" isDisabled={isToday} onPress={() => goTo(today)}>
+            <Button variant="outline" className="ml-1 h-9 px-3.5" isDisabled={isToday} onPress={() => goTo(today)}>
               Today
             </Button>
           </div>
@@ -603,7 +603,7 @@ export function NutritionScreen() {
               </label>
             ))}
           </div>
-          <div className="flex flex-col gap-2.5 rounded-[16px] bg-gradient-to-br from-emerald-50 to-sunken p-4 shadow-[inset_0_0_0_1px_rgb(47_154_114/0.18)]">
+          <div className="flex flex-col gap-2.5 rounded-[12px] bg-gradient-to-br from-emerald-50 to-sunken p-4 shadow-[inset_0_0_0_1px_rgb(47_154_114/0.18)]">
             {/* Each macro's share of the calories, in its own colour. */}
             <div className="flex h-2 w-full overflow-hidden rounded-full bg-card" aria-hidden>
               {FIELDS.map((field) => (

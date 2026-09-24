@@ -91,9 +91,7 @@ describe('EntryScreen — one compact block per exercise', () => {
 
     await user.type(within(block).getByRole('textbox', { name: 'Load in lb, new set 1' }), '82,5')
     await user.type(within(block).getByRole('textbox', { name: 'Reps, new set 1' }), '6')
-    await user.type(within(block).getByRole('textbox', { name: 'RIR, new set 1' }), '2')
-    await user.selectOptions(within(block).getByRole('combobox', { name: 'Set type, new set 1' }), 'working')
-    await user.type(within(block).getByRole('textbox', { name: 'RIR, new set 1' }), '{Enter}')
+    await user.type(within(block).getByRole('textbox', { name: 'RIR, new set 1' }), '2{Enter}')
 
     await waitFor(() =>
       expect(posts(server.calls)[0]?.body).toEqual({
@@ -114,8 +112,6 @@ describe('EntryScreen — one compact block per exercise', () => {
     const user = userEvent.setup()
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
-    // Saved set 1 was a working set: the pending row offers that type, so Tab skips it.
-    expect(within(block).getByRole('combobox', { name: 'Set type, new set 2' })).toHaveValue('working')
     const load = within(block).getByRole('textbox', { name: 'Load in lb, new set 2' })
 
     await user.click(load)
@@ -135,23 +131,58 @@ describe('EntryScreen — one compact block per exercise', () => {
     )
   })
 
-  it('never takes the set type from the plan: the first set needs the lifter’s choice', async () => {
-    const server = serve(entryFixture())
+  it('never asks for a set type: set, lb, reps and RIR are the whole row', async () => {
+    const server = serve(entryFixture(), {
+      'POST /api/workouts/w1/sets': () => ({ status: 201, body: performed(1) }),
+    })
     const user = userEvent.setup()
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
-    expect(within(block).getByRole('combobox', { name: 'Set type, new set 1' })).toHaveValue('')
+    expect(within(block).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(block).queryByText(/set type|warm-up|back-off/i)).not.toBeInTheDocument()
+    const headers = within(within(block).getByRole('table')).getAllByRole('columnheader')
+    expect(headers.map((header) => header.textContent)).toEqual(['Set', 'lb', 'Reps', 'RIR', ''])
+    // Reps alone is a set: saved as a working set, with no load and no RIR.
     await user.type(within(block).getByRole('textbox', { name: 'Reps, new set 1' }), '6{Enter}')
-    expect(await within(block).findByRole('alert')).toHaveTextContent(/choose the set type/i)
-    expect(posts(server.calls)).toHaveLength(0)
+    await waitFor(() =>
+      expect(posts(server.calls)[0]?.body).toEqual({ exercise_id: 'bench', set_type: 'working', load_lb: null, reps: 6, rir: null, notes: null }),
+    )
   })
 
-  it('starts a new row with the previous set’s load and type, never the plan’s', async () => {
+  it('logs a whole exercise from the keyboard alone: lb, reps, RIR, Enter — row after row', async () => {
+    let saved: ReturnType<typeof performed>[] = []
+    const server = serve(entryFixture(), {
+      'POST /api/workouts/w1/sets': (call) => {
+        const body = call.body as { load_lb: string; reps: number; rir: number }
+        const next = performed(saved.length + 1, { load_lb: body.load_lb, reps: body.reps, rir: body.rir })
+        saved = [...saved, next]
+        server.set(entryFixture({ sets: saved }))
+        return { status: 201, body: next }
+      },
+    })
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const block = await screen.findByTestId('slot-upper_a.01')
+    await user.click(within(block).getByRole('textbox', { name: 'Load in lb, new set 1' }))
+    await user.keyboard('185{Tab}8{Tab}2{Enter}')
+    await waitFor(() => expect(within(block).getAllByTestId('set-row')).toHaveLength(1))
+    // Enter moved the cursor to the next row's load, which already carries 185.
+    await waitFor(() => expect(within(block).getByRole('textbox', { name: 'Load in lb, new set 2' })).toHaveFocus())
+    await user.keyboard('{Tab}7{Tab}1{Enter}')
+    await waitFor(() => expect(within(block).getAllByTestId('set-row')).toHaveLength(2))
+    expect(posts(server.calls).map((call) => call.body)).toEqual([
+      { exercise_id: 'bench', set_type: 'working', load_lb: '185', reps: 8, rir: 2, notes: null },
+      { exercise_id: 'bench', set_type: 'working', load_lb: '185', reps: 7, rir: 1, notes: null },
+    ])
+  })
+
+  it('starts a new row with the previous set’s load, never the plan’s', async () => {
     serve(entryFixture({ sets: [performed(1, { set_type: 'warmup', load_lb: '40' })] }))
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
-    expect(within(block).getByRole('combobox', { name: 'Set type, new set 2' })).toHaveValue('warmup')
     expect(within(block).getByRole('textbox', { name: 'Load in lb, new set 2' })).toHaveValue('40')
+    // A legacy warm-up stays marked (it never counts as a working set) but has no control.
+    expect(within(block).getByText('(warm-up)')).toBeInTheDocument()
     // Warm-ups do not move the hint: planned set 1 (RIR 2) is still next.
     expect(within(block).getByRole('textbox', { name: 'RIR, new set 2' })).toHaveAttribute('placeholder', '2')
   })
@@ -168,13 +199,10 @@ describe('EntryScreen — one compact block per exercise', () => {
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
     await user.type(within(block).getByRole('textbox', { name: 'Load in lb, new set 1' }), '80')
-    await user.type(within(block).getByRole('textbox', { name: 'Reps, new set 1' }), '7')
-    await user.selectOptions(within(block).getByRole('combobox', { name: 'Set type, new set 1' }), 'working')
-    await user.type(within(block).getByRole('textbox', { name: 'Reps, new set 1' }), '{Enter}')
+    await user.type(within(block).getByRole('textbox', { name: 'Reps, new set 1' }), '7{Enter}')
     await waitFor(() =>
       expect(within(block).getByRole('textbox', { name: 'Load in lb, new set 2' })).toHaveValue('80'),
     )
-    expect(within(block).getByRole('combobox', { name: 'Set type, new set 2' })).toHaveValue('working')
   })
 
   it('saves a set once even when Enter is pressed twice', async () => {
@@ -398,8 +426,9 @@ describe('EntryScreen — one compact block per exercise', () => {
     const user = userEvent.setup()
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
-    // No set type chosen: leaving the row cannot save it, so it stays unsaved input.
+    // An RIR that is not a whole number: leaving the row cannot save it, so it stays unsaved input.
     await user.type(within(block).getByRole('textbox', { name: 'Reps, new set 1' }), '9')
+    await user.type(within(block).getByRole('textbox', { name: 'RIR, new set 1' }), '1.5')
     await user.click(screen.getByRole('button', { name: 'Complete workout' }))
     const alert = await screen.findByText(/not completed/i)
     expect(alert.closest('[role="alert"]')).toHaveTextContent(/unsaved/i)
@@ -463,6 +492,30 @@ describe('EntryScreen — one compact block per exercise', () => {
     render(<EntryScreen workoutId="w1" />)
     await user.click(await screen.findByRole('button', { name: 'Complete workout' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Smith Flat Bench Press set 2')
+  })
+
+  it('offers to record a legacy untyped set as a working set, since no control asks for a type', async () => {
+    const sets = [performed(1, { set_type: null }), performed(2)]
+    const server = serve(entryFixture({ sets }), {
+      'POST /api/workouts/w1/complete': () => ({
+        status: 409,
+        body: {
+          detail: 'workout cannot be completed yet',
+          blockers: [{ rule: 'C4', message: 'sets missing set_type: [1]', set_orders: [1] }],
+          advisories: [],
+        },
+      }),
+      'PATCH /api/sets/set-1': () => ({ body: performed(1) }),
+    })
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    await user.click(await screen.findByRole('button', { name: 'Complete workout' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Set type not recorded: Smith Flat Bench Press set 1')
+    await user.click(within(alert).getByRole('button', { name: 'Record it as working set' }))
+    await waitFor(() =>
+      expect(server.calls.find((call) => call.method === 'PATCH')).toMatchObject({ url: '/api/sets/set-1', body: { set_type: 'working' } }),
+    )
   })
 
   it('flags a draft that is not dated today', async () => {

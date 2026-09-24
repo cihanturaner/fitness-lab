@@ -16,7 +16,7 @@ export function HistoryTabs({ current }: { current: 'exercises' | 'sessions' }) 
     <a
       href={href}
       aria-current={current === name ? 'page' : undefined}
-      className={`press rounded-full px-3.5 py-1 text-[13px] font-semibold transition-colors duration-200 ${
+      className={`press rounded-[9px] px-3.5 py-1 text-[13px] font-semibold ${
         current === name ? 'bg-card text-emerald-800 shadow-[var(--shadow-card)]' : 'text-muted-foreground hover:text-foreground'
       }`}
     >
@@ -24,7 +24,7 @@ export function HistoryTabs({ current }: { current: 'exercises' | 'sessions' }) 
     </a>
   )
   return (
-    <nav aria-label="History views" className="flex gap-1 rounded-full bg-emerald-900/5 p-1">
+    <nav aria-label="History views" className="flex gap-1 rounded-[12px] bg-emerald-900/5 p-1">
       {tab('exercises', '#/history', 'By exercise')}
       {tab('sessions', '#/sessions', 'Sessions')}
     </nav>
@@ -89,11 +89,6 @@ function SetCell({ performed, top }: { performed: PerformedSet | undefined; top:
       <span className="text-muted-foreground"> × </span>
       {performed.reps ?? '?'}
       {performed.rir !== null && <span className="text-muted-foreground"> @ RIR {performed.rir}</span>}
-      {performed.set_type === 'backoff' && (
-        <sup className="ml-0.5 text-[10px] text-muted-foreground" title="back-off set">
-          b
-        </sup>
-      )}
     </span>
   )
 }
@@ -165,13 +160,13 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-[26px] leading-8 font-semibold tracking-[-0.03em]">{exerciseLabel(history.exercise)}</h2>
           {sessions.length > 1 && (
-            <div role="group" aria-label="Session" className="flex gap-1 rounded-full bg-card p-1 shadow-[var(--shadow-card)]">
+            <div role="group" aria-label="Session" className="flex gap-1 rounded-[12px] bg-card p-1 shadow-[var(--shadow-card)]">
               {[null, ...sessions].map((option) => (
                 <button
                   key={option ?? 'all'}
                   type="button"
                   aria-pressed={session === option}
-                  className={`press rounded-full px-3.5 py-1 text-[13px] font-semibold transition-colors duration-200 ${
+                  className={`press rounded-[9px] px-3.5 py-1 text-[13px] font-semibold ${
                     session === option ? 'bg-emerald-700 text-white shadow-[0_4px_10px_-4px_rgb(27_104_79/0.6)]' : 'text-muted-foreground hover:text-foreground'
                   }`}
                   onClick={() => setSession(option)}
@@ -184,7 +179,7 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
         </div>
         {exposures.length > 0 && (
           <dl className="num grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="flex flex-col gap-1.5 rounded-[18px] bg-gradient-to-br from-emerald-700 to-emerald-600 p-4 text-white shadow-[0_14px_30px_-16px_rgb(15_63_48/0.7)]">
+            <div className="flex flex-col gap-1.5 rounded-[12px] bg-gradient-to-br from-emerald-700 to-emerald-600 p-4 text-white shadow-[0_14px_30px_-16px_rgb(15_63_48/0.7)]">
               <dt className="text-[12px] leading-4 font-medium text-white/75">Latest top set · lb × reps @ RIR</dt>
               <dd className="t-stat">{topLabel(latestTop)}</dd>
             </div>
@@ -281,7 +276,7 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
           </div>
           <p className="-mt-3 t-micro">
             Oldest first. Each working set is lb × reps @ RIR; the outlined set is the session’s top set; warm-ups are
-            counted, not listed; <sup>b</sup> marks a back-off set. “vs previous” compares the heaviest working set with the previous session of the same name; it
+            counted, not listed. “vs previous” compares the heaviest working set with the previous session of the same name; it
             does not consider RIR, so it is not a progression verdict.
             {hasWeeks && ' Pre / Post: before the block start / after its last week.'}
           </p>
@@ -435,7 +430,7 @@ export function HistoryScreen({ exerciseId }: { exerciseId: string | null }) {
                     <a
                       href={historyHref(item.exercise.id)}
                       aria-current={active ? 'page' : undefined}
-                      className={`press relative flex flex-col rounded-[14px] py-2 pr-3 pl-4 transition-[background-color,box-shadow] duration-200 ${
+                      className={`press relative flex flex-col rounded-[10px] py-2 pr-3 pl-4 ${
                         active ? 'bg-card shadow-[var(--shadow-card)]' : 'hover:bg-white/60'
                       }`}
                     >

@@ -106,7 +106,7 @@ export function SessionsScreen() {
                   </td>
                   <td className="py-2.5 pr-5 text-right">
                     <a
-                      className="press inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[13px] font-semibold text-emerald-700 hover:bg-emerald-50"
+                      className="press inline-flex items-center gap-0.5 rounded-md px-2.5 py-1 text-[13px] font-semibold text-emerald-700 hover:bg-emerald-50"
                       href={workoutHref(workout.id)}
                     >
                       {workout.status === 'complete' ? 'View' : 'Continue'}

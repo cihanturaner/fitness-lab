@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react'
 import { Check, ChevronDown, ChevronUp, MessageSquareText, Plus, X } from 'lucide-react'
-import type { PerformedSet, PlannedSet, SetFields, SetType } from '@/api/types'
+import type { PerformedSet, PlannedSet, SetFields } from '@/api/types'
 import { compactSet, formatReps, formatRir } from '@/lib/format'
 import { markUnsaved, useUnsavedKey } from '@/lib/unsaved'
 import { CommitInput } from './fields'
@@ -14,79 +14,15 @@ export interface SetActions {
   reorder: (setIds: string[]) => void
 }
 
-const TYPE_OPTIONS: { code: SetType; label: string }[] = [
-  { code: 'working', label: 'Working' },
-  { code: 'warmup', label: 'Warm-up' },
-  { code: 'backoff', label: 'Back-off' },
-]
-
 const validLoad = (text: string) => parseLoad(text).ok
 const validReps = (text: string) => parseCount(text, { allowNegative: false }).ok
 const validRir = (text: string) => parseCount(text, { allowNegative: true }).ok
 const LOAD_HINT = 'pounds with up to 2 decimals, e.g. 185 or 72.5'
 const COUNT_HINT = 'a whole number'
 
-const selectClass =
-  'h-8 w-full appearance-none rounded-md border border-transparent pr-6 pl-2 text-[13px] outline-none ' +
-  'transition-colors focus-visible:border-ring focus-visible:bg-card focus-visible:ring-2 ' +
-  'focus-visible:ring-ring/40 disabled:opacity-100 aria-invalid:border-destructive aria-invalid:bg-destructive/5'
-
 const iconButton =
   'press inline-flex size-7 items-center justify-center rounded-md text-muted-foreground ' +
   'hover:bg-sunken hover:text-foreground disabled:opacity-30 [&_svg]:size-3.5'
-
-function TypeSelect({
-  label,
-  value,
-  disabled,
-  invalid,
-  quiet = false,
-  pending = false,
-  onChange,
-}: {
-  label: string
-  value: SetType | null | ''
-  disabled?: boolean
-  invalid?: boolean
-  /** Unset but not yet asked for: rows after the first take the previous row's type. */
-  quiet?: boolean
-  /** A row not yet saved: shown as a well, like its number fields. */
-  pending?: boolean
-  onChange: (value: SetType) => void
-}) {
-  const unset = value === null || value === ''
-  const surface = pending || unset ? 'bg-sunken hover:border-border-strong' : 'bg-transparent hover:bg-sunken disabled:hover:bg-transparent'
-  return (
-    <span className="group/type relative block">
-      <select
-        aria-label={label}
-        aria-invalid={invalid || undefined}
-        className={`${selectClass} ${surface} ${unset ? 'text-muted-foreground' : value === 'warmup' ? 'text-muted-foreground' : 'text-foreground'}`}
-        value={value ?? ''}
-        disabled={disabled}
-        // Once chosen, the type is skipped by Tab so load → reps → RIR runs straight on to
-        // the next row; it stays one click (or a letter key) away.
-        tabIndex={unset ? 0 : -1}
-        onChange={(event) => event.target.value && onChange(event.target.value as SetType)}
-      >
-        {unset && <option value="">{quiet ? '–' : 'Set type'}</option>}
-        {TYPE_OPTIONS.map((option) => (
-          <option key={option.code} value={option.code}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      {!disabled && (
-        <ChevronDown
-          aria-hidden
-          className={`pointer-events-none absolute top-1/2 right-1.5 size-3.5 -translate-y-1/2 text-faint transition-opacity ${
-            pending || unset ? '' : 'opacity-0 group-hover/type:opacity-100 group-focus-within/type:opacity-100'
-          }`}
-        />
-      )}
-    </span>
-  )
-}
 
 function SavedRow({
   performed,
@@ -124,12 +60,16 @@ function SavedRow({
       >
         <td className="rounded-l-[10px]">
           {/* Saved evidence: the set number settles into a filled emerald dot. */}
+          {/* A warm-up can only be legacy evidence (no screen asks for a type since V3.2):
+              it stays marked, because it never counts toward the planned working sets. */}
           <span
+            title={performed.set_type === 'warmup' ? 'Warm-up: not counted as a working set' : undefined}
             className={`num relative flex size-6 items-center justify-center rounded-full text-[12px] font-semibold ${
               performed.set_type === 'warmup' ? 'bg-sunken text-faint' : 'bg-emerald-100 text-emerald-800'
             } ${fresh ? 'pop-in' : ''}`}
           >
             {index + 1}
+            {performed.set_type === 'warmup' && <span className="sr-only"> (warm-up)</span>}
             {fresh && (
               <span aria-hidden className="confirm absolute inset-0 flex items-center justify-center rounded-full bg-emerald-600 text-white">
                 <Check className="size-3.5" strokeWidth={3} />
@@ -177,15 +117,6 @@ function SavedRow({
             invalidHint={`${COUNT_HINT} (negative allowed)`}
             dense
             onCommit={(text) => commitCount('rir', text)}
-          />
-        </td>
-        <td>
-          <TypeSelect
-            label={`Set type, ${label}`}
-            value={performed.set_type}
-            disabled={locked}
-            invalid={performed.set_type === null}
-            onChange={(code) => void actions.patch(performed.id, { set_type: code })}
           />
         </td>
         <td className="rounded-r-[10px] text-right whitespace-nowrap">
@@ -241,7 +172,7 @@ function SavedRow({
       {showNote && (
         <tr>
           <td />
-          <td colSpan={5} className="pb-1">
+          <td colSpan={4} className="pb-1">
             <CommitInput
               label={`Notes, ${label}`}
               context={exerciseName}
@@ -262,13 +193,13 @@ function SavedRow({
 
 interface Carry {
   load: string
-  type: SetType | ''
 }
 
 /**
  * A row that exists only on screen until the lifter saves it — by leaving the row or with
- * Enter. Nothing about it comes from the plan except placeholder hints; the load and type
- * it may start with are the previous row's, and a carried load is not counted as input.
+ * Enter. Nothing about it comes from the plan except placeholder hints; the load it may start
+ * with is the previous row's, and a carried load is not counted as input. The lifter types
+ * load, reps and RIR only: a saved row is a working set (V3.2 — no set type is ever asked).
  */
 function PendingRow({
   number,
@@ -277,12 +208,10 @@ function PendingRow({
   planned,
   carry,
   autoFocus,
-  first,
   actions,
   onSubmitting,
   onSaved,
 }: {
-  first: boolean
   number: number
   exerciseId: string
   exerciseName: string
@@ -297,7 +226,6 @@ function PendingRow({
   const [carriedLoad, setCarriedLoad] = useState(carry.load)
   const [reps, setReps] = useState('')
   const [rir, setRir] = useState('')
-  const [type, setType] = useState<SetType | ''>(carry.type)
   const [problem, setProblem] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const inFlight = useRef(false)
@@ -313,16 +241,15 @@ function PendingRow({
     markUnsaved(unsavedKey, dirty ? `${exerciseName} ${label} (typed, not saved)` : null)
   }, [unsavedKey, dirty, exerciseName, label])
 
-  // The previous row was just submitted: start from its load and type unless this row
-  // already holds something of the lifter's own. Adjusted during render, not in an effect.
+  // The previous row was just submitted: start from its load unless this row already holds
+  // something of the lifter's own. Adjusted during render, not in an effect.
   const [seenCarry, setSeenCarry] = useState(carry)
-  if (carry.load !== seenCarry.load || carry.type !== seenCarry.type) {
+  if (carry.load !== seenCarry.load) {
     setSeenCarry(carry)
     if (load === carriedLoad && carry.load !== carriedLoad) {
       setLoad(carry.load)
       setCarriedLoad(carry.load)
     }
-    if (type === '' && carry.type !== '') setType(carry.type)
   }
   // A carried load that lands in the focused field is selected once, as it arrives, so
   // typing replaces it. Only a new carry triggers this — never the lifter's own typing,
@@ -352,14 +279,13 @@ function PendingRow({
     if (!parsedLoad.ok) return setProblem('Not saved: load must be pounds, e.g. 185 or 72.5.')
     if (!parsedReps.ok || parsedReps.value === null) return setProblem('Not saved: enter reps.')
     if (!parsedRir.ok) return setProblem('Not saved: RIR must be a whole number.')
-    if (type === '') return setProblem('Not saved: choose the set type (Work, Warm or Back).')
     setProblem(null)
     inFlight.current = true
     setSaving(true)
-    onSubmitting({ load: parsedLoad.value ?? '', type })
+    onSubmitting({ load: parsedLoad.value ?? '' })
     const saved = await actions
       .add(exerciseId, {
-        set_type: type,
+        set_type: 'working',
         load_lb: parsedLoad.value,
         reps: parsedReps.value,
         rir: parsedRir.value,
@@ -392,7 +318,7 @@ function PendingRow({
       void submit(true)
     }
     if (event.key === 'Escape') {
-      // Drop what was typed in this row; the carried load and type stay as offered.
+      // Drop what was typed in this row; the carried load stays as offered.
       setLoad(carriedLoad)
       setReps('')
       setRir('')
@@ -459,26 +385,12 @@ function PendingRow({
             {...input('rir')}
           />
         </td>
-        <td onKeyDown={onKeyDown}>
-          <TypeSelect
-            label={`Set type, ${label}`}
-            value={type}
-            invalid={problem !== null && type === ''}
-            quiet={!first && problem === null}
-            pending
-            onChange={(code) => {
-              if (saving) return
-              setType(code)
-              setProblem(null)
-            }}
-          />
-        </td>
         <td className="rounded-r-[10px] pr-1 text-right text-[12px] font-medium text-emerald-700">{saving ? 'Saving…' : ''}</td>
       </tr>
       {problem && (
         <tr>
           <td />
-          <td colSpan={5}>
+          <td colSpan={4}>
             <p role="alert" className="pb-1 text-[12px] text-destructive">
               {problem}
             </p>
@@ -515,35 +427,32 @@ export function SetGrid({
   const [pending, setPending] = useState<{ key: number; carry: Carry; focus: boolean }[]>(() => {
     if (locked) return []
     const count = Math.max(planned.length - worked, sets.length === 0 ? 1 : 0)
-    const carry: Carry = { load: lastSaved?.load_lb ?? '', type: lastSaved?.set_type ?? '' }
+    const carry: Carry = { load: lastSaved?.load_lb ?? '' }
     return Array.from({ length: count }, () => ({ key: nextPendingKey++, carry, focus: false }))
   })
 
   const addRow = () => {
-    const last = pending.at(-1)?.carry ?? { load: lastSaved?.load_lb ?? '', type: lastSaved?.set_type ?? '' }
+    const last = pending.at(-1)?.carry ?? { load: lastSaved?.load_lb ?? '' }
     setPending((rows) => [...rows, { key: nextPendingKey++, carry: last, focus: true }])
   }
 
   return (
     <div>
-      <table className="w-full max-w-[31rem] table-fixed border-separate border-spacing-x-0 border-spacing-y-[3px]" aria-label={`Sets, ${exerciseName}`}>
+      {/* Four columns, the order the lifter types in: set, load, reps, RIR. */}
+      <table className="w-full max-w-[28rem] table-fixed border-separate border-spacing-x-0 border-spacing-y-[3px] [&_td:not(:first-child):not(:last-child)]:pr-1" aria-label={`Sets, ${exerciseName}`}>
         <colgroup>
-          <col className="w-9" />
-          <col className="w-[5.25rem]" />
-          <col className="w-[4.25rem]" />
-          <col className="w-[3.75rem]" />
-          <col className="w-[6.25rem]" />
+          <col className="w-10" />
+          <col className="w-[6rem]" />
+          <col className="w-[4.75rem]" />
+          <col className="w-[4.75rem]" />
           <col />
         </colgroup>
         <thead>
-          <tr className="text-left text-[12px] text-muted-foreground">
-            <th className="pb-1 font-medium">Set</th>
-            <th className="pr-2 pb-1 text-right font-medium">
-              <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 font-semibold text-emerald-800">lb</span>
-            </th>
-            <th className="pr-2 pb-1 text-right font-medium">Reps</th>
-            <th className="pr-2 pb-1 text-right font-medium">RIR</th>
-            <th className="pb-1 pl-2 font-medium">Type</th>
+          <tr className="text-left text-[12px] text-muted-foreground [&>th]:pb-1.5 [&>th:not(:last-child)]:border-b [&>th:not(:last-child)]:border-border">
+            <th className="font-medium">Set</th>
+            <th className="pr-3 text-right font-semibold text-emerald-800">lb</th>
+            <th className="pr-3 text-right font-medium">Reps</th>
+            <th className="pr-3 text-right font-medium">RIR</th>
             <th />
           </tr>
         </thead>
@@ -572,7 +481,6 @@ export function SetGrid({
                 planned={planned[worked + index]}
                 carry={row.carry}
                 autoFocus={row.focus}
-                first={index === 0}
                 actions={actions}
                 onSubmitting={(carry) =>
                   setPending((rows) => {
@@ -589,7 +497,7 @@ export function SetGrid({
       {!locked && (
         <button
           type="button"
-          className="press mt-1.5 ml-7 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold text-emerald-700 hover:bg-emerald-50"
+          className="press mt-1.5 -ml-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-semibold text-emerald-700 hover:bg-emerald-50"
           aria-label={`Add set, ${exerciseName}`}
           onClick={addRow}
         >

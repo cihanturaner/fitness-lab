@@ -9,8 +9,13 @@ function withDays(week: Week, change: (day: WeekDay, index: number) => WeekDay):
   return { ...week, days: week.days.map(change) }
 }
 
-function day(_week: Week, name: string) {
-  return within(screen.getByRole('list', { name: 'This week' })).getByTestId(`day-${name}`)
+const notStarted = { status: 'not_started', workout_id: null, workout_on: null, actual_work_sets: null, open_draft_id: null, open_draft_on: null } as const
+
+/** WEEK with no draft, and `sessions` planned today (Wednesday 7 Oct). */
+function todayWith(...sessions: ReturnType<typeof session>[]): Week {
+  return withDays(WEEK, (item, index) =>
+    index === 1 ? { ...item, sessions: item.sessions.map((s) => ({ ...s, ...notStarted })) } : index === 2 ? { ...item, sessions } : item,
+  )
 }
 
 describe('HomeScreen', () => {
@@ -19,112 +24,120 @@ describe('HomeScreen', () => {
     window.location.hash = ''
   })
 
-  it('never shows a shortened session as a full one', async () => {
-    const short = withDays(WEEK, (item, index) =>
-      index === 0
-        ? { ...item, sessions: [session({ status: 'complete', workout_id: 'w-short', workout_on: '2026-10-05', actual_work_sets: 2 })] }
-        : item,
-    )
-    fakeApi({ ...HOME_ROUTES, 'GET /api/week': () => ({ body: short }) })
-    render(<HomeScreen />)
-    const monday = await waitFor(() => day(short, 'monday'))
-    expect(within(monday).getByTestId('session-status')).toHaveTextContent('Shortened')
-    expect(within(monday).getByTestId('session-sets')).toHaveTextContent('2 of 23 working sets')
-    expect(within(monday).queryByText('9 exercises · 23 sets')).not.toBeInTheDocument()
-  })
-
-  it('shows the plan against what a draft has recorded so far', async () => {
+  it('answers today, the workout status and the key numbers — and holds no weekly planner', async () => {
     fakeApi(HOME_ROUTES)
     render(<HomeScreen />)
-    const tuesday = await waitFor(() => day(WEEK, 'tuesday'))
-    expect(within(tuesday).getByTestId('session-sets')).toHaveTextContent('4 of 18 working sets')
+    const today = await screen.findByRole('region', { name: 'Today' })
+    // The open draft is today's answer: continue it.
+    expect(within(today).getByTestId('today-status')).toHaveTextContent('In progress')
+    expect(today).toHaveTextContent('Lower A')
+    expect(today).toHaveTextContent('4 of 18 working sets')
+    expect(within(today).getByRole('button', { name: 'Continue Lower A' })).toBeInTheDocument()
+    // The next session is small context that leads to Training.
+    const next = within(today).getByTestId('today-next')
+    expect(next).toHaveTextContent('Upper B')
+    expect(next).toHaveTextContent('Thu 8 Oct')
+    expect(next).toHaveAttribute('href', '#/training')
+    // Three summary cards, nothing else: no Monday–Sunday strip, no week navigation.
+    expect(screen.getByTestId('home-bodyweight')).toBeInTheDocument()
+    expect(screen.getByTestId('home-nutrition')).toBeInTheDocument()
+    expect(screen.getByTestId('home-recent')).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'This week' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Weeks' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('day-monday')).not.toBeInTheDocument()
+    expect(screen.getByTestId('home-context')).toHaveTextContent('Block week 2 of 12')
   })
 
-  it('before the block, days before the start recede and nothing is offered as block work', async () => {
+  it('summarises bodyweight and today’s nutrition, truthfully about unknown targets', async () => {
+    fakeApi(HOME_ROUTES)
+    render(<HomeScreen />)
+    const bodyweight = await screen.findByTestId('home-bodyweight')
+    // The source's display metric (7-day average) leads; the latest weigh-in is secondary.
+    expect(within(bodyweight).getByTestId('home-bw-avg')).toHaveTextContent('72.30 kg7-day average · 7/7 days')
+    expect(within(bodyweight).getByTestId('home-bw-latest')).toHaveTextContent('72.6 kg')
+    // Two weigh-ins are no trend: no single-day change is presented as a rate.
+    expect(within(bodyweight).getByTestId('home-bw-trend')).toHaveTextContent('not enough weigh-ins (2/14)')
+    const nutrition = screen.getByTestId('home-nutrition')
+    expect(within(nutrition).getByTestId('home-nut-protein')).toHaveTextContent('150 gtarget 145 g')
+    expect(within(nutrition).getByTestId('home-nut-fat')).toHaveTextContent('62 gtarget 60 g')
+    // Derived from the macros (150 x 4 + 290 x 4 + 62 x 9), never typed.
+    expect(within(nutrition).getByTestId('home-nut-kcal')).toHaveTextContent('2318kcal')
+    expect(nutrition).toHaveTextContent('Calorie target not calibrated yet.')
+  })
+
+  it('starts today’s planned session as a draft and routes to it', async () => {
+    const calls = fakeApi({
+      ...HOME_ROUTES,
+      'GET /api/week': () => ({
+        body: todayWith(session({ planned_workout_id: 'pw-upper-b', workout_key: 'upper_b', name: 'Upper B', day_label: 'Wednesday' })),
+      }),
+      'POST /api/planned-workouts/pw-upper-b/open': () => ({
+        body: { workout_id: 'w1', created: true, workout: entryFixture().workout, origin: null },
+      }),
+    })
+    const user = userEvent.setup()
+    render(<HomeScreen />)
+    const today = await screen.findByRole('region', { name: 'Today' })
+    expect(within(today).getByTestId('today-status')).toHaveTextContent('Today')
+    await user.click(within(today).getByRole('button', { name: 'Start today: Upper B' }))
+    await waitFor(() => expect(window.location.hash).toBe('#/workouts/w1'))
+    expect(calls.find((call) => call.method === 'POST')?.body).toEqual({ performed_on: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) })
+  })
+
+  it('reviews a finished session, and never calls a shortened one Done', async () => {
+    const done = session({ status: 'complete', workout_id: 'w-today', workout_on: '2026-10-07', actual_work_sets: 23 })
+    fakeApi({ ...HOME_ROUTES, 'GET /api/week': () => ({ body: todayWith(done) }) })
+    const { unmount } = render(<HomeScreen />)
+    let today = await screen.findByRole('region', { name: 'Today' })
+    expect(within(today).getByTestId('today-status')).toHaveTextContent('Done today')
+    expect(within(today).getByRole('link', { name: 'Review Upper A' })).toHaveAttribute('href', '#/workouts/w-today')
+    unmount()
+
+    fakeApi({ ...HOME_ROUTES, 'GET /api/week': () => ({ body: todayWith({ ...done, actual_work_sets: 9 }) }) })
+    render(<HomeScreen />)
+    today = await screen.findByRole('region', { name: 'Today' })
+    expect(within(today).getByTestId('today-status')).toHaveTextContent('Shortened')
+    expect(today).not.toHaveTextContent('Done')
+    expect(today).toHaveTextContent('Completed with 9 of 23 working sets')
+  })
+
+  it('a rest day says so, with the next session as context', async () => {
+    fakeApi({ ...HOME_ROUTES, 'GET /api/week': () => ({ body: todayWith() }) })
+    render(<HomeScreen />)
+    const today = await screen.findByRole('region', { name: 'Today' })
+    expect(today).toHaveTextContent('Rest day')
+    expect(within(today).getByTestId('today-next')).toHaveTextContent('Upper B')
+  })
+
+  it('before the block, the hero counts down instead of offering block work', async () => {
     const pre: Week = {
-      ...withDays(WEEK, (item, index) => ({ ...item, phase: index < 3 ? 'pre_block' : 'block', sessions: item.sessions.map((s) => ({ ...s, status: 'not_started', workout_id: null, workout_on: null, actual_work_sets: null, open_draft_id: null, open_draft_on: null })) })),
+      ...withDays(WEEK, (item, index) => ({ ...item, phase: index < 3 ? 'pre_block' : 'block', sessions: item.sessions.map((s) => ({ ...s, ...notStarted })) })),
       today: '2026-10-05',
       date: '2026-10-05',
       block: { start_on: '2026-10-08', week: 1, weeks: 12, phase: 'pre_block' },
     }
     fakeApi({ ...HOME_ROUTES, 'GET /api/week': () => ({ body: pre }) })
     render(<HomeScreen />)
-    expect(await screen.findByTestId('block-phase')).toHaveTextContent('Before the block · starts Thu 8 Oct · in 3 days')
-    expect(screen.queryByTestId('block-week')).not.toBeInTheDocument()
-    const today = screen.getByRole('region', { name: 'Today' })
+    const today = await screen.findByRole('region', { name: 'Today' })
     expect(today).toHaveTextContent('Before the block')
     expect(today).toHaveTextContent('Block starts Thu 8 Oct')
-    const monday = day(pre, 'monday')
-    expect(within(monday).getByTestId('session-status')).toHaveTextContent('Before block')
-    expect(within(monday).queryByRole('button', { name: 'Start Upper A' })).not.toBeInTheDocument()
-    expect(within(day(pre, 'thursday')).getByRole('button', { name: 'Start Upper B' })).toBeInTheDocument()
+    expect(within(today).queryByRole('button', { name: /^Start today/ })).not.toBeInTheDocument()
   })
 
   it('after week 12 the block is finished, not still running', async () => {
     const post: Week = {
-      ...withDays(WEEK, (item) => ({
-        ...item,
-        phase: 'post_block',
-        sessions: item.sessions.map((s) => ({ ...s, status: 'not_started', workout_id: null, workout_on: null, actual_work_sets: null, open_draft_id: null, open_draft_on: null })),
-      })),
+      ...withDays(WEEK, (item) => ({ ...item, phase: 'post_block', sessions: item.sessions.map((s) => ({ ...s, ...notStarted })) })),
       block: { start_on: '2026-10-01', week: 13, weeks: 12, phase: 'post_block' },
     }
     fakeApi({ ...HOME_ROUTES, 'GET /api/week': () => ({ body: post }) })
     render(<HomeScreen />)
-    expect(await screen.findByTestId('block-phase')).toHaveTextContent('After the block · finished Sun 20 Dec')
-    expect(screen.getByRole('region', { name: 'Today' })).toHaveTextContent('Block complete')
-  })
-
-  it('moves between weeks, and a past week offers only what fits the past', async () => {
-    const past: Week = {
-      ...withDays(WEEK, (item) => ({
-        ...item,
-        sessions: item.sessions.map((s) => ({ ...s, status: 'not_started', workout_id: null, workout_on: null, actual_work_sets: null, open_draft_id: null, open_draft_on: null })),
-      })),
-      is_current_week: false,
-      today: '2026-10-14',
-    }
-    const calls = fakeApi({
-      ...HOME_ROUTES,
-      'GET /api/week': () => ({ body: past }),
-      'POST /api/planned-workouts/pw-upper/open': () => ({
-        body: { workout_id: 'w9', created: true, workout: entryFixture().workout, origin: null },
-      }),
-    })
-    const user = userEvent.setup()
-    render(<HomeScreen week="2026-10-07" />)
-    const nav = await screen.findByRole('navigation', { name: 'Weeks' })
-    expect(within(nav).getByRole('link', { name: 'Previous week' })).toHaveAttribute('href', '#/week/2026-09-28')
-    expect(within(nav).getByRole('link', { name: 'Next week' })).toHaveAttribute('href', '#/week/2026-10-12')
-    expect(within(nav).getByRole('link', { name: 'This week' })).toHaveAttribute('href', '#/')
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Week 2 of 12')
-    expect(screen.queryByRole('region', { name: 'Today' })).not.toBeInTheDocument()
-    expect(screen.queryByTestId('home-bodyweight')).not.toBeInTheDocument()
-    const monday = day(past, 'monday')
-    expect(within(monday).getByTestId('session-status')).toHaveTextContent('Not logged')
-    expect(within(monday).queryByRole('button', { name: 'Start Upper A' })).not.toBeInTheDocument()
-    await user.click(within(monday).getByRole('button', { name: 'Log Upper A for Mon 5 Oct' }))
-    await waitFor(() => expect(calls.find((call) => call.method === 'POST')?.body).toEqual({ performed_on: '2026-10-05' }))
-    expect(calls.find((call) => call.url.startsWith('/api/week'))?.url).toContain('date=2026-10-07')
-  })
-
-  it('a future week is the plan only', async () => {
-    const future: Week = { ...WEEK, is_current_week: false, today: '2026-09-23', week_start: '2026-10-05' }
-    fakeApi({ ...HOME_ROUTES, 'GET /api/week': () => ({ body: { ...future, days: future.days.map((item) => ({ ...item, sessions: item.sessions.map((s) => ({ ...s, status: 'not_started', workout_id: null, workout_on: null, open_draft_id: null, open_draft_on: null })) })) } }) })
-    render(<HomeScreen week="2026-10-07" />)
-    const thursday = await waitFor(() => day(future, 'thursday'))
-    expect(within(thursday).getByTestId('session-status')).toHaveTextContent('Planned')
-    expect(within(thursday).queryByRole('button')).not.toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Today' })).toHaveTextContent('Block complete')
   })
 
   it('points to a draft of another week instead of letting it take over this one', async () => {
     const stale: Week = {
       ...withDays(WEEK, (item, index) =>
-        index === 0
-          ? { ...item, sessions: [session({ open_draft_id: 'w-old', open_draft_on: '2026-09-28' })] }
-          : index === 1
-            ? { ...item, sessions: item.sessions.map((s) => ({ ...s, status: 'not_started', workout_id: null, workout_on: null, actual_work_sets: null, open_draft_id: null, open_draft_on: null })) }
-            : item,
+        index === 1 ? { ...item, sessions: item.sessions.map((s) => ({ ...s, ...notStarted })) } : item,
       ),
       open_drafts: [{ workout_id: 'w-old', planned_workout_id: 'pw-upper', name: 'Upper A', performed_on: '2026-09-28', block_week: 1 }],
     }
@@ -134,9 +147,16 @@ describe('HomeScreen', () => {
     expect(today).toHaveTextContent('Unfinished draft')
     expect(today).toHaveTextContent('Dated Mon 28 Sep (week 1)')
     expect(within(today).getByRole('link', { name: 'Open the Upper A draft from Mon 28 Sep' })).toHaveAttribute('href', '#/workouts/w-old')
-    const monday = day(stale, 'monday')
-    expect(within(monday).getByTestId('session-status')).toHaveTextContent('Draft Mon 28 Sep')
-    expect(within(monday).getByRole('button', { name: 'Resume Upper A draft from Mon 28 Sep' })).toBeInTheDocument()
+  })
+
+  it('explains what to do when no program is active', async () => {
+    fakeApi({
+      ...HOME_ROUTES,
+      'GET /api/week': () => ({ body: { ...WEEK, program: null, block: null, days: WEEK.days.map((item) => ({ ...item, sessions: [] })) } }),
+    })
+    render(<HomeScreen />)
+    expect(await screen.findByRole('heading', { name: 'No active program' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start unplanned session' })).toBeInTheDocument()
   })
 
   it('says when a weekly nutrition review is due', async () => {

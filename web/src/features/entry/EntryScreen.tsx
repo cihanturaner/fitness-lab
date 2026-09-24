@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Callout, EmptyState, LoadError, ProgressRing, Skeleton } from '@/components/app/primitives'
 import { exerciseLabel, formatDate, localDate } from '@/lib/format'
 import { AnimatedNumber } from '@/components/app/AnimatedNumber'
-import { navigate } from '@/lib/route'
+import { backTarget, navigate } from '@/lib/route'
 import { installUnloadGuard, unsavedDescriptions } from '@/lib/unsaved'
 import { ExerciseBlock } from './ExerciseBlock'
 import { CommitInput } from './fields'
@@ -109,7 +109,7 @@ function NewExerciseForm({
 
 const ISSUE_LABELS: Record<string, string> = {
   C2: 'Missing reps',
-  C4: 'Missing set type',
+  C4: 'Set type not recorded',
   'A-LOAD': 'No load recorded',
   'A-RIR': 'No RIR recorded',
 }
@@ -133,7 +133,16 @@ function describeIssue(issue: CompletionIssue, entry: Entry): string {
   return `${label}: ${names.join(', ')}`
 }
 
-function CompletionFeedback({ feedback, entry }: { feedback: Feedback; entry: Entry }) {
+function CompletionFeedback({
+  feedback,
+  entry,
+  onRecordWorking,
+}: {
+  feedback: Feedback
+  entry: Entry
+  /** Legacy sets saved without a type (never from this screen): record them as working. */
+  onRecordWorking: (setIds: string[]) => void
+}) {
   if (!feedback) return null
   if (feedback.kind === 'completed') {
     const short = feedback.workSets?.short ? feedback.workSets : null
@@ -157,6 +166,10 @@ function CompletionFeedback({ feedback, entry }: { feedback: Feedback; entry: En
       </Callout>
     )
   }
+  const ordered = [...entry.sets].sort((a, b) => a.set_order - b.set_order)
+  const untyped = (feedback.blockers.find((issue) => issue.rule === 'C4')?.set_orders ?? [])
+    .map((order) => ordered[order - 1]?.id)
+    .filter((id): id is string => id !== undefined)
   return (
     <Callout tone="error" role="alert" title={feedback.message}>
       {feedback.blockers.length > 0 && (
@@ -165,6 +178,15 @@ function CompletionFeedback({ feedback, entry }: { feedback: Feedback; entry: En
             <li key={issue.rule}>{describeIssue(issue, entry)}</li>
           ))}
         </ul>
+      )}
+      {untyped.length > 0 && (
+        <button
+          type="button"
+          className="press mt-1.5 rounded-md bg-card px-2.5 py-1 text-[12px] font-semibold text-foreground shadow-[0_0_0_1px_var(--border-strong)] hover:bg-sunken"
+          onClick={() => onRecordWorking(untyped)}
+        >
+          Record {untyped.length === 1 ? 'it' : 'them'} as working {untyped.length === 1 ? 'set' : 'sets'}
+        </button>
       )}
     </Callout>
   )
@@ -243,8 +265,8 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
     return loadError ? (
       <div className="flex flex-col items-center gap-2">
         <LoadError what="this workout" detail={loadError} />
-        <a href="#/" className="text-[13px] font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-          Back to the week
+        <a href={backTarget().href} className="text-[13px] font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+          Back to {backTarget().label}
         </a>
       </div>
     ) : (
@@ -323,7 +345,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
       return
     }
     // Gone: leave without re-reading it (that would only answer 404).
-    navigate('#/')
+    navigate(backTarget().href)
   }
 
   const setCount = entry.sets.length
@@ -336,15 +358,16 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
   const plannedTotal = entry.work_sets?.planned ?? 0
   const workedTotal = entry.work_sets?.actual ?? entry.sets.filter((performed) => performed.set_type !== 'warmup').length
   const shortened = locked && entry.work_sets?.short === true
+  const back = backTarget()
 
   return (
     <div className="enter flex flex-col gap-5">
-      <header className="sticky top-[76px] z-10 -mt-3 flex flex-col gap-3 rounded-[22px] bg-white/80 px-5 py-4 shadow-[var(--shadow-card)] ring-1 ring-white/70 backdrop-blur-xl backdrop-saturate-150">
+      <header className="sticky top-[76px] z-10 -mt-3 flex flex-col gap-3 rounded-[14px] bg-white/80 px-5 py-4 shadow-[var(--shadow-card)] ring-1 ring-white/70 backdrop-blur-xl backdrop-saturate-150">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
           <a
-            href="#/"
-            aria-label="Back to the week"
-            className="press -ml-1 inline-flex size-9 items-center justify-center rounded-full bg-card text-muted-foreground shadow-[0_1px_2px_rgb(16_52_38/0.08),0_0_0_1px_rgb(16_52_38/0.05)] hover:text-emerald-700"
+            href={back.href}
+            aria-label={`Back to ${back.label}`}
+            className="press -ml-1 inline-flex size-9 items-center justify-center rounded-[10px] bg-card text-muted-foreground shadow-[0_1px_2px_rgb(16_52_38/0.08),0_0_0_1px_rgb(16_52_38/0.05)] hover:text-emerald-700"
           >
             <ArrowLeft className="size-4" aria-hidden />
           </a>
@@ -505,7 +528,15 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
             If you are training today, complete or delete this earlier record first, or correct its date.
           </Callout>
         )}
-        <CompletionFeedback feedback={feedback} entry={entry} />
+        <CompletionFeedback
+          feedback={feedback}
+          entry={entry}
+          onRecordWorking={(setIds) =>
+            void Promise.all(setIds.map((id) => run(() => api.patchSet(id, { set_type: 'working' })))).then(
+              (saved) => saved.every(Boolean) && setFeedback(null),
+            )
+          }
+        />
       </header>
 
       {view.slots.length === 0 && view.extras.length === 0 && (
@@ -565,7 +596,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
       </section>
 
       {!locked && (
-        <div className="flex flex-wrap items-center gap-2 rounded-[18px] bg-white/45 p-3 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.7)]">
+        <div className="flex flex-wrap items-center gap-2 rounded-[12px] bg-white/45 p-3 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.7)]">
           <span className="t-micro mr-1 pl-1 font-semibold">Extra work</span>
           <ExerciseSelect
             label="Add an exercise"

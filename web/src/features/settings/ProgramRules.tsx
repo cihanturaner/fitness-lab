@@ -73,7 +73,7 @@ function RuleSection({ title, children }: { title: string; children: ReactNode }
 export function ProgramRules({ notes }: { notes: string }) {
   const sections = parseProgramNotes(notes)
   return (
-    <div className="flex flex-col divide-y divide-border overflow-hidden rounded-[16px] bg-sunken/60 shadow-[inset_0_0_0_1px_var(--border)]">
+    <div className="flex flex-col divide-y divide-border overflow-hidden rounded-[12px] bg-sunken/60 shadow-[inset_0_0_0_1px_var(--border)]">
       {sections.map((section) => (
         <RuleSection key={section.title} title={section.title}>
           {section.blocks.map((block, index) =>
