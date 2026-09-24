@@ -16,7 +16,7 @@ Native iPhone: **NOT YET VERIFIED** for anything in this file unless stated.
 | M6 | Local SQLite persistence (expo-sqlite), Clock | done | see log |
 | M6b | Versioned export (read-only tool) / mobile import | done | see log |
 | VP | Integrated visual consistency pass | done | see log |
-| RC | Blocking review + final gates | queued | — |
+| RC | Blocking review + final gates | in progress | — |
 
 Order note: persistence (M6) is built as the repository boundary *during* M3 so the logger
 is real from the start; the M6 commit adds migrations tests, cold-restart and the Clock.
@@ -126,9 +126,23 @@ is real from the start; the M6 commit adds migrations tests, cold-restart and th
   focus (Upper B: back, chest, shoulders, triceps, biceps — M1 fixture) is used; other
   workouts draw a neutral figure. Needs an authoritative source from the user to extend.
 
+## Commits (branch `claude/sweet-mendel-xic1f2`, from `a67f060`)
+
+| Commit | What |
+| --- | --- |
+| `69fcc1f` | M0 — anatomy redraw, compact Home hero |
+| `45dd73e` | M3 — workout logger + SQLite persistence core (schema v1, repositories, store, Clock) |
+| `9cfb19d` | M4 — Nutrition, Bodyweight, Quick Add, honest Progress cards |
+| `797bbb1` | M5 — day-first History, Settings (block, target, Turkish program, about) |
+| `503f422` | M6 — persistence journeys (J1 phases, J2, J7 cold restart), schema + fixture guards |
+| `2f26577` | M6b — read-only desktop exporter, V1 format, mobile import/export |
+| `225e09d` | Visual consistency pass |
+| `8d93a93` | Jest per-test budget 20 s (cold-cache first test) |
+| `553a4ec` | Day rollover while the app stays open |
+
 ## DONE criteria
 
-See the mission's 30-point RC definition; tracked in the checklist at the end.
+The mission's 30-point RC definition; status in "RC checklist" below.
 
 ## Checks completed
 
