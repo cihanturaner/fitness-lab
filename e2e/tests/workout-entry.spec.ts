@@ -273,8 +273,11 @@ test('an unplanned session is first-class', async ({ page }) => {
   await page.getByRole('button', { name: 'Complete workout' }).click()
   await expect(page.getByTestId('workout-status')).toHaveText('Complete')
 
-  await page.goto('/#/sessions')
-  await expect(page.getByTestId('recent-workout')).toHaveCount(3)
+  // Three workouts on record; History's day timeline shows the complete ones (V3.3.1: the
+  // Sessions list is gone).
+  expect(count('workout')).toBe(3)
+  await page.goto('/#/history')
+  await expect(page.getByTestId('day-workout')).toHaveCount(count('workout', "status = 'complete'"))
   await page.goto('/#/training')
   await expect(page.getByTestId('planned-upper_a')).toHaveAttribute('data-status', 'draft')
   await page.screenshot({ path: '../artifacts/v2-home-after-v1-journey.png', fullPage: true })
@@ -348,9 +351,9 @@ test('data persists across an application restart and the app shuts down cleanly
   for (const how of ['SIGTERM', 'Ctrl-C'] as const) {
     const child = launch(port)
     await expect.poll(() => healthy(port), { timeout: 60_000 }).toBe(true)
-    await page.goto(`http://127.0.0.1:${port}/#/sessions`)
-    await expect(page.getByTestId('recent-workout')).toHaveCount(3)
-    await page.getByTestId('recent-workout').filter({ hasText: 'Upper A' }).filter({ hasText: 'Complete' }).getByRole('link').click()
+    await page.goto(`http://127.0.0.1:${port}/#/history`)
+    await expect(page.getByTestId('day-workout')).toHaveCount(count('workout', "status = 'complete'"))
+    await page.getByTestId('day-workout').getByRole('link', { name: 'Upper A', exact: true }).click()
     await expect.poll(() => actualRows(slot(page, 'upper_a.01'))).toEqual([
       ['82.5', '6', '2'],
       ['82.5', '5', '2'],

@@ -115,7 +115,7 @@ test('a day is logged as macros; its calories are derived live and on reload', a
     '76/210/70',
   )
   await page.reload()
-  await expect(page.getByRole('region', { name: 'Targets' })).toContainText('1774')
+  await expect(page.getByRole('region', { name: 'Daily summary' })).toContainText('1774')
   await expect(page.getByTestId('nut-day').first()).toContainText('1774')
   await page.goto('/')
   await expect(page.getByTestId('home-nut-kcal')).toContainText('1774')

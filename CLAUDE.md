@@ -46,7 +46,11 @@ Dependency direction is one-way:
 - `performed_at` is not `entered_at`. Both are recorded; neither substitutes for the other.
 - SQLite database files are never committed to git.
 - Opening a planned workout creates one empty draft with an immutable origin — never a
-  performed set. Actual sets carry no link to prescriptions.
+  performed set. Actual sets carry no link to prescriptions (no set → `planned_set` link).
+  Since V3.3.1 a set may record the planned *slot* it was entered in (`performed_set_slot`,
+  migration 0008; `slot_id` NULL = extra work), so two slots performed as the same exercise
+  never merge; sets are never grouped by `exercise_id` alone (`domain/placement.py`). Sets
+  recorded before 0008 keep the old rule (first slot performed as their exercise).
 - Imported program content is append-only (trigger-enforced); at most one version is active.
 - Development, tests and E2E never use `data/fitness_lab.db`; always a scratch
   `FITNESS_LAB_DB`.
@@ -79,9 +83,14 @@ Dependency direction is one-way:
   recommendation moves carbohydrate only (source `primary_macro_adjusted`);
   `controller_event` and `diagnostic_gate_event` are append-only. Its three app choices (≥ 6
   weigh-ins per 7-day half, "sustained" = two consecutive weekly trends above 0.25, gate
-  reliability checks) are documented in the V3 spec and must stay fixed for a block.
+  reliability checks) are documented in the V3 spec and must stay fixed for a block. In
+  block weeks 1–2 a manual change asks for one of the source's exceptions only when it changes
+  an established target (one in force before today); setting up the first target never does.
 
-Current design: `docs/superpowers/specs/2026-09-24-v3-3-daily-use-finalization.md` (V3.3:
+Current design: `docs/superpowers/specs/2026-09-24-v3-3-1-patch.md` (V3.3.1: Change to a
+typed new exercise, independent slots, the macro target as a setting, Settings › Program in
+Turkish, History with the day timeline as its only primary view) over
+`docs/superpowers/specs/2026-09-24-v3-3-daily-use-finalization.md` (V3.3:
 Change exercise for one workout, macro targets with effective-dated history, day-by-day
 History, Turkish program rules, discard draft) over
 `docs/superpowers/specs/2026-09-24-v3-2-simplification.md` (V3.2: Home is
@@ -194,8 +203,10 @@ starts the real launcher on port 8710 (V1 journey; 8711 for the restart test) an
 (V2 daily-use journey, its own database, block started two Mondays ago), 8713 (V3
 completeness journey, its own database, block started three Mondays ago), 8714 (V3.1
 pounds / macros / reduced-motion journey, its own database), 8715 (V3.2 Home / Training /
-keyboard-only set entry / motion journey, its own database) and 8716 (V3.3 change exercise /
-discard / macro targets / day History / Turkish rules journey, its own database); it ignores
+keyboard-only set entry / motion journey, its own database), 8716 (V3.3 change exercise /
+discard / macro targets / day History / Turkish rules journey, its own database) and 8717
+(V3.3.1 typed exercise / independent slots / target setting / Turkish Program / day-only
+History journey, its own database); it ignores
 `FITNESS_LAB_DB` and never reuses a running server:
 
     npx playwright test

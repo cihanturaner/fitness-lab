@@ -83,10 +83,11 @@ test('a past week is one click away, and a shortened session is confirmed and sh
   await expect(tile.getByTestId('session-status')).toHaveText('Shortened')
   await expect(tile.getByTestId('session-sets')).toHaveText('1 of 23 working sets')
 
-  await page.goto('/#/sessions')
-  const row = page.getByTestId('recent-workout').first()
-  await expect(row.locator('td').first()).toHaveText('3')
-  await expect(row.getByTestId('session-work-sets')).toHaveText('1 / 23shortened')
+  // History is the day timeline (V3.3.1: no Sessions list): the session reads as shortened.
+  await page.goto('/#/history')
+  const shortened = page.getByTestId('day-workout').filter({ hasText: 'Upper A' }).first()
+  await expect(shortened.getByTestId('day-shortened')).toHaveText('Shortened')
+  await expect(shortened).toContainText('1 of 23 working sets')
 
   await page.goto('/#/history/exercises')
   await page.getByRole('navigation', { name: 'Exercises' }).getByRole('link', { name: /Smith Flat Bench Press/ }).click()
@@ -170,6 +171,7 @@ test('the weekly nutrition review recommends; only an explicit choice changes ca
   await page.reload()
   await expect(review.getByRole('button', { name: /Apply/ })).toHaveCount(0)
   await expect(review.getByTestId('review-next')).toContainText('end of week 5')
+  await page.getByRole('button', { name: 'History (2)' }).click()
   await expect(page.getByRole('region', { name: 'Target history' }).getByTestId('target-row')).toHaveCount(2)
   // Week 3 ended on or before today: that is why its review was the one due.
   expect(WEEK3_SUNDAY <= localToday()).toBe(true)

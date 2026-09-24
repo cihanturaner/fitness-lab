@@ -262,7 +262,7 @@ test('nutrition: log a day, refresh, no target until one is recorded, explicit m
   await expect(page.getByRole('status')).toContainText('Saved')
 
   await page.reload()
-  await expect(page.getByRole('region', { name: 'Targets' })).toContainText('2318')
+  await expect(page.getByRole('region', { name: 'Daily summary' })).toContainText('2318')
   await expect(page.getByRole('textbox', { name: 'Protein g' })).toHaveValue('150')
   await expect(page.getByRole('textbox', { name: 'Carbs g' })).toHaveValue('290')
   await expect(page.getByRole('textbox', { name: 'Fat g' })).toHaveValue('62')
@@ -279,7 +279,7 @@ test('nutrition: log a day, refresh, no target until one is recorded, explicit m
 
   // Only an explicit decision sets targets: protein, carbs and fat; calories follow from them.
   await page.goto('/#/nutrition')
-  await page.getByRole('button', { name: 'Set targets…' }).click()
+  await page.getByRole('button', { name: 'Set targets' }).click()
   await page.getByRole('textbox', { name: 'Carbs target g' }).fill('383')
   await page.getByRole('button', { name: 'Save targets' }).click()
   // The source's 145 g protein and 60 g fat were offered: 145 x 4 + 383 x 4 + 60 x 9.

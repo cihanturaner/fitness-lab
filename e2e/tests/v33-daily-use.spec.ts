@@ -110,7 +110,7 @@ test('an exercise is changed for this workout only; the plan and the next sessio
   // Any other existing exercise, found by search: 45° Leg Press for the planned Hack Squat.
   const squat = page.getByTestId('slot-lower_b.01')
   await squat.getByRole('button', { name: 'Change exercise, slot 1' }).click()
-  await squat.getByRole('textbox', { name: 'Search exercises, slot 1' }).fill('leg press')
+  await squat.getByRole('textbox', { name: 'Search or type an exercise, slot 1' }).fill('leg press')
   await squat.getByRole('list', { name: 'Matching exercises' }).getByRole('button', { name: '45° Leg Press' }).click()
   await expect(squat).toHaveAttribute('aria-label', '45° Leg Press')
   await expect(squat.getByTestId('planned-exercise')).toHaveText('Planned: Hack Squat · changed for this workout')
@@ -186,7 +186,7 @@ test('a draft holding sets is discarded only after a stronger confirmation; the 
 test('targets are protein, carbs and fat; calories follow; earlier days keep their target', async ({ page }) => {
   await page.request.put(`/api/nutrition/${localDay(-2)}`, { data: { protein_g: 150, carbs_g: 280, fat_g: 70 } })
   await page.goto('/#/nutrition')
-  await page.getByRole('button', { name: 'Set targets…' }).click()
+  await page.getByRole('button', { name: 'Set targets' }).click()
   const form = page.getByRole('form', { name: 'Macro targets' })
   await form.getByRole('textbox', { name: 'Protein target g' }).fill('150')
   await form.getByRole('textbox', { name: 'Carbs target g' }).fill('300')
@@ -210,7 +210,7 @@ test('targets are protein, carbs and fat; calories follow; earlier days keep the
 
   // A change today: from today on only. This is block week 2, where the source allows a
   // change only for one of its exceptions, so the form asks for one first.
-  await page.getByRole('button', { name: 'Change targets…' }).click()
+  await page.getByRole('button', { name: 'Edit targets' }).click()
   await expect(form.getByRole('textbox', { name: 'Carbs target g' })).toHaveValue('300')
   await form.getByRole('textbox', { name: 'Carbs target g' }).fill('340')
   await form.getByRole('button', { name: 'Save targets' }).click()
@@ -219,7 +219,7 @@ test('targets are protein, carbs and fat; calories follow; earlier days keep the
   await form.getByRole('combobox', { name: 'Target reason' }).selectOption({ label: 'obvious logging error' })
   await form.getByRole('button', { name: 'Save targets' }).click()
   await expect(page.getByTestId('nut-target-calories')).toHaveText('2590 kcal')
-  await expect(page.getByTestId('nut-target-line')).toContainText('150 P · 340 C · 70 F = 2590 kcal')
+  await expect(page.getByTestId('nut-target-line')).toContainText('Current targets: 150P · 340C · 70F / 2590 kcal')
   expect(db("SELECT group_concat(carbs_g, ',') FROM (SELECT carbs_g FROM macro_target ORDER BY effective_on)")).toBe('300,340')
   expect(db('SELECT count(*) FROM calorie_target')).toBe('0')
 
@@ -233,6 +233,7 @@ test('targets are protein, carbs and fat; calories follow; earlier days keep the
   await page.getByLabel('Nutrition date').fill(localDay(-2))
   await expect(page.getByTestId('nut-target-calories')).toHaveText('2430 kcal')
   await expect(page.getByTestId('nut-target-carbs')).toHaveText('300 g')
+  await page.getByRole('button', { name: 'History (2)' }).click()
   await expect(page.getByRole('region', { name: 'Target history' }).getByTestId('target-row')).toHaveCount(2)
 })
 
@@ -307,17 +308,17 @@ test('Settings › Program rules are in Turkish, faithful to the locked source',
     'İlerleme Kuralları',
     'Plato / İlerleme Durması',
     'Kalibrasyon',
-    'Hafta 1–11',
-    'Deload (P1)',
-    'Hafta 12 (P2)',
+    '1–11. Haftalar',
+    'Hafifletme Haftası (P1)',
+    '12. Hafta (P2)',
     'Isınma',
     'Haftalık Hacim',
     'Egzersiz Değişim Matrisi',
   ])
-  await rules.getByRole('button', { name: 'Deload (P1)' }).click()
+  await rules.getByRole('button', { name: 'Hafifletme Haftası (P1)' }).click()
   await expect(rules).toContainText('Süre (gün)7')
   await expect(rules).toContainText('Önceki haftalık set sayısı81')
-  await expect(rules).toContainText('Deload haftalık set sayısı48')
+  await expect(rules).toContainText('Hafifletme haftası set sayısı48')
   await rules.getByRole('button', { name: 'Egzersiz Değişim Matrisi' }).click()
   await expect(rules).toContainText('Smith/Machine Hip ThrustGlute Drive, Smith Glute Bridge')
   for (const viewport of VIEWPORTS) {
