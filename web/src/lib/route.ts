@@ -9,14 +9,15 @@ export type Route =
   | { name: 'nutrition' }
   | { name: 'history' }
   | { name: 'exercises'; exerciseId: string | null }
-  | { name: 'sessions' }
   | { name: 'settings' }
 
 /**
  * Hash routes survive a reload and need no server-side fallback: `#/` (Home), `#/training`,
  * `#/training/<date>`, `#/workouts/<id>`, `#/bodyweight`, `#/nutrition`, `#/history` (the
- * day-by-day timeline), `#/history/exercises`, `#/history/<exerciseId>`, `#/sessions`,
- * `#/settings`. The pre-V3.2 `#/week/<date>` still opens that week, now on Training.
+ * day-by-day timeline, the only primary History view), `#/history/exercises`,
+ * `#/history/<exerciseId>` (exercise history, secondary), `#/settings`. The pre-V3.2
+ * `#/week/<date>` still opens that week, now on Training; the retired `#/sessions` list
+ * (V3.3.1) opens the day timeline, which holds the same sessions.
  */
 export function parseRoute(hash: string): Route {
   const workout = /^#\/workouts\/([A-Za-z0-9]+)$/.exec(hash)
@@ -27,7 +28,7 @@ export function parseRoute(hash: string): Route {
   if (exercise?.[1]) return { name: 'exercises', exerciseId: exercise[1] }
   if (hash === '#/bodyweight') return { name: 'bodyweight' }
   if (hash === '#/nutrition') return { name: 'nutrition' }
-  if (hash === '#/sessions') return { name: 'sessions' }
+  if (hash === '#/sessions') return { name: 'history' }
   if (hash === '#/settings') return { name: 'settings' }
   if (hash === '#/training') return { name: 'training', week: null }
   const week = /^#\/(?:training|week)\/(\d{4}-\d{2}-\d{2})$/.exec(hash)
@@ -47,7 +48,6 @@ const BACK_LABELS: Partial<Record<Route['name'], string>> = {
   training: 'Training',
   history: 'History',
   exercises: 'Exercise history',
-  sessions: 'All sessions',
 }
 
 // The last screen that is not a workout: where a workout's Back link returns to.

@@ -403,8 +403,8 @@ function RecentTraining({ sessions }: { sessions: RecentSession[] }) {
         )}
       </a>
       <ul className="num flex flex-col text-[13px] leading-[18px]">
-        {latest.exercises.slice(0, 3).map((group) => (
-          <li key={group.exercise.id} className="flex items-baseline justify-between gap-3 border-t border-border/80 py-1.5">
+        {latest.exercises.slice(0, 3).map((group, index) => (
+          <li key={`${index}:${group.exercise.id}`} className="flex items-baseline justify-between gap-3 border-t border-border/80 py-1.5">
             <a href={historyHref(group.exercise.id)} className="min-w-0 truncate text-muted-foreground hover:text-emerald-700">
               {exerciseLabel(group.exercise)}
             </a>

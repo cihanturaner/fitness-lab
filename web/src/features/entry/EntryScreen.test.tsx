@@ -5,8 +5,10 @@ import type { Entry, PerformedSet } from '@/api/types'
 import { BENCH, CURL, INCLINE, entryFixture, fakeApi, type Call } from '@/test/fakeApi'
 import { EntryScreen } from './EntryScreen'
 
+/** A set as the entry serves it: bench sets are in slot 1 (the server resolves slot_id). */
 function performed(order: number, overrides: Partial<PerformedSet> = {}): PerformedSet {
   return {
+    slot_id: (overrides.exercise_id ?? 'bench') === 'bench' ? 'slot-1' : null,
     id: `set-${order}`,
     workout_id: 'w1',
     exercise_id: 'bench',
@@ -96,6 +98,7 @@ describe('EntryScreen — one compact block per exercise', () => {
     await waitFor(() =>
       expect(posts(server.calls)[0]?.body).toEqual({
         exercise_id: 'bench',
+        slot_id: 'slot-1',
         set_type: 'working',
         load_lb: '82.5',
         reps: 6,
@@ -122,6 +125,7 @@ describe('EntryScreen — one compact block per exercise', () => {
     await waitFor(() =>
       expect(posts(server.calls)[0]?.body).toEqual({
         exercise_id: 'bench',
+        slot_id: 'slot-1',
         set_type: 'working',
         load_lb: '85',
         reps: 5,
@@ -145,7 +149,7 @@ describe('EntryScreen — one compact block per exercise', () => {
     // Reps alone is a set: saved as a working set, with no load and no RIR.
     await user.type(within(block).getByRole('textbox', { name: 'Reps, new set 1' }), '6{Enter}')
     await waitFor(() =>
-      expect(posts(server.calls)[0]?.body).toEqual({ exercise_id: 'bench', set_type: 'working', load_lb: null, reps: 6, rir: null, notes: null }),
+      expect(posts(server.calls)[0]?.body).toEqual({ exercise_id: 'bench', slot_id: 'slot-1', set_type: 'working', load_lb: null, reps: 6, rir: null, notes: null }),
     )
   })
 
@@ -171,8 +175,8 @@ describe('EntryScreen — one compact block per exercise', () => {
     await user.keyboard('{Tab}7{Tab}1{Enter}')
     await waitFor(() => expect(within(block).getAllByTestId('set-row')).toHaveLength(2))
     expect(posts(server.calls).map((call) => call.body)).toEqual([
-      { exercise_id: 'bench', set_type: 'working', load_lb: '185', reps: 8, rir: 2, notes: null },
-      { exercise_id: 'bench', set_type: 'working', load_lb: '185', reps: 7, rir: 1, notes: null },
+      { exercise_id: 'bench', slot_id: 'slot-1', set_type: 'working', load_lb: '185', reps: 8, rir: 2, notes: null },
+      { exercise_id: 'bench', slot_id: 'slot-1', set_type: 'working', load_lb: '185', reps: 7, rir: 1, notes: null },
     ])
   })
 
@@ -345,7 +349,7 @@ describe('EntryScreen — one compact block per exercise', () => {
     render(<EntryScreen workoutId="w1" />)
     const block = await screen.findByTestId('slot-upper_a.01')
     await user.click(within(block).getByRole('button', { name: 'Change exercise, slot 1' }))
-    await user.type(within(block).getByRole('textbox', { name: 'Search exercises, slot 1' }), 'incl')
+    await user.type(within(block).getByRole('textbox', { name: 'Search or type an exercise, slot 1' }), 'incl')
     const matches = within(block).getByRole('list', { name: 'Matching exercises' })
     // The planned exercise and the current one are never offered as "other".
     expect(within(matches).queryByRole('button', { name: 'Smith Flat Bench Press' })).not.toBeInTheDocument()
@@ -353,6 +357,81 @@ describe('EntryScreen — one compact block per exercise', () => {
     await waitFor(() =>
       expect(server.calls.find((call) => call.method === 'PUT')?.body).toEqual({ exercise_id: 'incline' }),
     )
+  })
+
+  it('uses a new exercise typed by name, shown exactly as it will be saved', async () => {
+    const server = serve(entryFixture(), {
+      'PUT /api/workouts/w1/slots/slot-1/typed-exercise': () => ({ body: entryFixture() }),
+    })
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const block = await screen.findByTestId('slot-upper_a.01')
+    await user.click(within(block).getByRole('button', { name: 'Change exercise, slot 1' }))
+    const search = within(block).getByRole('textbox', { name: 'Search or type an exercise, slot 1' })
+    await user.type(search, '  triceps   curl')
+    expect(within(block).queryByRole('list', { name: 'Matching exercises' })).not.toBeInTheDocument()
+    const use = within(block).getByRole('button', { name: 'Use “Triceps Curl” for this workout' })
+    expect(within(block).getByText(/the plan keeps Smith Flat Bench Press/)).toBeInTheDocument()
+    await user.click(use)
+    await waitFor(() =>
+      expect(server.calls.find((call) => call.method === 'PUT')).toMatchObject({
+        url: '/api/workouts/w1/slots/slot-1/typed-exercise',
+        body: { name: 'Triceps Curl' },
+      }),
+    )
+  })
+
+  it('offers no new exercise when the typed name already exists in another case or spacing', async () => {
+    const server = serve(entryFixture(), {
+      'PUT /api/workouts/w1/slots/slot-1/exercise': () => ({ body: entryFixture() }),
+    })
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const block = await screen.findByTestId('slot-upper_a.01')
+    await user.click(within(block).getByRole('button', { name: 'Change exercise, slot 1' }))
+    await user.type(within(block).getByRole('textbox', { name: 'Search or type an exercise, slot 1' }), 'INCLINE  smith press{Enter}')
+    expect(within(block).queryByTestId('use-typed-exercise')).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(server.calls.find((call) => call.method === 'PUT')?.body).toEqual({ exercise_id: 'incline' }),
+    )
+  })
+
+  it('keeps two slots changed to the same exercise apart: own rows, own count, own saves', async () => {
+    const base = entryFixture()
+    const first = base.slots[0]
+    if (!first) throw new Error('fixture')
+    const curl = { ...CURL, id: 'curl' }
+    const fixture = entryFixture({
+      slots: [
+        { ...first, substitute_exercise_id: 'curl', effective_exercise_id: 'curl' },
+        { ...first, id: 'slot-2', slot_key: 'upper_a.02', position: 2, exercise_id: 'incline', substitute_exercise_id: 'curl', effective_exercise_id: 'curl' },
+      ],
+      exercises: { bench: BENCH, incline: INCLINE, curl },
+      last_performance: { curl: null, bench: null, incline: null },
+      sets: [
+        performed(1, { exercise_id: 'curl', slot_id: 'slot-1', load_lb: '40' }),
+        performed(2, { exercise_id: 'curl', slot_id: 'slot-2', load_lb: '25' }),
+        performed(3, { exercise_id: 'curl', slot_id: 'slot-2', load_lb: '25' }),
+      ],
+    })
+    const server = serve(fixture, {
+      'POST /api/workouts/w1/sets': () => ({ status: 201, body: performed(4, { exercise_id: 'curl', slot_id: 'slot-1' }) }),
+    })
+    const user = userEvent.setup()
+    render(<EntryScreen workoutId="w1" />)
+    const one = await screen.findByTestId('slot-upper_a.01')
+    const two = screen.getByTestId('slot-upper_a.02')
+    expect(screen.queryByText(/recorded under exercise/)).not.toBeInTheDocument()
+    expect(within(one).getAllByTestId('set-row')).toHaveLength(1)
+    expect(within(two).getAllByTestId('set-row')).toHaveLength(2)
+    expect(within(one).getByTitle('Working sets saved of planned')).toHaveTextContent('1/2')
+    expect(within(two).getByTitle('Working sets saved of planned')).toHaveTextContent('2/2')
+    expect(within(two).getByTestId('planned-exercise')).toHaveTextContent('Planned: Incline Smith Press')
+
+    // Slot 1 still has a planned set to go; its row saves into slot 1, not slot 2.
+    expect(within(two).queryAllByTestId('new-set-row')).toHaveLength(0)
+    await user.type(within(one).getByRole('textbox', { name: 'Reps, new set 2' }), '12{Enter}')
+    await waitFor(() => expect(posts(server.calls)[0]?.body).toMatchObject({ exercise_id: 'curl', slot_id: 'slot-1' }))
   })
 
   it('shows the planned exercise beside a changed one and can go back to it', async () => {

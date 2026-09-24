@@ -5,32 +5,22 @@ import type { Exercise, ExerciseHistory, Exposure, HistoryExercise, PerformedSet
 import { TrendChart } from '@/components/chart/TrendChart'
 import { EmptyState, LoadError, PageHeader, Skeleton } from '@/components/app/primitives'
 import { compactSet, exerciseLabel, formatShortDate } from '@/lib/format'
-import { EXERCISES_HREF, historyHref, workoutHref } from '@/lib/route'
+import { historyHref, workoutHref } from '@/lib/route'
 
 function message(error: unknown): string {
   return error instanceof ApiError || error instanceof Error ? error.message : String(error)
 }
 
-type HistoryView = 'days' | 'exercises' | 'sessions'
-
-export function HistoryTabs({ current }: { current: HistoryView }) {
-  const tab = (name: HistoryView, href: string, label: string) => (
-    <a
-      href={href}
-      aria-current={current === name ? 'page' : undefined}
-      className={`press rounded-[9px] px-3.5 py-1 text-[13px] font-semibold ${
-        current === name ? 'bg-card text-emerald-800 shadow-[var(--shadow-card)]' : 'text-muted-foreground hover:text-foreground'
-      }`}
-    >
-      {label}
-    </a>
-  )
+/** Exercise history is secondary to the day timeline: reached from it, and back to it. */
+function BackToDays() {
   return (
-    <nav aria-label="History views" className="flex gap-1 rounded-[12px] bg-emerald-900/5 p-1">
-      {tab('days', '#/history', 'Days')}
-      {tab('exercises', EXERCISES_HREF, 'Exercises')}
-      {tab('sessions', '#/sessions', 'Sessions')}
-    </nav>
+    <a
+      href="#/history"
+      data-testid="day-history-link"
+      className="font-medium text-emerald-700 underline-offset-4 hover:text-emerald-800 hover:underline"
+    >
+      ← Day by day
+    </a>
   )
 }
 
@@ -235,7 +225,8 @@ function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
                   const before = previousIndex(index)
                   return (
                     <tr
-                      key={exposure.workout_id}
+                      // Two slots of one workout performed as this exercise are two rows.
+                      key={`${exposure.workout_id}:${exposure.slot_id ?? 'extra'}`}
                       data-testid="history-exposure"
                       className="border-b border-border transition-colors duration-150 last:border-b-0 hover:bg-emerald-50/50"
                     >
@@ -394,11 +385,7 @@ export function HistoryScreen({ exerciseId }: { exerciseId: string | null }) {
     }
   }, [])
 
-  const header = (
-    <PageHeader title="Exercise history">
-      <HistoryTabs current="exercises" />
-    </PageHeader>
-  )
+  const header = <PageHeader title="Exercise history" meta={<BackToDays />} />
 
   if (!list) {
     return (

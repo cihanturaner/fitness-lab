@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { DateField, LoadError, PageHeader, Skeleton } from '@/components/app/primitives'
 import { addDays, formatRange, formatShortDate, localDate, mondayOf } from '@/lib/format'
 import { ProgramRules } from './ProgramRules'
-import { hasTurkishRules } from './programNotes'
+import { hasTurkishRules, turkishProgramName } from './programNotes'
 
 function message(error: unknown): string {
   return error instanceof ApiError || error instanceof Error ? error.message : String(error)
@@ -21,9 +21,19 @@ const BACKUP_KIND: Record<Backup['kind'], string> = {
   other: 'Snapshot',
 }
 
-function Section({ title, children, aside }: { title: string; children: React.ReactNode; aside?: React.ReactNode }) {
+function Section({
+  title,
+  children,
+  aside,
+  lang,
+}: {
+  title: string
+  children: React.ReactNode
+  aside?: React.ReactNode
+  lang?: string
+}) {
   return (
-    <section aria-label={title} className="surface grid gap-5 p-7 lg:grid-cols-[18rem_minmax(0,1fr)]">
+    <section aria-label={title} lang={lang} className="surface grid gap-5 p-7 lg:grid-cols-[18rem_minmax(0,1fr)]">
       <div className="flex flex-col gap-1">
         <h2 className="t-section">{title}</h2>
         {aside && <div className="t-micro">{aside}</div>}
@@ -207,6 +217,77 @@ function Backups({ backups, onSaved }: { backups: Backup[]; onSaved: () => Promi
   )
 }
 
+/** "24 Eylül 2026": a date in Turkish, for the Turkish Program area. */
+function turkishDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split('-').map(Number)
+  return new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }).format(
+    new Date(year ?? 0, (month ?? 1) - 1, day ?? 1),
+  )
+}
+
+/**
+ * The program in force and its rules. For the locked program — whose notes the Turkish text
+ * was translated from — the whole area is Turkish; exercise names, RIR, P1/P2/P7′, the e1RM
+ * formula, numbers and source codes stay verbatim. Any other program is shown as imported.
+ */
+function ProgramSection({ program }: { program: ActiveProgram }) {
+  const version = program.version
+  if (!version) {
+    return (
+      <Section title="Program" aside="Importing and switching programs stays a command-line task.">
+        <p className="t-meta">No program is active.</p>
+      </Section>
+    )
+  }
+  const activated = program.activated_at_utc ? program.activated_at_utc.slice(0, 10) : null
+  if (hasTurkishRules(program.notes_sha256) && program.notes_text) {
+    return (
+      <Section lang="tr" title="Program" aside="Program içe aktarma ve program değiştirme komut satırından yapılır.">
+        <dl data-testid="program-facts" className="grid grid-cols-[10rem_minmax(0,1fr)] gap-y-2 text-[14px]">
+          <dt className="text-muted-foreground">Program</dt>
+          <dd className="font-medium" title={version.name}>
+            {turkishProgramName()}
+          </dd>
+          <dt className="text-muted-foreground">Sürüm</dt>
+          <dd className="num">{version.version_label ?? '—'}</dd>
+          <dt className="text-muted-foreground">Aktifleşme tarihi</dt>
+          <dd className="num">{activated ? turkishDate(activated) : '—'}</dd>
+        </dl>
+        <div className="flex flex-col gap-2">
+          <h3 className="text-[13px] font-medium">Program Kuralları</h3>
+          <p className="t-micro">
+            Kilitli programdan. İlerleme, hafifletme haftası, kalibrasyon ve 12. hafta kıyaslaması kararlarınız için yol
+            göstericidir; uygulama bunları kendisi uygulamaz.
+          </p>
+          <ProgramRules notes={program.notes_text} notesSha256={program.notes_sha256} />
+        </div>
+      </Section>
+    )
+  }
+  return (
+    <Section title="Program" aside="Importing and switching programs stays a command-line task.">
+      <dl className="grid grid-cols-[10rem_minmax(0,1fr)] gap-y-2 text-[14px]">
+        <dt className="text-muted-foreground">Program</dt>
+        <dd className="font-medium">{version.name}</dd>
+        <dt className="text-muted-foreground">Version</dt>
+        <dd className="num">{version.version_label ?? '—'}</dd>
+        <dt className="text-muted-foreground">Active since</dt>
+        <dd className="num">{activated ? formatShortDate(activated) : '—'}</dd>
+      </dl>
+      {program.notes_text && (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-[13px] font-medium">Program rules</h3>
+          <p className="t-micro">
+            From the locked program. Progression, deload, calibration and the week-12 benchmark are guidance for your
+            decisions; the app does not apply them.
+          </p>
+          <ProgramRules notes={program.notes_text} notesSha256={program.notes_sha256} />
+        </div>
+      )}
+    </Section>
+  )
+}
+
 /** Routine settings: the block start, the program in force and its rules, backups. */
 export function SettingsScreen() {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
@@ -231,56 +312,21 @@ export function SettingsScreen() {
   if (!loaded) {
     return error ? <LoadError what="settings" detail={error} /> : <Skeleton label="Loading settings…" blocks={['h-8 w-60', 'h-40', 'h-40']} />
   }
-  const version = loaded.program.version
   return (
     <div className="enter flex flex-col gap-5">
       <PageHeader title="Settings" meta="Everything here stays on this machine." />
       <BlockSettings loaded={loaded} onSaved={load} />
-      <Section title="Calorie target" aside="Recorded on the Nutrition screen, where every target and its reason stay listed.">
+      <Section title="Macro targets" aside="Kept on the Nutrition screen, where every target and its reason stay listed.">
         <p className="t-meta">
-          The app never sets or changes calories on its own. Record a target, or apply a weekly review recommendation, on{' '}
+          Protein, carbs and fat in grams; the calorie target follows from them. The app never sets or changes a target on
+          its own. Edit your targets, or apply a weekly review recommendation, on{' '}
           <a href="#/nutrition" className="font-medium text-foreground underline">
             Nutrition
           </a>
           .
         </p>
       </Section>
-      <Section title="Program" aside="Importing and switching programs stays a command-line task.">
-        {version ? (
-          <>
-            <dl className="grid grid-cols-[10rem_minmax(0,1fr)] gap-y-2 text-[14px]">
-              <dt className="text-muted-foreground">Program</dt>
-              <dd className="font-medium">{version.name}</dd>
-              <dt className="text-muted-foreground">Version</dt>
-              <dd className="num">{version.version_label ?? '—'}</dd>
-              <dt className="text-muted-foreground">Active since</dt>
-              <dd className="num">{loaded.program.activated_at_utc ? formatShortDate(loaded.program.activated_at_utc.slice(0, 10)) : '—'}</dd>
-            </dl>
-            {loaded.program.notes_text &&
-              (hasTurkishRules(loaded.program.notes_sha256) ? (
-                <div lang="tr" className="flex flex-col gap-2">
-                  <h3 className="text-[13px] font-medium">Program Kuralları</h3>
-                  <p className="t-micro">
-                    Kilitli programdan. İlerleme, deload, kalibrasyon ve 12. hafta kıyaslaması kararlarınız için yol
-                    göstericidir; uygulama bunları kendisi uygulamaz.
-                  </p>
-                  <ProgramRules notes={loaded.program.notes_text} notesSha256={loaded.program.notes_sha256} />
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <h3 className="text-[13px] font-medium">Program rules</h3>
-                  <p className="t-micro">
-                    From the locked program. Progression, deload, calibration and the week-12 benchmark are guidance for your
-                    decisions; the app does not apply them.
-                  </p>
-                  <ProgramRules notes={loaded.program.notes_text} notesSha256={loaded.program.notes_sha256} />
-                </div>
-              ))}
-          </>
-        ) : (
-          <p className="t-meta">No program is active.</p>
-        )}
-      </Section>
+      <ProgramSection program={loaded.program} />
       <Backups backups={loaded.backups} onSaved={load} />
     </div>
   )

@@ -1,3 +1,5 @@
+import turkishNotes from './program-notes.tr.md?raw'
+
 /**
  * The program notes (generated from the locked artifact) as readable sections. The notes are
  * Markdown whose sections hold the source's rules as JSON blocks; they are shown as labelled
@@ -59,4 +61,10 @@ export const TURKISH_SOURCE_SHA256 = '2080af04d4402b93f81b4bc484d141f81f134752c8
 /** True when the Turkish translation belongs to exactly these notes. */
 export function hasTurkishRules(notesSha256: string | null): boolean {
   return notesSha256 === TURKISH_SOURCE_SHA256
+}
+
+/** The locked program's name in Turkish: the title of the Turkish notes. */
+export function turkishProgramName(): string {
+  const title = turkishNotes.split('\n').find((line) => line.startsWith('# '))
+  return title ? title.slice(2).trim() : ''
 }

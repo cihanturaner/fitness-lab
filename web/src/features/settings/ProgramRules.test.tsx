@@ -18,9 +18,9 @@ const HEADINGS = [
   'İlerleme Kuralları',
   'Plato / İlerleme Durması',
   'Kalibrasyon',
-  'Hafta 1–11',
-  'Deload (P1)',
-  'Hafta 12 (P2)',
+  '1–11. Haftalar',
+  'Hafifletme Haftası (P1)',
+  '12. Hafta (P2)',
   'Isınma',
   'Haftalık Hacim',
   'Egzersiz Değişim Matrisi',
@@ -58,7 +58,7 @@ describe('Program rules in Turkish', () => {
     const text = screen.getByTestId('program-rules').textContent ?? ''
     // The only snake_case left is the source file's own name.
     expect(text.replace('locked_workout_program.json', '')).not.toMatch(/\b[a-z]+_[a-z_]+\b/)
-    expect(text).not.toMatch(/\b(yes|no|Duration days|Weekly schedule|work sets|rest)\b/)
+    expect(text).not.toMatch(/\b(yes|no|Duration days|Weekly schedule|work sets|rest|Deload|deload|Taper|Week|if unavailable)\b/)
     expect(text).toContain('evet')
     expect(text).toContain('hayır')
   })
@@ -92,9 +92,14 @@ describe('Program rules in Turkish', () => {
   it('never translates an exercise name', () => {
     const english = jsonOf(sections(SOURCE)[11] ?? '') as Record<string, unknown>
     const turkish = jsonOf(sections(TURKISH)[11] ?? '') as Record<string, unknown>
-    const exercises = (value: Record<string, unknown>) =>
-      Object.entries(value).filter(([, item]) => Array.isArray(item))
-    expect(exercises(turkish)).toEqual(exercises(english))
+    // Exercise names are verbatim; only a source condition beside one is prose, and translated.
+    const CONDITION = [' if unavailable/intolerant', ' (mevcut değilse veya tolere edilemiyorsa)']
+    const exercises = (value: Record<string, unknown>, condition: string) =>
+      Object.entries(value)
+        .filter(([, item]) => Array.isArray(item))
+        .map(([key, item]) => [key, (item as string[]).map((name) => name.replace(condition, ''))])
+    expect(exercises(turkish, CONDITION[1] as string)).toEqual(exercises(english, CONDITION[0] as string))
+    expect(sections(TURKISH)[11]).toContain('"Lying Leg Curl (mevcut değilse veya tolere edilemiyorsa)"')
     for (const marker of ['Smith Flat Bench Press', 'Smith High-Bar Squat', 'Neutral-Grip Lat Pulldown']) {
       expect(sections(TURKISH)[8]).toContain(`"Egzersiz": "${marker}"`)
     }

@@ -31,6 +31,7 @@ const HISTORY: ExerciseHistory = {
       performed_time_local: null,
       planned_workout_name: 'Upper A',
       replaced: null,
+      slot_id: null,
       block_week: 1,
       phase: 'block',
       sets: [set('a', '40', 8, null, 'warmup'), set('b', '82.5', 6, 2), set('c', '82.5', 6, 2), set('d', '82.5', 5, 1)],
@@ -41,6 +42,7 @@ const HISTORY: ExerciseHistory = {
       performed_time_local: null,
       planned_workout_name: 'Upper A',
       replaced: null,
+      slot_id: null,
       block_week: 2,
       phase: 'block',
       sets: [set('e', '85', 6, 2), set('f', '85', 5, 1), set('g', '85', 5, 1)],
@@ -78,9 +80,9 @@ describe('HistoryScreen', () => {
     expect(within(first).getByTestId('history-week')).toHaveTextContent('1')
     expect(within(second).getByTestId('history-week')).toHaveTextContent('2')
     expect(screen.getByRole('img', { name: 'Top recorded load per session' })).toBeInTheDocument()
-    // It is the secondary view: the day timeline is History's default.
-    expect(screen.getByRole('link', { name: 'Days' })).toHaveAttribute('href', '#/history')
-    expect(screen.getByRole('link', { name: 'Exercises' })).toHaveAttribute('aria-current', 'page')
+    // It is the secondary view: the day timeline is History's default, one link back.
+    expect(screen.getByRole('link', { name: '← Day by day' })).toHaveAttribute('href', '#/history')
+    expect(screen.queryByRole('link', { name: 'Sessions' })).not.toBeInTheDocument()
   })
 
   it('names the planned exercise a substitute was performed in place of', async () => {
@@ -103,6 +105,7 @@ describe('HistoryScreen', () => {
       performed_time_local: null,
       planned_workout_name: session,
       replaced: null,
+      slot_id: null,
       block_week: week,
       phase,
       sets: [set(`${id}-1`, load, 8, 2)],

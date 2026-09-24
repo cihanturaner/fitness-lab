@@ -4,7 +4,7 @@ import type { PerformedSet, PlannedSet, SetFields } from '@/api/types'
 import { compactSet, formatReps, formatRir } from '@/lib/format'
 import { markUnsaved, useUnsavedKey } from '@/lib/unsaved'
 import { CommitInput } from './fields'
-import { moveWithinExercise } from './model'
+import { moveWithinBlock } from './model'
 import { parseCount, parseLoad, pendingInputClass } from './parse'
 
 export interface SetActions {
@@ -44,8 +44,8 @@ function SavedRow({
 }) {
   const label = `set ${index + 1}`
   const [noteOpen, setNoteOpen] = useState(false)
-  const up = moveWithinExercise(allSets, performed.id, -1)
-  const down = moveWithinExercise(allSets, performed.id, 1)
+  const up = moveWithinBlock(allSets, performed.id, -1)
+  const down = moveWithinBlock(allSets, performed.id, 1)
   const commitCount = (field: 'reps' | 'rir', text: string) => {
     const parsed = parseCount(text, { allowNegative: field === 'rir' })
     return parsed.ok ? actions.patch(performed.id, { [field]: parsed.value }) : Promise.resolve(false)

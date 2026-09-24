@@ -34,6 +34,11 @@ export interface PerformedSet {
   notes: string | null
   entered_at_utc: string
   updated_at_utc: string
+  /**
+   * The planned slot of its workout this set belongs to (V3.3.1) — set on a workout's entry
+   * and on a created set; null for extra work and wherever a set is shown outside its workout.
+   */
+  slot_id?: string | null
 }
 
 export interface Origin {
@@ -334,6 +339,8 @@ export interface Exposure {
   planned_workout_name: string | null
   /** The planned exercise this one was performed in place of, in that workout. */
   replaced: Exercise | null
+  /** The planned slot it was performed in; two slots of one workout are two exposures. */
+  slot_id: string | null
   block_week: number | null
   phase: BlockPhase | null
   sets: PerformedSet[]
@@ -352,7 +359,8 @@ export interface RecentSession {
   planned_workout_name: string | null
   planned_work_sets: number | null
   actual_work_sets: number
-  exercises: { exercise: Exercise; sets: PerformedSet[] }[]
+  /** One entry per planned slot (or extra exercise), in the order trained. */
+  exercises: { exercise: Exercise; planned_exercise?: Exercise | null; sets: PerformedSet[] }[]
 }
 
 // --- V3: nutrition review, settings ---------------------------------------------------
@@ -484,6 +492,8 @@ export interface DayExercise {
   exercise: Exercise
   /** The planned exercise this one replaced in this workout, if it was changed. */
   planned_exercise: Exercise | null
+  /** The planned slot (null: extra work); two slots of one exercise stay two entries. */
+  slot_id: string | null
   sets: PerformedSet[]
 }
 

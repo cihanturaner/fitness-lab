@@ -4,7 +4,6 @@ import { BodyweightScreen } from '@/features/bodyweight/BodyweightScreen'
 import { EntryScreen } from '@/features/entry/EntryScreen'
 import { DayHistory } from '@/features/history/DayHistory'
 import { HistoryScreen } from '@/features/history/HistoryScreen'
-import { SessionsScreen } from '@/features/history/SessionsScreen'
 import { HomeScreen } from '@/features/home/HomeScreen'
 import { NutritionScreen } from '@/features/nutrition/NutritionScreen'
 import { SettingsScreen } from '@/features/settings/SettingsScreen'
@@ -110,7 +109,7 @@ const NAV: { label: string; href: string; routes: Route['name'][] }[] = [
   { label: 'Training', href: '#/training', routes: ['training', 'workout'] },
   { label: 'Bodyweight', href: '#/bodyweight', routes: ['bodyweight'] },
   { label: 'Nutrition', href: '#/nutrition', routes: ['nutrition'] },
-  { label: 'History', href: '#/history', routes: ['history', 'exercises', 'sessions'] },
+  { label: 'History', href: '#/history', routes: ['history', 'exercises'] },
   { label: 'Settings', href: '#/settings', routes: ['settings'] },
 ]
 
@@ -175,8 +174,6 @@ function Screen({ route }: { route: Route }) {
       return <DayHistory />
     case 'exercises':
       return <HistoryScreen exerciseId={route.exerciseId} />
-    case 'sessions':
-      return <SessionsScreen />
     case 'settings':
       return <SettingsScreen />
     case 'training':

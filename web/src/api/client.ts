@@ -109,7 +109,7 @@ export const api = {
   complete: (workoutId: string) =>
     request<CompleteResult>('POST', `/api/workouts/${workoutId}/complete`),
   reopen: (workoutId: string) => request<Workout>('POST', `/api/workouts/${workoutId}/reopen`),
-  addSet: (workoutId: string, fields: SetFields & { exercise_id: string }) =>
+  addSet: (workoutId: string, fields: SetFields & { exercise_id: string; slot_id?: string | null }) =>
     request<PerformedSet>('POST', `/api/workouts/${workoutId}/sets`, fields),
   patchSet: (setId: string, fields: SetFields) =>
     request<PerformedSet>('PATCH', `/api/sets/${setId}`, fields),
@@ -122,6 +122,9 @@ export const api = {
     }),
   useApprovedSubstitute: (workoutId: string, slotId: string, name: string) =>
     request<Entry>('PUT', `/api/workouts/${workoutId}/slots/${slotId}/approved-substitute`, { name }),
+  /** A typed exercise name: found (case/space-insensitive) or created, for this workout only. */
+  useTypedExercise: (workoutId: string, slotId: string, name: string) =>
+    request<Entry>('PUT', `/api/workouts/${workoutId}/slots/${slotId}/typed-exercise`, { name }),
   exercises: () => request<Exercise[]>('GET', '/api/exercises?include_inactive=true'),
   createExercise: (name: string, equipmentLabel: string | null) =>
     request<Exercise>('POST', '/api/exercises', { name, equipment_label: equipmentLabel }),

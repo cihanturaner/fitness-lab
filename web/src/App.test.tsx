@@ -106,9 +106,11 @@ describe('app shell', () => {
     await user.click(within(nav).getByRole('link', { name: 'History' }))
     expect(await screen.findByRole('heading', { name: 'History', level: 1 })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'History' })).toHaveAttribute('aria-current', 'page')
-    // History opens on the day timeline; exercise history is one tab away and stays under History.
+    // History opens on the day timeline; exercise history is one secondary link away and stays
+    // under History. There is no Sessions view.
     expect(await screen.findByText('Nothing recorded yet.')).toBeInTheDocument()
-    await user.click(screen.getByRole('link', { name: 'Exercises' }))
+    expect(screen.queryByRole('link', { name: 'Sessions' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('link', { name: 'Exercise history →' }))
     expect(await screen.findByRole('heading', { name: 'Exercise history', level: 1 })).toBeInTheDocument()
     expect(window.location.hash).toBe('#/history/exercises')
     expect(within(nav).getByRole('link', { name: 'History' })).toHaveAttribute('aria-current', 'page')

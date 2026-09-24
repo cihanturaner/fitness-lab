@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Check, Info } from 'lucide-react'
 import type { ApprovedSubstitute, Exercise, LastPerformance, PerformedSet, PlannedSet } from '@/api/types'
 import { compactSet, exerciseLabel, formatShortDate, targetSummary } from '@/lib/format'
+import { nameKey, typedExerciseName } from '@/lib/exerciseNames'
 import { SetGrid, type SetActions } from './SetGrid'
 
 function LastLine({ performance }: { performance: LastPerformance | null | undefined }) {
@@ -43,13 +44,16 @@ export interface ChangeActions {
   toExercise: (exerciseId: string) => Promise<boolean>
   /** One of the slot's approved substitutes, by its source name. */
   toApproved: (name: string) => Promise<boolean>
+  /** A typed name: the existing exercise of that name, or a new one (the server decides). */
+  toTyped: (name: string) => Promise<boolean>
 }
 
 const MAX_MATCHES = 8
 
 /**
- * Change the exercise of one slot for this workout only. The plan, next week and every
- * later occurrence keep the planned exercise; History shows both.
+ * Change the exercise of one slot for this workout only: an approved substitute, any existing
+ * exercise, or a new one typed by name. The plan, next week and every later occurrence keep
+ * the planned exercise; History shows both.
  */
 function ChangePanel({
   slot,
@@ -79,6 +83,14 @@ function ChangePanel({
           .filter((item) => item.is_active && item.id !== current?.id && item.id !== slot.plannedExerciseId && !approvedIds.has(item.id))
           .filter((item) => words.every((word) => exerciseLabel(item).toLowerCase().includes(word)))
           .slice(0, MAX_MATCHES)
+  // A typed name that is no exercise yet can be used as a new one. The same name in any case
+  // or spacing is the existing exercise (listed above, or already this slot's), never a copy.
+  const typed = typedExerciseName(query)
+  const key = typed === null ? null : nameKey(typed)
+  const sameName = key === null ? undefined : exercises.find((item) => item.equipment_label === null && nameKey(item.name) === key)
+  const approvedName = key !== null && slot.approved.some((item) => nameKey(item.name) === key)
+  const offerNew = typed !== null && sameName === undefined && !approvedName
+  const retired = sameName !== undefined && !sameName.is_active
   const pick = (task: () => Promise<boolean>) => {
     setBusy(true)
     void task().then((ok) => {
@@ -99,7 +111,7 @@ function ChangePanel({
       </div>
       {savedHere > 0 && (
         <p className="text-warn">
-          {savedHere} saved {savedHere === 1 ? 'set stays' : 'sets stay'} recorded as {exerciseLabel(current)}.
+          {savedHere} saved {savedHere === 1 ? 'set stays' : 'sets stay'} recorded as {exerciseLabel(current)}, as extra work.
         </p>
       )}
       {slot.approved.length > 0 && (
@@ -131,27 +143,49 @@ function ChangePanel({
         </label>
         <input
           id={`change-search-${slot.id}`}
-          aria-label={`Search exercises, slot ${slot.position}`}
-          placeholder="Type to search existing exercises"
+          aria-label={`Search or type an exercise, slot ${slot.position}`}
+          placeholder="Search, or type a new exercise"
           autoComplete="off"
           className="h-9 rounded-[10px] border border-border-strong bg-card px-2.5 text-[14px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/15"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || busy) return
+            event.preventDefault()
+            const only = matches.length === 1 ? matches[0] : undefined
+            if (offerNew && typed !== null) pick(() => change.toTyped(typed))
+            else if (only) pick(() => change.toExercise(only.id))
+          }}
         />
-        {words.length > 0 &&
-          (matches.length === 0 ? (
-            <p className="text-muted-foreground">No existing exercise matches “{query.trim()}”.</p>
-          ) : (
-            <ul aria-label="Matching exercises" className="flex flex-wrap gap-1.5">
-              {matches.map((item) => (
-                <li key={item.id}>
-                  <button type="button" disabled={busy} className={option} onClick={() => pick(() => change.toExercise(item.id))}>
-                    {exerciseLabel(item)}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ))}
+        {matches.length > 0 && (
+          <ul aria-label="Matching exercises" className="flex flex-wrap gap-1.5">
+            {matches.map((item) => (
+              <li key={item.id}>
+                <button type="button" disabled={busy} className={option} onClick={() => pick(() => change.toExercise(item.id))}>
+                  {exerciseLabel(item)}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {words.length > 0 && matches.length === 0 && !offerNew && !retired && (
+          <p className="text-muted-foreground">No other exercise matches “{query.trim()}”.</p>
+        )}
+        {retired && sameName && (
+          <p className="text-muted-foreground">“{sameName.name}” is retired; it is not used again. Type another name.</p>
+        )}
+        {offerNew && typed !== null && (
+          <button
+            type="button"
+            disabled={busy}
+            data-testid="use-typed-exercise"
+            className="press self-start rounded-lg bg-gradient-to-b from-emerald-600 to-emerald-700 px-3 py-1.5 text-left text-[13px] font-semibold text-white shadow-[0_4px_10px_-4px_rgb(27_104_79/0.6)] hover:from-emerald-700 hover:to-emerald-800 disabled:opacity-50"
+            onClick={() => pick(() => change.toTyped(typed))}
+          >
+            Use “{typed}” for this workout
+          </button>
+        )}
+        {offerNew && <p className="t-micro">A new exercise, saved once; this workout only — the plan keeps {exerciseLabel(planned)}.</p>}
       </div>
       <div className="flex items-center gap-3">
         {slot.substituted && (
@@ -186,7 +220,6 @@ export function ExerciseBlock({
   performance,
   sets,
   allSets,
-  sharedWith,
   locked,
   actions,
   exercises,
@@ -200,7 +233,6 @@ export function ExerciseBlock({
   performance: LastPerformance | null | undefined
   sets: PerformedSet[]
   allSets: PerformedSet[]
-  sharedWith: number | null
   locked: boolean
   actions: SetActions
   exercises?: Exercise[]
@@ -241,7 +273,7 @@ export function ExerciseBlock({
           )}
           {!slot && <p className="text-[12px] text-muted-foreground">Extra exercise</p>}
         </div>
-        {planned > 0 && sharedWith === null && (
+        {planned > 0 && (
           <span
             className={`num mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-semibold transition-colors duration-300 ${
               met ? 'bg-emerald-100 text-emerald-800' : 'bg-sunken text-muted-foreground'
@@ -308,19 +340,15 @@ export function ExerciseBlock({
       )}
 
       <div className="pt-1">
-        {sharedWith !== null ? (
-          <p className="pl-10 text-[13px] text-muted-foreground">Sets are recorded under exercise {sharedWith} above.</p>
-        ) : (
-          <SetGrid
-            exerciseId={exerciseId}
-            exerciseName={name}
-            sets={sets}
-            allSets={allSets}
-            planned={plannedSets}
-            locked={locked}
-            actions={actions}
-          />
-        )}
+        <SetGrid
+          exerciseId={exerciseId}
+          exerciseName={name}
+          sets={sets}
+          allSets={allSets}
+          planned={plannedSets}
+          locked={locked}
+          actions={actions}
+        />
       </div>
     </article>
   )

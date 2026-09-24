@@ -5,8 +5,7 @@ import type { DayWorkout, HistoryDay, HistoryKind, PerformedSet } from '@/api/ty
 import { EmptyState, LoadError, PageHeader, Skeleton } from '@/components/app/primitives'
 import { Button } from '@/components/ui/button'
 import { exerciseLabel } from '@/lib/format'
-import { historyHref, workoutHref } from '@/lib/route'
-import { HistoryTabs } from './HistoryScreen'
+import { EXERCISES_HREF, historyHref, workoutHref } from '@/lib/route'
 
 function message(error: unknown): string {
   return error instanceof ApiError || error instanceof Error ? error.message : String(error)
@@ -58,16 +57,25 @@ function WorkoutBlock({ workout }: { workout: DayWorkout }) {
         </span>
       </div>
       <ul className="flex flex-col gap-2">
-        {workout.exercises.map((item) => (
-          <li key={item.exercise.id} data-testid="day-exercise" className="grid gap-x-4 gap-y-0.5 sm:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
+        {/* One line per planned slot (or extra exercise): two slots performed as the same
+            exercise stay two lines, each with its own planned exercise and sets. */}
+        {workout.exercises.map((item, index) => (
+          <li
+            key={`${item.slot_id ?? `extra-${index}`}:${item.exercise.id}`}
+            data-testid="day-exercise"
+            className="grid gap-x-4 gap-y-0.5 sm:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]"
+          >
             <span className="flex min-w-0 flex-col">
-              <a
-                href={historyHref(item.exercise.id)}
-                className="truncate text-[14px] font-medium hover:text-emerald-700 hover:underline"
-                title="Exercise history"
-              >
-                {exerciseLabel(item.exercise)}
-              </a>
+              <span className="flex min-w-0 items-baseline gap-1.5">
+                {item.planned_exercise && <span className="shrink-0 text-[12px] text-muted-foreground">Performed:{' '}</span>}
+                <a
+                  href={historyHref(item.exercise.id)}
+                  className="truncate text-[14px] font-medium hover:text-emerald-700 hover:underline"
+                  title="Exercise history"
+                >
+                  {exerciseLabel(item.exercise)}
+                </a>
+              </span>
               {item.planned_exercise && (
                 <span data-testid="day-planned" className="text-[12px] text-plan">
                   Planned: {exerciseLabel(item.planned_exercise)}
@@ -215,9 +223,16 @@ export function DayHistory() {
             ))}
           </div>
         }
-      >
-        <HistoryTabs current="days" />
-      </PageHeader>
+        meta={
+          <a
+            href={EXERCISES_HREF}
+            data-testid="exercise-history-link"
+            className="font-medium text-emerald-700 underline-offset-4 hover:text-emerald-800 hover:underline"
+          >
+            Exercise history →
+          </a>
+        }
+      />
       {days === null ? (
         error ? (
           <LoadError what="history" detail={error} onRetry={() => load(kind)} />

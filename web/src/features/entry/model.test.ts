@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Entry, EntrySlot, PerformedSet } from '@/api/types'
 import { formatReps, formatRir, localDate } from '@/lib/format'
-import { buildEntryView, moveWithinExercise } from './model'
+import { blockSets, buildEntryView, moveWithinBlock } from './model'
 
 function slot(position: number, exerciseId: string, substitute: string | null = null): EntrySlot {
   return {
@@ -17,8 +17,9 @@ function slot(position: number, exerciseId: string, substitute: string | null = 
   }
 }
 
-function performed(order: number, exerciseId: string): PerformedSet {
+function performed(order: number, exerciseId: string, slotId: string | null = null): PerformedSet {
   return {
+    slot_id: slotId,
     id: `set-${order}`,
     workout_id: 'w',
     exercise_id: exerciseId,
@@ -54,11 +55,16 @@ function entry(slots: EntrySlot[], sets: PerformedSet[]): Entry {
 }
 
 describe('buildEntryView', () => {
-  it('shows each slot its effective exercise and leaves the rest as extras', () => {
+  it('shows each slot exactly its own sets and leaves the rest as extras', () => {
     const view = buildEntryView(
       entry(
         [slot(1, 'bench'), slot(2, 'row', 'cable-row')],
-        [performed(1, 'bench'), performed(2, 'cable-row'), performed(3, 'curl'), performed(4, 'bench')],
+        [
+          performed(1, 'bench', 'slot-1'),
+          performed(2, 'cable-row', 'slot-2'),
+          performed(3, 'curl'),
+          performed(4, 'bench', 'slot-1'),
+        ],
       ),
       [],
     )
@@ -69,14 +75,20 @@ describe('buildEntryView', () => {
     expect(view.extras).toEqual([{ exerciseId: 'curl', sets: [performed(3, 'curl')] }])
   })
 
-  it('gives a repeated exercise to the first slot and points later slots at it', () => {
+  it('keeps two slots performed as the same exercise apart: never merged, never pointed elsewhere', () => {
     const view = buildEntryView(
-      entry([slot(1, 'bench'), slot(2, 'row'), slot(3, 'bench')], [performed(1, 'bench')]),
+      entry(
+        [slot(1, 'pressdown', 'triceps-curl'), slot(2, 'row'), slot(3, 'pec-deck', 'triceps-curl')],
+        [
+          performed(1, 'triceps-curl', 'slot-1'),
+          performed(2, 'triceps-curl', 'slot-3'),
+          performed(3, 'triceps-curl', 'slot-1'),
+        ],
+      ),
       [],
     )
-    expect(view.slots[0]?.sharedWith).toBeNull()
-    expect(view.slots[2]?.sharedWith).toBe(1)
-    expect(view.slots[2]?.sets).toEqual([])
+    expect(view.slots.map((s) => s.sets.map((p) => p.id))).toEqual([['set-1', 'set-3'], [], ['set-2']])
+    expect(view.extras).toEqual([])
   })
 
   it('keeps an extra exercise the lifter just picked, before any set exists', () => {
@@ -85,16 +97,23 @@ describe('buildEntryView', () => {
   })
 })
 
-describe('moveWithinExercise', () => {
-  const sets = [performed(1, 'bench'), performed(2, 'row'), performed(3, 'bench')]
+describe('moveWithinBlock', () => {
+  const sets = [performed(1, 'bench', 's1'), performed(2, 'row', 's2'), performed(3, 'bench', 's1')]
 
-  it('swaps a set with the previous set of the same exercise', () => {
-    expect(moveWithinExercise(sets, 'set-3', -1)).toEqual(['set-3', 'set-2', 'set-1'])
+  it('swaps a set with the previous set of the same block', () => {
+    expect(moveWithinBlock(sets, 'set-3', -1)).toEqual(['set-3', 'set-2', 'set-1'])
   })
 
   it('returns null when there is nothing to swap with', () => {
-    expect(moveWithinExercise(sets, 'set-1', -1)).toBeNull()
-    expect(moveWithinExercise(sets, 'set-3', 1)).toBeNull()
+    expect(moveWithinBlock(sets, 'set-1', -1)).toBeNull()
+    expect(moveWithinBlock(sets, 'set-3', 1)).toBeNull()
+  })
+
+  it('never swaps across two slots of the same exercise', () => {
+    const twin = [performed(1, 'curl', 'a'), performed(2, 'curl', 'b'), performed(3, 'curl', 'a')]
+    expect(moveWithinBlock(twin, 'set-3', -1)).toEqual(['set-3', 'set-2', 'set-1'])
+    expect(moveWithinBlock(twin, 'set-2', -1)).toBeNull()
+    expect(blockSets(twin, twin[1] as PerformedSet).map((p) => p.id)).toEqual(['set-2'])
   })
 })
 

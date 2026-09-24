@@ -113,22 +113,27 @@ function MacroMeter({
   )
 }
 
+/**
+ * Edit targets: protein, carbs and fat in grams; the calories follow (P×4 + C×4 + F×9) and are
+ * never typed. Effective from today unless another date is chosen; earlier days keep theirs.
+ */
 function TargetForm({
   today,
   current,
   defaults,
   exceptions,
   onSaved,
+  onClose,
 }: {
   today: string
-  /** The target in force now, or null before the first one. */
+  /** The target the form starts from (in force now, else the next one), or null for the first. */
   current: MacroTarget | null
   defaults: Nutrition['defaults']
-  /** Weeks 1-2 with a target already in force: only the source's exceptions justify a change. */
+  /** Weeks 1-2 with an established target: only the source's exceptions justify a change. */
   exceptions: string[] | null
   onSaved: () => Promise<void>
+  onClose: () => void
 }) {
-  const [open, setOpen] = useState(false)
   const initial = () => ({
     protein_g: String(current?.protein_g ?? defaults.protein_g),
     carbs_g: current ? String(current.carbs_g) : '',
@@ -151,22 +156,6 @@ function TargetForm({
   const startingCarbs =
     starting !== null && protein != null && fat != null ? Math.floor((starting - protein * 4 - fat * 9) / 4 + 0.5) : null
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        className="press self-start rounded-md bg-emerald-50 px-3.5 py-1.5 text-[13px] font-semibold text-emerald-800 shadow-[inset_0_0_0_1px_rgb(47_154_114/0.3)] hover:bg-emerald-100"
-        onClick={() => {
-          setGrams(initial())
-          setFrom(today)
-          setProblem(null)
-          setOpen(true)
-        }}
-      >
-        {current ? 'Change targets…' : 'Set targets…'}
-      </button>
-    )
-  }
   return (
     <form
       aria-label="Macro targets"
@@ -190,16 +179,21 @@ function TargetForm({
             notes: notes.trim() === '' ? null : notes.trim(),
           })
           .then(async () => {
-            setOpen(false)
             setNotes('')
             await onSaved()
+            onClose()
           })
           .catch((failure: unknown) => setProblem(`Not saved: ${message(failure)}`))
       }}
     >
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-[14px] font-semibold">{current ? 'Edit targets' : 'Set your targets'}</h3>
+        <span className="t-micro">Calories are always protein × 4 + carbs × 4 + fat × 9.</span>
+      </div>
       {exceptions && (
         <p className="text-warn">
-          Weeks 1–2: no routine bodyweight-driven changes. Record a change only for one of the source’s exceptions.
+          Weeks 1–2: no routine bodyweight-driven changes. Change an established target only for one of the source’s
+          exceptions.
         </p>
       )}
       {!current && (
@@ -257,7 +251,7 @@ function TargetForm({
           </label>
         ))}
         <label className="flex flex-col gap-0.5 text-muted-foreground">
-          From
+          Effective from
           <DateField aria-label="Targets effective from" className="w-[9.5rem]" value={from} onChange={(event) => setFrom(event.target.value)} />
         </label>
         {exceptions ? (
@@ -292,10 +286,12 @@ function TargetForm({
         <Button type="submit" className="h-9">
           Save targets
         </Button>
-        <Button variant="ghost" className="h-9" onPress={() => setOpen(false)}>
+        <Button variant="ghost" className="h-9" onPress={onClose}>
           Cancel
         </Button>
-        <span className="t-micro ml-auto">Effective from the date chosen; earlier days keep their targets.</span>
+        <span className="t-micro ml-auto">
+          {from === today ? 'From today' : `From ${formatShortDate(from)}`}; earlier days keep the targets they had.
+        </span>
       </div>
       {problem && (
         <p role="alert" className="text-destructive">
@@ -310,15 +306,12 @@ function TargetForm({
 function TargetHistory({ history }: { history: MacroTarget[] }) {
   if (history.length === 0) return null
   return (
-    <section aria-label="Target history" className="surface flex flex-col gap-3 p-6">
-      <div className="flex items-baseline justify-between">
-        <h2 className="t-section">Target history</h2>
-        <span className="t-micro">Never edited; each day is judged by the target in force on it.</span>
-      </div>
+    <section aria-label="Target history" className="flex animate-in flex-col gap-2 fade-in duration-200">
+      <span className="t-micro">Never edited; each day is judged by the target in force on it.</span>
       <table className="num w-full text-[14px]">
         <thead className="text-left text-[12px] text-muted-foreground">
           <tr className="border-b border-border-strong">
-            <th className="py-2 pr-4 font-medium">From</th>
+            <th className="py-2 pr-4 font-medium">Effective from</th>
             <th className="py-2 pr-4 text-right font-medium">Protein · g</th>
             <th className="py-2 pr-4 text-right font-medium">Carbs · g</th>
             <th className="py-2 pr-4 text-right font-medium">Fat · g</th>
@@ -354,6 +347,95 @@ function TargetHistory({ history }: { history: MacroTarget[] }) {
           })}
         </tbody>
       </table>
+    </section>
+  )
+}
+
+/** The target in force on `day` from a newest-first history (the server's order). */
+function targetOn(history: MacroTarget[], day: string): MacroTarget | null {
+  return history.find((item) => item.effective_on <= day) ?? null
+}
+
+/** "150P · 300C · 60F / 2340 kcal" */
+function targetText(target: MacroTarget): string {
+  return `${target.protein_g}P · ${target.carbs_g}C · ${target.fat_g}F / ${target.calories_kcal} kcal`
+}
+
+/**
+ * The macro target is a setting, not part of a day: one line with the target in force today,
+ * and "Edit targets". The history behind it stays (append-only, effective-dated) so every
+ * past day is judged by the target it had.
+ */
+function TargetSetting({
+  today,
+  history,
+  defaults,
+  exceptions,
+  onSaved,
+}: {
+  today: string
+  history: MacroTarget[]
+  defaults: Nutrition['defaults']
+  exceptions: string[] | null
+  onSaved: () => Promise<void>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const current = targetOn(history, today)
+  // The next change already recorded ahead of today (e.g. dated to the block start).
+  const upcoming = [...history].reverse().find((item) => item.effective_on > today) ?? null
+  return (
+    <section aria-label="Nutrition targets" className="surface flex flex-col gap-4 px-7 py-5">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <div className="flex flex-col gap-0.5">
+          <p data-testid="nut-target-line" className="text-[15px]">
+            <span className="text-muted-foreground">Current targets: </span>
+            {current ? (
+              <span className="num font-semibold tracking-[-0.01em]">{targetText(current)}</span>
+            ) : (
+              <span className="font-medium">none yet</span>
+            )}
+          </p>
+          <p className="t-micro">
+            {current
+              ? `Since ${formatShortDate(current.effective_on)}. Calories follow from the macros.`
+              : 'Record protein, carbs and fat; the calorie target follows from them.'}
+            {upcoming && (
+              <span data-testid="nut-target-upcoming" className="num">
+                {' '}From {formatShortDate(upcoming.effective_on)}: {targetText(upcoming)}.
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {history.length > 0 && (
+            <Button
+              variant="ghost"
+              className="h-9 text-muted-foreground"
+              aria-expanded={showHistory}
+              onPress={() => setShowHistory((open) => !open)}
+            >
+              History ({history.length})
+            </Button>
+          )}
+          {!editing && (
+            <Button variant="outline" className="h-9 px-4" onPress={() => setEditing(true)}>
+              {current || upcoming ? 'Edit targets' : 'Set targets'}
+            </Button>
+          )}
+        </div>
+      </div>
+      {editing && (
+        <TargetForm
+          today={today}
+          current={current ?? upcoming}
+          defaults={defaults}
+          exceptions={exceptions}
+          onSaved={onSaved}
+          onClose={() => setEditing(false)}
+        />
+      )}
+      {showHistory && <TargetHistory history={history} />}
     </section>
   )
 }
@@ -461,6 +543,11 @@ export function NutritionScreen() {
   const logged = data.day
   const hasTargets = data.target_history.length > 0
   const isToday = day === today
+  // The weeks 1–2 rule restrains changes to an ESTABLISHED target — one already in force
+  // before today. Setting up the first target (or correcting it the day it was set, or while
+  // it is only scheduled ahead) is not a change and never asks for an exception.
+  const established = data.target_history.some((item) => item.effective_on < today)
+  const exceptions = review?.review?.phase === 'early' && established ? review.week_1_2_exceptions : null
 
   // The live equation: what the typed macros make, exactly as the server will derive it.
   const typedValue = (key: FieldKey) => {
@@ -502,8 +589,19 @@ export function NutritionScreen() {
         }
       />
 
+      <TargetSetting
+        today={today}
+        history={data.target_history}
+        defaults={data.defaults}
+        exceptions={exceptions}
+        onSaved={async () => {
+          await load(day)
+          setReviewKey((key) => key + 1)
+        }}
+      />
+
       <div className="grid items-start gap-5 lg:grid-cols-12">
-        <section aria-label="Targets" className="surface flex flex-col gap-7 p-7 lg:col-span-7">
+        <section aria-label="Daily summary" className="surface flex flex-col gap-7 p-7 lg:col-span-7">
           <div className="flex items-baseline justify-between">
             <h2 className="t-section">Daily summary</h2>
             <span className="t-micro">{logged ? `Logged ${formatShortDate(logged.logged_on)}` : 'Nothing logged for this day'}</span>
@@ -562,33 +660,11 @@ export function NutritionScreen() {
           {logged && !logged.calories_complete && (
             <p className="t-micro -mt-3">Not every macro is recorded for this day, so its calories cover the recorded ones only.</p>
           )}
-          <div className="flex flex-col gap-3 border-t border-border pt-5">
-            <p className="t-meta" data-testid="nut-target-line">
-              {target ? (
-                <>
-                  Targets{' '}
-                  <span className="num font-semibold text-foreground">
-                    {target.protein_g} P · {target.carbs_g} C · {target.fat_g} F = {target.calories_kcal} kcal
-                  </span>{' '}
-                  since {formatShortDate(target.effective_on)}.
-                </>
-              ) : (
-                <>No targets yet. Record protein, carbs and fat; the calorie target follows from them.</>
-              )}
+          {!isToday && target && (
+            <p data-testid="nut-day-target" className="t-micro -mt-3">
+              Judged by the targets in force that day: {targetText(target)}.
             </p>
-            <TargetForm
-              today={today}
-              current={data.target_history[0] ?? null}
-              defaults={data.defaults}
-              exceptions={
-                review?.review?.phase === 'early' && review.review.current_target_kcal !== null ? review.week_1_2_exceptions : null
-              }
-              onSaved={async () => {
-                await load(day)
-                setReviewKey((key) => key + 1)
-              }}
-            />
-          </div>
+          )}
         </section>
 
         <form onSubmit={(event) => void save(event)} aria-label="Log the day" className="surface flex flex-col gap-5 p-7 lg:col-span-5">
@@ -781,7 +857,6 @@ export function NutritionScreen() {
           </table>
         )}
       </section>
-      <TargetHistory history={data.target_history} />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MacroTarget, NutritionReview, Review } from '@/api/types'
 import { NUTRITION, REVIEW, fakeApi } from '@/test/fakeApi'
 import { NutritionScreen } from './NutritionScreen'
@@ -60,7 +60,11 @@ describe('Weekly review', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+    // "Today" is the fixtures' day, Wed 7 Oct 2026: the 1 Oct target is established by then.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 7, 12, 0))
   })
+  afterEach(() => vi.useRealTimers())
 
   it('shows trend, status and recommendation, and changes nothing until the lifter chooses', async () => {
     const calls = serve(UNDER, {
@@ -187,7 +191,9 @@ describe('Weekly review', () => {
       }),
       'GET /api/nutrition/review': () => ({ body: REVIEW }),
     })
+    const user = userEvent.setup()
     render(<NutritionScreen />)
+    await user.click(await screen.findByRole('button', { name: 'History (2)' }))
     const history = await screen.findByRole('region', { name: 'Target history' })
     const rows = within(history).getAllByTestId('target-row')
     expect(rows[0]).toHaveTextContent('15033870' + '2582+152Week 3 review')
@@ -205,7 +211,7 @@ describe('Weekly review', () => {
     })
     const user = userEvent.setup()
     render(<NutritionScreen />)
-    await user.click(await screen.findByRole('button', { name: 'Set targets…' }))
+    await user.click(await screen.findByRole('button', { name: 'Set targets' }))
     await user.type(screen.getByRole('textbox', { name: 'Recent stable intake in kcal' }), '2500')
     expect(screen.getByTestId('starting-target')).toHaveTextContent('2650 kcal')
     // At the source's 145 g protein and 60 g fat: (2650 - 1120) / 4 = 382.5 -> 383 g.
@@ -223,7 +229,7 @@ describe('Weekly review', () => {
     const user = userEvent.setup()
     render(<NutritionScreen />)
     await screen.findByRole('region', { name: 'Weekly review' })
-    await user.click(screen.getByRole('button', { name: 'Change targets…' }))
+    await user.click(screen.getByRole('button', { name: 'Edit targets' }))
     // The form starts from the target in force.
     expect(screen.getByRole('textbox', { name: 'Carbs target g' })).toHaveValue('300')
     await user.clear(screen.getByRole('textbox', { name: 'Carbs target g' }))

@@ -1,4 +1,4 @@
-# 12 Haftalık İleri Seviye Natural Hipertrofi + Kuvvet Programı
+# 12 Haftalık İleri Seviye Doğal Hipertrofi + Kuvvet Programı
 
 - Kaynak dosya: `locked_workout_program.json`
 - Kaynak SHA-256: `81a7d4bca38bb4a581d146abfc4c6b83b239e281ea4896f37addcd6a76d7b24e`
@@ -90,7 +90,7 @@
 }
 ```
 
-## Hafta 1–11
+## 1–11. Haftalar
 
 ```json
 {
@@ -98,11 +98,11 @@
   "Otomatik RIR ilerlemesi": false,
   "Otomatik tükeniş artırımı": false,
   "Otomatik set artırımı": false,
-  "Takvime bağlı planlı deload": false
+  "Takvime bağlı planlı hafifletme haftası": false
 }
 ```
 
-## Deload (P1)
+## Hafifletme Haftası (P1)
 
 ```json
 {
@@ -123,7 +123,7 @@
     "ağrı veya akut hastalık",
     "büyük dış stres"
   ],
-  "Birincil etken bulunursa kural": "önce birincil etkeni düzelt; deload uyku veya enerji açığını düzeltmez",
+  "Birincil etken bulunursa kural": "önce birincil etkeni düzelt; hafifletme haftası uyku veya enerji açığını düzeltmez",
   "Uygulama": {
     "Süre (gün)": 7,
     "Aynı 4 seans": true,
@@ -134,7 +134,7 @@
       "2 set →": "1 set"
     },
     "Önceki haftalık set sayısı": 81,
-    "Deload haftalık set sayısı": 48,
+    "Hafifletme haftası set sayısı": 48,
     "Hacim azalması (%, yaklaşık)": 41,
     "Tekrar hedefi": "normal tekrar aralıklarının alt yarısı",
     "RIR": 4,
@@ -144,12 +144,12 @@
 }
 ```
 
-## Hafta 12 (P2)
+## 12. Hafta (P2)
 
 ```json
 {
   "Normal hipertrofi haftası": true,
-  "Taper": false,
+  "Performans öncesi yük azaltma": false,
   "Gerçek maksimum": false,
   "Ek test setleri": false,
   "Kıyaslama kuralı": "Kilitli belirteçlerin ilk normal çalışma setini 1. hafta başlangıç değeriyle karşılaştır.",
@@ -244,7 +244,7 @@
       "Doğrudan": 11,
       "Kesirli (yaklaşık)": 11
     },
-    "Hamstring": {
+    "Arka uyluk": {
       "Doğrudan": 9,
       "Kesirli (yaklaşık)": 9
     },
@@ -260,7 +260,7 @@
       "Doğrudan": 8,
       "Kesirli (yaklaşık)": 8
     },
-    "Karın/Core": {
+    "Karın/Gövde": {
       "Doğrudan": 6,
       "Kesirli (yaklaşık)": 6
     },
@@ -334,7 +334,7 @@
   ],
   "Seated Leg Curl": [
     "Another Seated/Hip-Flexed Leg Curl",
-    "Lying Leg Curl if unavailable/intolerant"
+    "Lying Leg Curl (mevcut değilse veya tolere edilemiyorsa)"
   ],
   "Smith/Machine Hip Thrust": [
     "Glute Drive",

@@ -10,7 +10,7 @@ import { backTarget, navigate } from '@/lib/route'
 import { installUnloadGuard, unsavedDescriptions } from '@/lib/unsaved'
 import { ExerciseBlock } from './ExerciseBlock'
 import { CommitInput } from './fields'
-import { buildEntryView } from './model'
+import { blockSets, buildEntryView } from './model'
 import type { SetActions } from './SetGrid'
 
 type Feedback =
@@ -116,7 +116,7 @@ const ISSUE_LABELS: Record<string, string> = {
 
 /**
  * Completion rules name sets by their position in the whole session; the screen numbers
- * them per exercise. Translate, e.g. order 3 -> "Smith Flat Bench Press set 2".
+ * them per exercise block (slot). Translate, e.g. order 3 -> "Smith Flat Bench Press set 2".
  */
 function describeIssue(issue: CompletionIssue, entry: Entry): string {
   const label = ISSUE_LABELS[issue.rule]
@@ -125,9 +125,7 @@ function describeIssue(issue: CompletionIssue, entry: Entry): string {
   const names = issue.set_orders.map((order) => {
     const target = ordered[order - 1]
     if (!target) return `set ${order}`
-    const index = ordered.filter(
-      (other) => other.exercise_id === target.exercise_id && other.set_order <= target.set_order,
-    ).length
+    const index = blockSets(ordered, target).filter((other) => other.set_order <= target.set_order).length
     return `${exerciseLabel(entry.exercises[target.exercise_id])} set ${index}`
   })
   return `${label}: ${names.join(', ')}`
@@ -285,12 +283,14 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
   ])
   const addable = exercises.filter((exercise) => exercise.is_active && !shownExercises.has(exercise.id))
 
-  const actions: SetActions = {
-    add: (exerciseId, fields) => run(() => api.addSet(workout.id, { ...fields, exercise_id: exerciseId })),
+  /** A set added in a slot is recorded in that slot, so two slots of one exercise stay apart. */
+  const actionsFor = (slotId: string | null): SetActions => ({
+    add: (exerciseId, fields) =>
+      run(() => api.addSet(workout.id, { ...fields, exercise_id: exerciseId, ...(slotId ? { slot_id: slotId } : {}) })),
     patch: (setId, fields) => run(() => api.patchSet(setId, fields)),
     remove: (setId) => void run(() => api.deleteSet(setId)),
     reorder: (setIds) => void run(() => api.reorderSets(workout.id, setIds)),
-  }
+  })
 
   const complete = async () => {
     if (completing.current) return
@@ -362,6 +362,11 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
     toApproved: (name: string) =>
       run(async () => {
         await api.useApprovedSubstitute(workout.id, slotId, name)
+        await reloadExercises()
+      }),
+    toTyped: (name: string) =>
+      run(async () => {
+        await api.useTypedExercise(workout.id, slotId, name)
         await reloadExercises()
       }),
   })
@@ -596,7 +601,7 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
         aria-label="Exercises"
         className="gap-x-4 lg:columns-2"
       >
-        {view.slots.map(({ slot, sets, sharedWith }) => (
+        {view.slots.map(({ slot, sets }) => (
           <ExerciseBlock
             // A new lock state starts the grid afresh (no pending rows on a complete record).
             key={`${slot.id}:${locked}`}
@@ -616,9 +621,8 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
             performance={entry.last_performance[slot.effective_exercise_id]}
             sets={sets}
             allSets={entry.sets}
-            sharedWith={sharedWith}
             locked={locked}
-            actions={actions}
+            actions={actionsFor(slot.id)}
             exercises={exercises}
             change={changeFor(slot.id)}
           />
@@ -632,9 +636,8 @@ export function EntryScreen({ workoutId }: { workoutId: string }) {
             performance={entry.last_performance[extra.exerciseId]}
             sets={extra.sets}
             allSets={entry.sets}
-            sharedWith={null}
             locked={locked}
-            actions={actions}
+            actions={actionsFor(null)}
           />
         ))}
       </section>

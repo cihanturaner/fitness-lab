@@ -1,10 +1,19 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+/// <reference types="node" />
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Backup } from '@/api/types'
 import { PROGRAM, WEEK, fakeApi } from '@/test/fakeApi'
-import { parseProgramNotes } from './programNotes'
+import { TURKISH_SOURCE_SHA256, parseProgramNotes } from './programNotes'
 import { SettingsScreen } from './SettingsScreen'
+
+const REPO = path.resolve(import.meta.dirname, '../../../..')
+const LOCKED_NOTES = readFileSync(path.join(REPO, 'programs/advanced-natural-12w/package/program-notes.md'), 'utf-8')
+const LOCKED_PROGRAM = JSON.parse(
+  readFileSync(path.join(REPO, 'programs/advanced-natural-12w/artifact/locked_workout_program.json'), 'utf-8'),
+) as { substitution_matrix: Record<string, string[] | string> }
 
 const NOTES = [
   '# 12-Week Program',
@@ -130,6 +139,48 @@ describe('SettingsScreen', () => {
     expect(within(program).getByText('Deload (P1)')).toBeInTheDocument()
     expect(within(program).getByText('Duration days')).toBeInTheDocument()
     expect(within(program).getByText('Monday: Upper A (23 work sets, 85–105 min)')).toBeInTheDocument()
+  })
+
+  it('shows the locked program area wholly in Turkish, keeping names and tokens verbatim', async () => {
+    fakeApi({
+      'GET /api/program/active': () => ({
+        body: {
+          ...PROGRAM,
+          activated_at_utc: '2026-09-24T10:00:00Z',
+          notes_text: LOCKED_NOTES,
+          notes_sha256: TURKISH_SOURCE_SHA256,
+        },
+      }),
+      'GET /api/week': () => ({ body: WEEK }),
+      'GET /api/backups': () => ({ body: [] }),
+    })
+    render(<SettingsScreen />)
+    const program = await screen.findByRole('region', { name: 'Program' })
+    expect(program).toHaveAttribute('lang', 'tr')
+    const facts = within(program).getByTestId('program-facts')
+    expect(facts).toHaveTextContent('Program12 Haftalık İleri Seviye Doğal Hipertrofi + Kuvvet Programı')
+    expect(facts).toHaveTextContent('Sürüm1.0.0')
+    expect(facts).toHaveTextContent('Aktifleşme tarihi24 Eylül 2026')
+    for (const heading of ['Program Hakkında', 'Hafifletme Haftası (P1)', '12. Hafta (P2)', '1–11. Haftalar']) {
+      expect(within(program).getByRole('button', { name: heading })).toBeInTheDocument()
+    }
+
+    // No English left: take out exercise names and the source's own tokens, then look for
+    // any English word the area could still carry.
+    let text = program.textContent ?? ''
+    const names = new Set<string>(['Upper A', 'Lower A', 'Upper B', 'Lower B', '45° Back Extension', 'Hip Thrust'])
+    for (const [key, value] of Object.entries(LOCKED_PROGRAM.substitution_matrix)) {
+      if (!Array.isArray(value)) continue
+      names.add(key)
+      for (const item of value) names.add(item.replace(' if unavailable/intolerant', ''))
+    }
+    for (const name of [...names].sort((a, b) => b.length - a.length)) text = text.split(name).join(' ')
+    for (const token of ['load * (1 + (reps + RIR) / 30)', 'FINAL_PATCHED_LOCKED', 'DECISION_GRADE_PASS_WITH_CAVEAT', 'locked_workout_program.json']) {
+      text = text.split(token).join(' ')
+    }
+    const english =
+      /\b(the|and|of|to|if|for|from|with|only|not|none|yes|no|true|false|week|weeks|deload|taper|version|active|since|rules?|program rules|about|source|sets|work|rest|duration|automatic|progression|calibration|warm-?up|volume|direct|fractional|notes?|importing|switching|command|line|guidance|decisions|app|unavailable|intolerant|another|hamstrings?|core|natural)\b/i
+    expect(text.match(english)).toBeNull()
   })
 })
 
