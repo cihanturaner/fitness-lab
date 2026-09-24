@@ -45,7 +45,14 @@ export function HomeScreen({ facts }: { facts: HomeFacts }) {
         <Text variant="section" accessibilityRole="header" style={styles.section}>
           Progress
         </Text>
-        <ProgressCards nutrition={view.nutrition} bodyweight={view.bodyweight} week={view.week} />
+        <ProgressCards
+          nutrition={view.nutrition}
+          bodyweight={view.bodyweight}
+          week={view.week}
+          onOpenNutrition={() => router.navigate('/nutrition')}
+          onOpenTraining={() => router.navigate('/training')}
+          onOpenBodyweight={() => router.push('/bodyweight')}
+        />
       </ScrollView>
     </View>
   );

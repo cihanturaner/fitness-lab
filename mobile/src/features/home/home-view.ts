@@ -57,6 +57,8 @@ export type HomeView = {
     kcalLabel: string;
     kcalCaption: string;
     remainingLabel: string | null;
+    /** "Nothing logged yet", or a partial day's note; null when the day is complete. */
+    noteLabel: string | null;
     incomplete: boolean;
     macros: MacroRow[];
   };
@@ -155,17 +157,19 @@ function buildHero(facts: HomeFacts): WorkoutHero | RestHero | SetupHero {
 function buildNutrition(facts: HomeFacts): HomeView['nutrition'] {
   const { intake, target } = facts.nutrition;
   const eaten = dayCalories(intake);
+  const logged = intake.protein !== null || intake.carbs !== null || intake.fat !== null;
   const progress = target ? macroProgress(intake, target) : null;
   let remainingLabel: string | null = null;
-  if (target) {
+  if (target && logged) {
     const left = targetCalories(target) - eaten.kcal;
     remainingLabel =
       left >= 0 ? `${groupThousands(left)} kcal left` : `${groupThousands(-left)} kcal over`;
   }
   return {
-    kcalLabel: groupThousands(eaten.kcal),
-    kcalCaption: target ? `of ${groupThousands(targetCalories(target))} kcal` : 'kcal · no target set',
+    kcalLabel: logged ? groupThousands(eaten.kcal) : '—',
+    kcalCaption: target ? `of ${groupThousands(targetCalories(target))} kcal` : 'kcal · no target',
     remainingLabel,
+    noteLabel: !logged ? 'Nothing logged yet' : eaten.complete ? null : 'Partial · a macro is missing',
     incomplete: !eaten.complete,
     macros: (['protein', 'carbs', 'fat'] as const).map((macro, i) => ({
       macro,
@@ -197,6 +201,7 @@ function buildBodyweight(facts: HomeFacts): HomeView['bodyweight'] {
 }
 
 function buildWeek(facts: HomeFacts, strip: StripDay[]): HomeView['week'] {
+  if (!facts.block) return { finished: 0, scheduled: 0, caption: 'Block not started', segments: [] };
   const scheduled = strip.filter((d) => d.mark !== 'rest');
   const finished = scheduled.filter((d) => d.mark === 'done' || d.mark === 'shortened').length;
   const upcoming = facts.week

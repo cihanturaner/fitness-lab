@@ -1,3 +1,4 @@
+import type { BodyweightEntry } from '@/domain/bodyweight';
 import { addDays, weekDates, type IsoDate } from '@/domain/dates';
 import { targetOn } from '@/domain/nutrition';
 import { scheduledWorkout, type Block } from '@/domain/schedule';
@@ -10,7 +11,7 @@ import { PROGRAM_FOCUS } from './program-focus';
 import { blockStart } from './repo/block';
 import { bodyweightBetween } from './repo/bodyweight';
 import { findExercise } from './repo/exercises';
-import { macroTargets, nutritionDay } from './repo/nutrition';
+import { macroTargets, nutritionDay, nutritionDaysBetween, type NutritionDay, type StoredTarget } from './repo/nutrition';
 import {
   lastPerformance,
   loadSession,
@@ -173,4 +174,32 @@ export async function loadWorkoutFacts(
     }
   }
   return { date, today, block, plan: plan ?? programWorkout(program, null), session, last };
+}
+
+/** Weigh-ins of the last 120 days: enough for the trend windows and the recent list. */
+export async function loadBodyweightEntries(db: Db, today: IsoDate) {
+  return bodyweightBetween(db, addDays(today, -120), today);
+}
+
+export type NutritionFacts = {
+  date: IsoDate;
+  today: IsoDate;
+  blockStart: IsoDate | null;
+  day: NutritionDay | null;
+  targets: StoredTarget[];
+  /** The 7 days ending on `date`, as logged. */
+  recent: NutritionDay[];
+  bodyweight: BodyweightEntry[];
+};
+
+export async function loadNutritionFacts(db: Db, date: IsoDate, today: IsoDate): Promise<NutritionFacts> {
+  return {
+    date,
+    today,
+    blockStart: (await loadBlock(db))?.start ?? null,
+    day: await nutritionDay(db, date),
+    targets: await macroTargets(db),
+    recent: await nutritionDaysBetween(db, addDays(date, -6), date),
+    bodyweight: await bodyweightBetween(db, addDays(today, -20), today),
+  };
 }

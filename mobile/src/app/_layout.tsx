@@ -40,6 +40,7 @@ export default function RootLayout() {
           options={{ title: 'Workout plan', headerBackTitle: 'Training' }}
         />
         <Stack.Screen name="workout/[date]" options={{ title: 'Workout', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="bodyweight" options={{ title: 'Bodyweight', headerBackTitle: 'Back' }} />
         <Stack.Screen
           name="quick-add"
           options={{

@@ -11,7 +11,7 @@ Native iPhone: **NOT YET VERIFIED** for anything in this file unless stated.
 | --- | --- | --- | --- |
 | M0 | Finalize M2.5 visual calibration (anatomy redraw, compact Home hero) | done | see log |
 | M3 | Real workout logger (lb → reps → RIR) | done | see log |
-| M4 | Nutrition + bodyweight + Quick Add | queued | — |
+| M4 | Nutrition + bodyweight + Quick Add | done | see log |
 | M5 | History (day-first) + Settings | queued | — |
 | M6 | Local SQLite persistence (expo-sqlite), Clock | queued | — |
 | M6b | Versioned export (read-only tool) / mobile import | queued | — |
@@ -112,6 +112,11 @@ is real from the start; the M6 commit adds migrations tests, cold-restart and th
   preview and are testable.
 - D6 Web preview uses expo-sqlite's web build (wasm; `metro.config.js`), so browser QA runs
   the real SQL path. Tests use sql.js (dev dependency only) behind the same `Db` interface.
+- D7 Nutrition controller (weekly review, recommendations) is not in mobile V1: it is decision
+  support only and never writes by itself. The early-weeks exception prompt is kept, with the
+  controller's own phase rule (block started, fewer than 3 full block weeks finished).
+- D8 Quick Add is a form sheet sized to content (plain View). Keyboard behaviour inside the
+  iOS sheet is a physical-iPhone check.
 - D1 Muscle focus: the program package states none. Only the existing accepted mobile
   focus (Upper B: back, chest, shoulders, triceps, biceps — M1 fixture) is used; other
   workouts draw a neutral figure. Needs an authoritative source from the user to extend.

@@ -110,3 +110,17 @@ export const EARLY_EXCEPTIONS = [
   'clearly falling trend',
   'implementation mistake',
 ] as const;
+
+/**
+ * The controller's early phase, when a change to an established target needs one of the
+ * source's exceptions: from the block start until three full block weeks have finished
+ * (the first routine decision is at the end of week 3). Mirrors `nutrition_controller.py`.
+ */
+export function isEarlyPhase(blockStart: string | null, today: string): boolean {
+  if (!blockStart || today < blockStart) return false;
+  const start = Date.parse(`${blockStart}T00:00:00Z`);
+  const weekday = (new Date(start).getUTCDay() + 6) % 7; // Monday = 0
+  const monday1 = start - weekday * 86_400_000;
+  const days = Math.round((Date.parse(`${today}T00:00:00Z`) - monday1) / 86_400_000);
+  return Math.floor((days + 1) / 7) < 3;
+}

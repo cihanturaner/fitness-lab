@@ -23,13 +23,17 @@ const SEGMENT_COLOR: Record<DayMark, string> = {
   rest: color.track,
 };
 
-type Props = Pick<HomeView, 'nutrition' | 'bodyweight' | 'week'>;
+type Props = Pick<HomeView, 'nutrition' | 'bodyweight' | 'week'> & {
+  onOpenNutrition: () => void;
+  onOpenTraining: () => void;
+  onOpenBodyweight: () => void;
+};
 
 /**
  * Home's Progress section: four small cards in two rows — today's calories and macros,
  * then the week's sessions and bodyweight. Calories are always derived from macros.
  */
-export function ProgressCards({ nutrition, bodyweight, week }: Props) {
+export function ProgressCards({ nutrition, bodyweight, week, onOpenNutrition, onOpenTraining, onOpenBodyweight }: Props) {
   return (
     <View style={styles.grid}>
       <View style={styles.row}>
@@ -37,26 +41,31 @@ export function ProgressCards({ nutrition, bodyweight, week }: Props) {
           icon="calories"
           title="Calories"
           tint={color.carbs}
+          onPress={onOpenNutrition}
           accessibilityLabel={[
-            `Calories: ${nutrition.kcalLabel} ${nutrition.kcalCaption}`,
+            `Calories: ${nutrition.kcalLabel === '—' ? 'none' : nutrition.kcalLabel} ${nutrition.kcalCaption}`,
             nutrition.remainingLabel,
-            nutrition.incomplete ? 'macros missing' : null,
+            nutrition.noteLabel,
           ]
             .filter(Boolean)
             .join(', ')}>
           <StatValue value={nutrition.kcalLabel} />
           <Text variant="caption" tone="muted" numberOfLines={1}>
             {nutrition.kcalCaption}
-            {nutrition.incomplete ? ' · macros missing' : ''}
           </Text>
           {nutrition.remainingLabel ? (
             <Text variant="label" tone="emerald700" numberOfLines={1}>
               {nutrition.remainingLabel}
             </Text>
           ) : null}
+          {nutrition.noteLabel ? (
+            <Text variant="caption" tone={nutrition.incomplete && nutrition.kcalLabel !== '—' ? 'warn' : 'muted'} numberOfLines={2}>
+              {nutrition.noteLabel}
+            </Text>
+          ) : null}
         </StatCard>
 
-        <StatCard icon="macros" title="Macros">
+        <StatCard icon="macros" title="Macros" onPress={onOpenNutrition} accessibilityLabel={nutrition.macros.map((m) => `${m.label} ${m.eatenLabel} ${m.targetLabel ?? ''}`.trim()).join(', ')}>
           <View style={styles.macros}>
             {nutrition.macros.map((m) => (
               <View
@@ -87,8 +96,17 @@ export function ProgressCards({ nutrition, bodyweight, week }: Props) {
         <StatCard
           icon="week"
           title="This week"
-          accessibilityLabel={`This week: ${week.finished} of ${week.scheduled} sessions done, ${week.caption}`}>
-          <StatValue value={`${week.finished}`} unit={`of ${week.scheduled} done`} />
+          onPress={onOpenTraining}
+          accessibilityLabel={
+            week.scheduled
+              ? `This week: ${week.finished} of ${week.scheduled} sessions done, ${week.caption}`
+              : `This week: ${week.caption}`
+          }>
+          {week.scheduled ? (
+            <StatValue value={`${week.finished}`} unit={`of ${week.scheduled} done`} />
+          ) : (
+            <StatValue value="—" />
+          )}
           <View style={styles.segments}>
             {week.segments.map((mark, i) => (
               <View key={i} style={[styles.segment, { backgroundColor: SEGMENT_COLOR[mark] }]} />
@@ -103,6 +121,7 @@ export function ProgressCards({ nutrition, bodyweight, week }: Props) {
           icon="bodyweight"
           title="Bodyweight"
           tint={color.fat}
+          onPress={onOpenBodyweight}
           accessibilityLabel={[
             bodyweight.valueLabel ? `Bodyweight: ${bodyweight.valueLabel} kg` : 'Bodyweight',
             bodyweight.whenLabel,

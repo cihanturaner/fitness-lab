@@ -121,7 +121,8 @@ describe('buildHomeView (other states)', () => {
     expect(view.blockLabel).toBe('Block starts in 2 days');
     expect(view.nutrition).toMatchObject({
       kcalLabel: '400',
-      kcalCaption: 'kcal · no target set',
+      kcalCaption: 'kcal · no target',
+      noteLabel: 'Partial · a macro is missing',
       remainingLabel: null,
       incomplete: true,
     });
