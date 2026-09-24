@@ -88,7 +88,7 @@ test('a past week is one click away, and a shortened session is confirmed and sh
   await expect(row.locator('td').first()).toHaveText('3')
   await expect(row.getByTestId('session-work-sets')).toHaveText('1 / 23shortened')
 
-  await page.goto('/#/history')
+  await page.goto('/#/history/exercises')
   await page.getByRole('navigation', { name: 'Exercises' }).getByRole('link', { name: /Smith Flat Bench Press/ }).click()
   const exposure = page.getByTestId('history-exposure').first()
   await expect(exposure.getByTestId('history-week')).toHaveText('3')
@@ -114,7 +114,7 @@ test('the block start is set in the app; days before it are pre-block', async ({
   await expect(page.getByTestId('block-phase')).toContainText('Before the block')
   await page.goto('/')
   await expect(page.getByRole('region', { name: 'Today', exact: true })).toContainText('Before the block')
-  await page.goto('/#/history')
+  await page.goto('/#/history/exercises')
   await page.getByRole('navigation', { name: 'Exercises' }).getByRole('link', { name: /Smith Flat Bench Press/ }).click()
   await expect(page.getByTestId('history-exposure').first().getByTestId('history-week')).toHaveText('Pre')
 
@@ -130,8 +130,8 @@ test('the block start is set in the app; days before it are pre-block', async ({
 
 test('the weekly nutrition review recommends; only an explicit choice changes calories', async ({ page }) => {
   // A starting target recorded before the block, and daily weigh-ins rising 0.07 % BW/week.
-  const target = await page.request.post('/api/nutrition/calorie-targets', {
-    data: { effective_on: shift(START, -1), calories_kcal: 2650, notes: 'Starting rule' },
+  const target = await page.request.post('/api/nutrition/targets', {
+    data: { effective_on: shift(START, -1), protein_g: 150, carbs_g: 300, fat_g: 70, notes: 'Starting rule' },
   })
   expect(target.status()).toBe(201)
   for (let day = -7, index = 0; shift(START, day) <= localToday(); day += 1, index += 1) {
@@ -149,24 +149,28 @@ test('the weekly nutrition review recommends; only an explicit choice changes ca
   const review = page.getByRole('region', { name: 'Weekly review' })
   await expect(review.getByTestId('review-trend')).toHaveText('+0.07 % BW/week')
   await expect(review.getByTestId('review-status')).toContainText('UNDER_GAIN')
-  await expect(review.getByTestId('review-recommendation')).toContainText('+150 kcal/day → 2800 kcal · carbs 420 g')
+  // The current macro targets, and exactly the target Apply would record (carbs move; source).
+  await expect(review.getByTestId('review-current-targets')).toHaveText('150 P · 300 C · 70 F = 2430 kcal')
+  await expect(review.getByTestId('review-recommendation')).toContainText(
+    '+150 kcal/day → carbs +38 g: 150 P · 338 C · 70 F = 2582 kcal',
+  )
   // Reading the review changed nothing.
-  expect(db('SELECT count(*) FROM calorie_target')).toBe('1')
+  expect(db('SELECT count(*) FROM macro_target')).toBe('1')
   expect(db('SELECT count(*) FROM controller_event')).toBe('0')
 
-  await review.getByRole('button', { name: 'Apply +150' }).click()
-  await expect(review.getByTestId('review-decided')).toContainText('Applied +150 kcal/day → 2800 kcal')
-  await expect(page.getByTestId('nut-target-calories')).toHaveText('2800 kcal')
-  await expect(page.getByTestId('nut-target-carbs')).toHaveText('420 g')
+  await review.getByRole('button', { name: 'Apply +150 kcal' }).click()
+  await expect(review.getByTestId('review-decided')).toContainText('Applied +152 kcal/day → 150 P · 338 C · 70 F = 2582 kcal')
+  await expect(page.getByTestId('nut-target-calories')).toHaveText('2582 kcal')
+  await expect(page.getByTestId('nut-target-carbs')).toHaveText('338 g')
   expect(db("SELECT user_choice || '/' || block_week || '/' || trend_pct_bw_per_week FROM controller_event")).toBe(
     'APPLIED/3/0.07',
   )
-  expect(db(`SELECT calories_kcal FROM calorie_target WHERE effective_on = '${localToday()}'`)).toBe('2800')
+  expect(db(`SELECT carbs_g FROM macro_target WHERE effective_on = '${localToday()}'`)).toBe('338')
 
   await page.reload()
   await expect(review.getByRole('button', { name: /Apply/ })).toHaveCount(0)
   await expect(review.getByTestId('review-next')).toContainText('end of week 5')
-  await expect(page.getByRole('region', { name: 'Calorie target history' }).getByTestId('target-row')).toHaveCount(2)
+  await expect(page.getByRole('region', { name: 'Target history' }).getByTestId('target-row')).toHaveCount(2)
   // Week 3 ended on or before today: that is why its review was the one due.
   expect(WEEK3_SUNDAY <= localToday()).toBe(true)
 })

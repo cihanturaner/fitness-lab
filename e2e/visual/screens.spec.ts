@@ -118,10 +118,13 @@ async function seedFull(): Promise<{ completed: string | null; draft: string | n
       notes: ago === 12 ? 'Late dinner the night before' : null,
     })
   }
-  // Nutrition: a calorie target decided ten days ago, two weeks of logs, today in progress.
-  await json(api, 'POST', '/api/nutrition/calorie-targets', {
+  // Nutrition: macro targets decided ten days ago (145 P, 445 C, 60 F = 2900 kcal), two weeks
+  // of logs, today in progress.
+  await json(api, 'POST', '/api/nutrition/targets', {
     effective_on: daysAgo(10),
-    calories_kcal: 2900,
+    protein_g: 145,
+    carbs_g: 445,
+    fat_g: 60,
     notes: 'Start of lean gain',
   })
   for (let ago = 13; ago >= 1; ago -= 1) {
@@ -217,6 +220,8 @@ test('populated dataset', async ({ page }) => {
     await shoot(page, 'full-nutrition')
     await page.goto(`${FULL}/#/history`)
     await shoot(page, 'full-history')
+    await page.goto(`${FULL}/#/history/exercises`)
+    await shoot(page, 'full-history-exercises')
     await page.goto(`${FULL}/#/sessions`)
     await shoot(page, 'full-sessions')
     await page.goto(`${FULL}/#/settings`)

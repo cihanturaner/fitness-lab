@@ -160,10 +160,13 @@ test('a whole slot is substituted and extra work is recorded', async ({ page }) 
   const workoutId = currentWorkoutId(page)
 
   const lateral = slot(page, 'upper_a.06')
-  await lateral.getByRole('button', { name: 'Substitute, slot 6' }).click()
-  await lateral.getByRole('combobox', { name: 'Exercise performed for slot 6' }).selectOption({ label: 'Machine Lateral Raise' })
+  await lateral.getByRole('button', { name: 'Change exercise, slot 6' }).click()
+  await lateral
+    .getByRole('region', { name: 'Change exercise, slot 6' })
+    .getByRole('button', { name: 'Machine Lateral Raise' })
+    .click()
   await expect(lateral).toHaveAttribute('aria-label', 'Machine Lateral Raise')
-  await expect(lateral).toContainText('replaces Cable Lateral Raise')
+  await expect(lateral).toContainText('Planned: Cable Lateral Raise · changed for this workout')
   expect(sql(`SELECT e.name FROM workout_slot_substitution s JOIN exercise e ON e.id = s.exercise_id WHERE s.workout_id = '${workoutId}'`)).toBe('Machine Lateral Raise')
   await addSet(lateral, '15', '15', '1')
 
@@ -176,11 +179,16 @@ test('a whole slot is substituted and extra work is recorded', async ({ page }) 
   await expect(page.getByTestId(/^extra-/).filter({ hasText: 'Leg Extension' })).toBeVisible()
   expect(count('performed_set')).toBe(4)
 
-  // Choosing the planned exercise again clears the substitution.
-  await slot(page, 'upper_a.06').getByRole('button', { name: 'Substitute, slot 6' }).click()
-  await slot(page, 'upper_a.06').getByRole('combobox', { name: 'Exercise performed for slot 6' }).selectOption({ label: 'Cable Lateral Raise (as planned)' })
+  // Going back to the planned exercise clears the change; choosing again restores it.
+  const change = slot(page, 'upper_a.06').getByRole('button', { name: 'Change exercise, slot 6' })
+  await change.click()
+  await slot(page, 'upper_a.06').getByRole('button', { name: 'Back to Cable Lateral Raise' }).click()
   await expect.poll(() => count('workout_slot_substitution')).toBe(0)
-  await slot(page, 'upper_a.06').getByRole('combobox', { name: 'Exercise performed for slot 6' }).selectOption({ label: 'Machine Lateral Raise' })
+  await change.click()
+  await slot(page, 'upper_a.06')
+    .getByRole('region', { name: 'Change exercise, slot 6' })
+    .getByRole('button', { name: 'Machine Lateral Raise' })
+    .click()
   await expect.poll(() => count('workout_slot_substitution')).toBe(1)
 })
 

@@ -65,7 +65,7 @@ test('training shows the current block week and the four sessions on their weekd
   await expect(page.getByTestId('home-context')).toHaveText('Block week 3 of 12')
   await expect(page.getByRole('list', { name: 'This week' })).toHaveCount(0)
   await expect(page.getByTestId('home-bodyweight')).toContainText('No weigh-ins yet.')
-  await expect(page.getByTestId('home-nutrition')).toContainText('Calorie target not calibrated yet.')
+  await expect(page.getByTestId('home-nutrition')).toContainText('No macro target set yet.')
   await expect(page.getByTestId('home-recent')).toContainText('No completed sessions yet.')
 })
 
@@ -184,7 +184,6 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
   expect(db(`SELECT count(*) FROM performed_set WHERE workout_id = '${secondId}'`)).toBe('0')
   // It was opened by mistake: discard the empty draft.
   page.once('dialog', (dialog) => void dialog.accept())
-  await page.getByRole('button', { name: 'Details' }).click()
   await page.getByRole('button', { name: 'Discard draft' }).click()
   // Back where it was opened from.
   await expect(page).toHaveURL(/#\/training$/)
@@ -244,12 +243,12 @@ test('bodyweight: enter, correct, refresh; 7-day averages and change are exact',
   await expect(page.getByTestId('home-bw-trend')).toContainText('not enough weigh-ins (6/14)')
 })
 
-test('nutrition: log a day, refresh, locked targets, uncalibrated calories, explicit target', async ({ page }) => {
+test('nutrition: log a day, refresh, no target until one is recorded, explicit macro target', async ({ page }) => {
   await page.goto('/#/nutrition')
-  await expect(page.getByTestId('nut-target-protein')).toHaveText('145 g')
-  await expect(page.getByTestId('nut-target-fat')).toHaveText('60 g')
-  await expect(page.getByTestId('nut-target-calories')).toHaveText('Calorie target not calibrated yet.')
-  await expect(page.getByTestId('nut-target-carbs')).toHaveText('Follows the calorie target.')
+  await expect(page.getByTestId('nut-target-protein')).toHaveText('no target')
+  await expect(page.getByTestId('nut-target-fat')).toHaveText('no target')
+  await expect(page.getByTestId('nut-target-calories')).toHaveText('No target yet.')
+  await expect(page.getByTestId('nut-target-carbs')).toHaveText('no target')
 
   // Calories are never typed: they follow live from the macros (Atwater 4 / 4 / 9).
   await expect(page.getByRole('textbox', { name: /calories/i })).toHaveCount(0)
@@ -267,26 +266,26 @@ test('nutrition: log a day, refresh, locked targets, uncalibrated calories, expl
   await expect(page.getByRole('textbox', { name: 'Protein g' })).toHaveValue('150')
   await expect(page.getByRole('textbox', { name: 'Carbs g' })).toHaveValue('290')
   await expect(page.getByRole('textbox', { name: 'Fat g' })).toHaveValue('62')
-  await expect(page.getByTestId('nut-target-calories')).toHaveText('Calorie target not calibrated yet.')
+  await expect(page.getByTestId('nut-target-calories')).toHaveText('No target yet.')
   expect(
     db(`SELECT protein_g || '/' || carbs_g || '/' || fat_g FROM nutrition_day WHERE logged_on = '${isoDaysAgo(0)}'`),
   ).toBe('150/290/62')
-  expect(db('SELECT count(*) FROM calorie_target')).toBe('0')
+  expect(db('SELECT count(*) FROM macro_target')).toBe('0')
 
   await page.goto('/')
   await expect(page.getByTestId('home-nut-protein')).toContainText('150 g')
-  await expect(page.getByTestId('home-nut-protein')).toContainText('target 145 g')
-  await expect(page.getByTestId('home-nut-fat')).toContainText('target 60 g')
-  await expect(page.getByTestId('home-nutrition')).toContainText('Calorie target not calibrated yet.')
+  await expect(page.getByTestId('home-nut-protein')).toContainText('target not set')
+  await expect(page.getByTestId('home-nutrition')).toContainText('No macro target set yet.')
 
-  // Only an explicit decision sets calories; carbohydrate then follows (2650 - 1120) / 4.
+  // Only an explicit decision sets targets: protein, carbs and fat; calories follow from them.
   await page.goto('/#/nutrition')
-  await page.getByRole('button', { name: 'Set calorie target…' }).click()
-  await page.getByRole('textbox', { name: 'Calorie target in kcal' }).fill('2650')
-  await page.getByRole('button', { name: 'Record target' }).click()
-  await expect(page.getByTestId('nut-target-calories')).toHaveText('2650 kcal')
+  await page.getByRole('button', { name: 'Set targets…' }).click()
+  await page.getByRole('textbox', { name: 'Carbs target g' }).fill('383')
+  await page.getByRole('button', { name: 'Save targets' }).click()
+  // The source's 145 g protein and 60 g fat were offered: 145 x 4 + 383 x 4 + 60 x 9.
+  await expect(page.getByTestId('nut-target-calories')).toHaveText('2652 kcal')
   await expect(page.getByTestId('nut-target-carbs')).toHaveText('383 g')
-  expect(db('SELECT calories_kcal FROM calorie_target')).toBe('2650')
+  expect(db("SELECT protein_g || '/' || carbs_g || '/' || fat_g FROM macro_target")).toBe('145/383/60')
   await page.screenshot({ path: '../artifacts/v2-nutrition-1440x900.png' })
 })
 
@@ -295,7 +294,7 @@ test('history: chronological lb/reps/RIR per exercise, week by week', async ({ p
   await expect(page.getByTestId('home-recent')).toContainText('Smith High-Bar Squat')
   await expect(page.getByTestId('home-recent')).toContainText('100×8@2 · 100×7@2 · 102.5×7@1')
 
-  await page.goto('/#/history')
+  await page.goto('/#/history/exercises')
   await page.getByRole('navigation', { name: 'Exercises' }).getByRole('link', { name: /Smith High-Bar Squat/ }).click()
   const rows = page.getByTestId('history-exposure')
   await expect(rows).toHaveCount(1)

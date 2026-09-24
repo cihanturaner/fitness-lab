@@ -54,10 +54,16 @@ Dependency direction is one-way:
   integer macro grams. A day's calories are never entered or stored: they are derived,
   protein × 4 + carbs × 4 + fat × 9 (`domain/nutrition.day_calories`; an unrecorded macro
   adds nothing and the day is marked incomplete). Calories typed before V3.1 are kept in the
-  closed, append-only `nutrition_entered_calories` table (migration 0006). Protein 145 g and
-  fat 60 g are locked; the calorie target is
-  unknown until the lifter records one (append-only `calorie_target`), and carbohydrate
-  is then (calories - 1120) / 4. The app never sets or changes calories itself.
+  closed, append-only `nutrition_entered_calories` table (migration 0006). A nutrition
+  target (V3.3) is protein / carbs / fat in grams, append-only and effective-dated
+  (`macro_target`); its calories are derived the same way and never entered. There is no
+  target until the lifter records one; each day is judged by the target in force on it. The
+  source's protein 145 g / fat 60 g are only the defaults offered. Pre-V3.3 calorie-only
+  targets live on, closed, in `calorie_target` (converted by migration 0007). The app never
+  sets or changes a target itself.
+- Changing an exercise (V3.3 "Change") is a `workout_slot_substitution` of one workout: the
+  program, its slots and every other occurrence keep the planned exercise. Approved
+  substitutes are read from the slot's locked notes.
 - A workout row in the UI is not a set until the lifter saves it. The lifter never chooses a
   set type (V3.2): a row is set · lb · reps · RIR and is stored as `working`; the API stores a
   set created without `set_type` as `working`. The column, rule C4 and warm-up exclusion
@@ -69,12 +75,16 @@ Dependency direction is one-way:
   after the last block week is post-block. History weeks come from each workout's own
   program version's block.
 - The nutrition controller (`domain/nutrition_controller.py`) is decision support only. A
-  calorie target changes only by an explicit Apply on a due review (or a manual target);
+  target changes only by an explicit Apply on a due review (or a manual target); a calorie
+  recommendation moves carbohydrate only (source `primary_macro_adjusted`);
   `controller_event` and `diagnostic_gate_event` are append-only. Its three app choices (≥ 6
   weigh-ins per 7-day half, "sustained" = two consecutive weekly trends above 0.25, gate
   reliability checks) are documented in the V3 spec and must stay fixed for a block.
 
-Current design: `docs/superpowers/specs/2026-09-24-v3-2-simplification.md` (V3.2: Home is
+Current design: `docs/superpowers/specs/2026-09-24-v3-3-daily-use-finalization.md` (V3.3:
+Change exercise for one workout, macro targets with effective-dated history, day-by-day
+History, Turkish program rules, discard draft) over
+`docs/superpowers/specs/2026-09-24-v3-2-simplification.md` (V3.2: Home is
 only today + three summary cards, the week planner lives on Training, no set-type control,
 perceptible motion timings, less rounding — it keeps V3.1's visual identity) over
 `docs/superpowers/specs/2026-09-24-v3-1-units-macros-premium-ui.md` (V3.1:
@@ -183,8 +193,9 @@ End-to-end (from `e2e/`) — seeds fresh scratch databases with the locked progr
 starts the real launcher on port 8710 (V1 journey; 8711 for the restart test) and 8712
 (V2 daily-use journey, its own database, block started two Mondays ago), 8713 (V3
 completeness journey, its own database, block started three Mondays ago), 8714 (V3.1
-pounds / macros / reduced-motion journey, its own database) and 8715 (V3.2 Home / Training /
-keyboard-only set entry / motion journey, its own database); it ignores
+pounds / macros / reduced-motion journey, its own database), 8715 (V3.2 Home / Training /
+keyboard-only set entry / motion journey, its own database) and 8716 (V3.3 change exercise /
+discard / macro targets / day History / Turkish rules journey, its own database); it ignores
 `FITNESS_LAB_DB` and never reuses a running server:
 
     npx playwright test
