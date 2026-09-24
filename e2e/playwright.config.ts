@@ -33,6 +33,13 @@ process.env.FITNESS_LAB_E2E_DB_V31 ??= path.join(
   'fitness_lab.db',
 )
 process.env.FITNESS_LAB_E2E_PORT_V31 ??= '8714'
+// The V3.2 journey (Home / Training split, set entry without a set type, perceptible motion):
+// its own scratch database, block started two Mondays ago.
+process.env.FITNESS_LAB_E2E_DB_V32 ??= path.join(
+  mkdtempSync(path.join(os.tmpdir(), 'fitness-lab-e2e-v32-')),
+  'fitness_lab.db',
+)
+process.env.FITNESS_LAB_E2E_PORT_V32 ??= '8715'
 
 /** Monday of the local week `weeksAgo` weeks ago. */
 function blockStart(weeksAgo: number): string {
@@ -54,6 +61,8 @@ const E2E_DB_V3 = process.env.FITNESS_LAB_E2E_DB_V3
 const BASE_URL_V3 = `http://127.0.0.1:${process.env.FITNESS_LAB_E2E_PORT_V3}`
 const E2E_DB_V31 = process.env.FITNESS_LAB_E2E_DB_V31
 const BASE_URL_V31 = `http://127.0.0.1:${process.env.FITNESS_LAB_E2E_PORT_V31}`
+const E2E_DB_V32 = process.env.FITNESS_LAB_E2E_DB_V32
+const BASE_URL_V32 = `http://127.0.0.1:${process.env.FITNESS_LAB_E2E_PORT_V32}`
 
 export default defineConfig({
   testDir: './tests',
@@ -69,7 +78,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /v(2|3|31)-.*\.spec\.ts/,
+      testIgnore: /v(2|3|31|32)-.*\.spec\.ts/,
       // Viewport must come after the device spread - project `use` overrides the
       // top-level one, and Desktop Chrome would otherwise force 1280x720.
       use: { ...devices['Desktop Chrome'], viewport: { width: 1920, height: 1080 } },
@@ -89,6 +98,11 @@ export default defineConfig({
       name: 'v31-units-motion',
       testMatch: /v31-.*\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, baseURL: BASE_URL_V31 },
+    },
+    {
+      name: 'v32-simplification',
+      testMatch: /v32-.*\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, baseURL: BASE_URL_V32 },
     },
   ],
   webServer: [
@@ -139,6 +153,19 @@ export default defineConfig({
         FITNESS_LAB_SEED_BLOCK_START: process.env.FITNESS_LAB_E2E_BLOCK_START,
       },
       url: `${BASE_URL_V31}/api/health`,
+      reuseExistingServer: false,
+      timeout: 240_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      command: `until curl -sf ${BASE_URL}/api/health >/dev/null; do sleep 1; done; bash scripts/serve-scratch.sh`,
+      env: {
+        FITNESS_LAB_DB: E2E_DB_V32,
+        FITNESS_LAB_PORT: String(process.env.FITNESS_LAB_E2E_PORT_V32),
+        FITNESS_LAB_SEED_BLOCK_START: process.env.FITNESS_LAB_E2E_BLOCK_START,
+      },
+      url: `${BASE_URL_V32}/api/health`,
       reuseExistingServer: false,
       timeout: 240_000,
       stdout: 'pipe',

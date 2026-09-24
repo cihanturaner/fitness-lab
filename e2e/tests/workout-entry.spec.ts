@@ -27,8 +27,6 @@ async function addSet(card: Locator, load: string, reps: string, rir: string) {
     await card.getByRole('button', { name: /^Add set/ }).click()
   }
   const row = card.getByTestId('new-set-row').first()
-  const type = row.getByRole('combobox', { name: /^Set type/ })
-  if ((await type.inputValue()) === '') await type.selectOption('working')
   await row.getByRole('textbox', { name: /^Load in lb/ }).fill(load)
   await row.getByRole('textbox', { name: /^Reps/ }).fill(reps)
   await row.getByRole('textbox', { name: /^RIR/ }).fill(rir)
@@ -52,7 +50,7 @@ async function actualRows(card: Locator): Promise<string[][]> {
 }
 
 async function resumeUpperA(page: Page) {
-  await page.goto('/')
+  await page.goto('/#/training')
   await page.getByRole('button', { name: 'Resume draft of Upper A' }).click()
   await expect(page).toHaveURL(/#\/workouts\/[a-f0-9]+$/)
   await expect(page.getByRole('heading', { name: 'Upper A', level: 1 })).toBeVisible()
@@ -65,7 +63,7 @@ function currentWorkoutId(page: Page): string {
 }
 
 test('the active 12-week program and its four planned sessions are visible', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/#/training')
   await expect(page.getByText('12-Week Advanced Natural Hypertrophy + Strength Program')).toBeVisible()
   const week = page.getByRole('list', { name: 'This week' })
   await expect(week.getByRole('listitem')).toHaveCount(7)
@@ -78,7 +76,7 @@ test('the active 12-week program and its four planned sessions are visible', asy
 })
 
 test('opening a planned session creates one empty draft and shows the prescription', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/#/training')
   await page.getByRole('button', { name: 'Start Upper A' }).click()
   await expect(page.getByRole('heading', { name: 'Upper A', level: 1 })).toBeVisible()
   const workoutId = currentWorkoutId(page)
@@ -99,9 +97,9 @@ test('opening a planned session creates one empty draft and shows the prescripti
   await expect(page.getByTestId('workout-status')).toHaveText('Draft')
   expect(count('performed_set')).toBe(0)
 
-  // Opening again resumes the same draft rather than creating another, and the home screen
-  // says which record that is.
-  await page.goto('/')
+  // Opening again resumes the same draft rather than creating another, and Training says
+  // which record that is.
+  await page.goto('/#/training')
   await expect(page.getByTestId('planned-upper_a')).toHaveAttribute('data-status', 'draft')
   await resumeUpperA(page)
   await expect(page).toHaveURL(new RegExp(`#/workouts/${workoutId}$`))
@@ -191,8 +189,9 @@ test('completion locks the record, reopening allows a correction', async ({ page
   const workoutId = currentWorkoutId(page)
 
   // A set typed but not saved blocks completion instead of being silently dropped.
-  // No set type chosen, so the row cannot be saved: it stays typed-but-unsaved input.
+  // An RIR that is not a whole number, so the row cannot be saved: it stays typed-but-unsaved input.
   const row = slot(page, 'upper_a.02')
+  await row.getByTestId('new-set-row').first().getByRole('textbox', { name: /^RIR/ }).fill('1.5')
   await row.getByTestId('new-set-row').first().getByRole('textbox', { name: /^Reps/ }).fill('9')
 
   // Browser Back (or a trackpad swipe) asks first; declining keeps the lifter and the input.
@@ -237,7 +236,7 @@ test('completion locks the record, reopening allows a correction', async ({ page
 })
 
 test('the next occurrence starts empty and shows the last exact performance', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/#/training')
   await expect(page.getByTestId('planned-upper_a')).toHaveAttribute('data-status', 'complete')
   await page.getByRole('button', { name: 'Start Upper A again' }).click()
   await expect(page.getByRole('heading', { name: 'Upper A', level: 1 })).toBeVisible()
@@ -268,7 +267,7 @@ test('an unplanned session is first-class', async ({ page }) => {
 
   await page.goto('/#/sessions')
   await expect(page.getByTestId('recent-workout')).toHaveCount(3)
-  await page.goto('/')
+  await page.goto('/#/training')
   await expect(page.getByTestId('planned-upper_a')).toHaveAttribute('data-status', 'draft')
   await page.screenshot({ path: '../artifacts/v2-home-after-v1-journey.png', fullPage: true })
 })

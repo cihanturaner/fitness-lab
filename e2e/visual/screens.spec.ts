@@ -71,22 +71,13 @@ async function logSession(api: APIRequestContext, plannedId: string, date: strin
     const base = baseLoad(name)
     const step = base >= 90 ? 5 : 2.5
     const load = round(base * (1 + 0.025 * (week - 1)), step)
-    if (base >= 130) {
-      await json(api, 'POST', `/api/workouts/${opened.workout_id}/sets`, {
-        exercise_id: slot.effective_exercise_id,
-        set_type: 'warmup',
-        load_lb: String(round(load * 0.6, 5)),
-        reps: 8,
-        rir: null,
-      })
-    }
     const planned = complete ? slot.sets : slot.sets.slice(0, 2)
     for (const [index, set] of planned.entries()) {
       const top = set.reps_max ?? set.reps_min + 4
       const reps = Math.max(set.reps_min, top - index - (week === 1 ? 1 : 0))
+      // As the lifter enters it since V3.2: no set type sent, so the server stores working.
       await json(api, 'POST', `/api/workouts/${opened.workout_id}/sets`, {
         exercise_id: slot.effective_exercise_id,
-        set_type: set.set_type,
         load_lb: String(set.set_type === 'backoff' ? round(load * 0.85, step) : load),
         reps,
         rir: set.target_rir_min ?? 2,
@@ -167,8 +158,11 @@ test('empty dataset', async ({ page }) => {
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport)
     await page.goto(`${EMPTY}/#/`)
+    await expect(page.getByRole('region', { name: 'Today', exact: true })).toBeVisible()
+    await shoot(page, 'empty-home')
+    await page.goto(`${EMPTY}/#/training`)
     await expect(page.getByRole('list', { name: 'This week' })).toBeVisible()
-    await shoot(page, 'empty-week')
+    await shoot(page, 'empty-training')
     await page.goto(`${EMPTY}/#/bodyweight`)
     await shoot(page, 'empty-bodyweight')
     await page.goto(`${EMPTY}/#/nutrition`)
@@ -192,7 +186,7 @@ test('empty dataset', async ({ page }) => {
 
   // Last: opening a session creates a draft, which ends the empty state.
   await page.setViewportSize(VIEWPORTS[0]!)
-  await page.goto(`${EMPTY}/#/`)
+  await page.goto(`${EMPTY}/#/training`)
   // Before the block, a session is still loggable, quietly ("Log anyway"), never offered as block work.
   await page.getByRole('button', { name: 'Log Upper A anyway', exact: true }).click()
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
@@ -212,8 +206,11 @@ test('populated dataset', async ({ page }) => {
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport)
     await page.goto(`${FULL}/#/`)
+    await expect(page.getByRole('region', { name: 'Today', exact: true })).toBeVisible()
+    await shoot(page, 'full-home')
+    await page.goto(`${FULL}/#/training`)
     await expect(page.getByRole('list', { name: 'This week' })).toBeVisible()
-    await shoot(page, 'full-week')
+    await shoot(page, 'full-training')
     await page.goto(`${FULL}/#/bodyweight`)
     await shoot(page, 'full-bodyweight')
     await page.goto(`${FULL}/#/nutrition`)
@@ -224,10 +221,10 @@ test('populated dataset', async ({ page }) => {
     await shoot(page, 'full-sessions')
     await page.goto(`${FULL}/#/settings`)
     await shoot(page, 'full-settings')
-    await page.goto(`${FULL}/#/`)
+    await page.goto(`${FULL}/#/training`)
     await page.getByRole('link', { name: 'Previous week' }).click()
     await expect(page.getByTestId('week-mode')).toBeVisible()
-    await shoot(page, 'full-week-previous')
+    await shoot(page, 'full-training-previous')
     if (draft) {
       await page.goto(`${FULL}/#/workouts/${draft}`)
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()

@@ -58,8 +58,10 @@ Dependency direction is one-way:
   fat 60 g are locked; the calorie target is
   unknown until the lifter records one (append-only `calorie_target`), and carbohydrate
   is then (calories - 1120) / 4. The app never sets or changes calories itself.
-- A workout row in the UI is not a set until the lifter saves it; its set type is never
-  taken from the plan.
+- A workout row in the UI is not a set until the lifter saves it. The lifter never chooses a
+  set type (V3.2): a row is set · lb · reps · RIR and is stored as `working`; the API stores a
+  set created without `set_type` as `working`. The column, rule C4 and warm-up exclusion
+  from working-set totals stay, so legacy rows keep their meaning.
 - A session is "shortened" when its recorded non-warm-up sets are fewer than the planned
   non-warm-up sets of its origin (totals only, never matched set by set). Completing one asks
   first, and no screen shows it as a full "Done".
@@ -72,7 +74,10 @@ Dependency direction is one-way:
   weigh-ins per 7-day half, "sustained" = two consecutive weekly trends above 0.25, gate
   reliability checks) are documented in the V3 spec and must stay fixed for a block.
 
-Current design: `docs/superpowers/specs/2026-09-24-v3-1-units-macros-premium-ui.md` (V3.1:
+Current design: `docs/superpowers/specs/2026-09-24-v3-2-simplification.md` (V3.2: Home is
+only today + three summary cards, the week planner lives on Training, no set-type control,
+perceptible motion timings, less rounding — it keeps V3.1's visual identity) over
+`docs/superpowers/specs/2026-09-24-v3-1-units-macros-premium-ui.md` (V3.1:
 pound loads, macro-derived calories, the emerald visual language and motion system — it
 supersedes V2.1's visual tokens; follow it for any UI change) over
 `docs/superpowers/specs/2026-09-23-v3-final-product-completeness.md` (V3:
@@ -177,8 +182,9 @@ Frontend (from `web/`):
 End-to-end (from `e2e/`) — seeds fresh scratch databases with the locked program and
 starts the real launcher on port 8710 (V1 journey; 8711 for the restart test) and 8712
 (V2 daily-use journey, its own database, block started two Mondays ago), 8713 (V3
-completeness journey, its own database, block started three Mondays ago) and 8714 (V3.1
-pounds / macros / reduced-motion journey, its own database); it ignores
+completeness journey, its own database, block started three Mondays ago), 8714 (V3.1
+pounds / macros / reduced-motion journey, its own database) and 8715 (V3.2 Home / Training /
+keyboard-only set entry / motion journey, its own database); it ignores
 `FITNESS_LAB_DB` and never reuses a running server:
 
     npx playwright test

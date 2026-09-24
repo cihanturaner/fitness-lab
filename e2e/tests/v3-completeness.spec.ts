@@ -39,13 +39,12 @@ async function logOneBenchSet(page: Page) {
   await bench.getByRole('textbox', { name: 'Load in lb, new set 1' }).fill('80')
   await bench.getByRole('textbox', { name: 'Reps, new set 1' }).fill('8')
   await bench.getByRole('textbox', { name: 'RIR, new set 1' }).fill('2')
-  await bench.getByRole('combobox', { name: 'Set type, new set 1' }).selectOption('working')
   await bench.getByRole('textbox', { name: 'Reps, new set 1' }).press('Enter')
   await expect.poll(() => db('SELECT count(*) FROM performed_set')).toBe('1')
 }
 
 test('a past week is one click away, and a shortened session is confirmed and shown as such', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/#/training')
   await expect(page.getByTestId('block-week')).toHaveText('Week 4 of 12')
   await page.getByRole('navigation', { name: 'Weeks' }).getByRole('link', { name: 'Previous week' }).click()
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Week 3 of 12')
@@ -79,7 +78,7 @@ test('a past week is one click away, and a shortened session is confirmed and sh
   await expect(page.getByRole('status')).toContainText('Saved as a shortened session: 1 of 23 planned working sets recorded.')
   expect(db(`SELECT status FROM workout WHERE id = '${workoutId}'`)).toBe('complete')
 
-  await page.goto(`/#/week/${WEEK3_MONDAY}`)
+  await page.goto(`/#/training/${WEEK3_MONDAY}`)
   const tile = page.getByTestId('day-monday').getByTestId('planned-upper_a')
   await expect(tile.getByTestId('session-status')).toHaveText('Shortened')
   await expect(tile.getByTestId('session-sets')).toHaveText('1 of 23 working sets')
@@ -111,8 +110,9 @@ test('the block start is set in the app; days before it are pre-block', async ({
   expect(asked).toContain('Week 1 becomes')
   expect(db('SELECT start_on FROM training_block')).toBe(nextMonday)
 
-  await page.goto('/')
+  await page.goto('/#/training')
   await expect(page.getByTestId('block-phase')).toContainText('Before the block')
+  await page.goto('/')
   await expect(page.getByRole('region', { name: 'Today', exact: true })).toContainText('Before the block')
   await page.goto('/#/history')
   await page.getByRole('navigation', { name: 'Exercises' }).getByRole('link', { name: /Smith Flat Bench Press/ }).click()

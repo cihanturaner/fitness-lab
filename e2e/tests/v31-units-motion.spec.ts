@@ -77,7 +77,6 @@ test('loads are entered in pounds, stored exactly, and read back in pounds every
   await card.getByRole('textbox', { name: 'Load in lb, new set 1' }).fill('225')
   await card.getByRole('textbox', { name: 'Reps, new set 1' }).fill('5')
   await card.getByRole('textbox', { name: 'RIR, new set 1' }).fill('2')
-  await card.getByRole('combobox', { name: 'Set type, new set 1' }).selectOption('working')
   await card.getByRole('textbox', { name: 'Reps, new set 1' }).press('Enter')
   await expect(card.getByTestId('set-row')).toHaveCount(1)
   await expect(card.getByRole('textbox', { name: 'Load in lb, set 1' })).toHaveValue('225')
@@ -125,18 +124,18 @@ test('a day is logged as macros; its calories are derived live and on reload', a
 test.describe('reduced motion', () => {
   test('motion plays by default', async ({ page }) => {
     await page.goto('/#/nutrition')
-    const first = page.locator('.enter > *').first()
-    await expect(first).toBeVisible()
-    expect(await first.evaluate((element) => getComputedStyle(element).animationDuration)).toBe('0.32s')
+    const screen = page.locator('.enter').first()
+    await expect(screen).toBeVisible()
+    expect(await screen.evaluate((element) => getComputedStyle(element).animationDuration)).toBe('0.21s')
   })
 
   test('with "reduce motion", every entrance and value change is instant', async ({ browser, baseURL }) => {
     const context = await browser.newContext({ reducedMotion: 'reduce', baseURL, viewport: { width: 1440, height: 900 } })
     const page = await context.newPage()
     await page.goto('/#/nutrition')
-    const first = page.locator('.enter > *').first()
-    await expect(first).toBeVisible()
-    expect(await first.evaluate((element) => getComputedStyle(element).animationDuration)).toBe('0s')
+    const screen = page.locator('.enter').first()
+    await expect(screen).toBeVisible()
+    expect(await screen.evaluate((element) => getComputedStyle(element).animationDuration)).toBe('0s')
     // The visible live total is the exact value at once — no glide through intermediate numbers.
     await page.getByRole('textbox', { name: 'Protein g' }).fill('150')
     const shown = page.getByRole('form', { name: 'Log the day' }).locator('.t-metric')

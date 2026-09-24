@@ -41,8 +41,8 @@ async function savedRows(card: Locator): Promise<string[]> {
   return result
 }
 
-test('home shows the current block week, the four sessions on their weekdays, and empty summaries', async ({ page }) => {
-  await page.goto('/')
+test('training shows the current block week and the four sessions on their weekdays; home is empty summaries', async ({ page }) => {
+  await page.goto('/#/training')
   await expect(page.getByTestId('block-week')).toHaveText('Week 3 of 12')
   const week = page.getByRole('list', { name: 'This week' })
   await expect(week.getByRole('listitem')).toHaveCount(7)
@@ -61,13 +61,16 @@ test('home shows the current block week, the four sessions on their weekdays, an
   for (const rest of ['wednesday', 'saturday', 'sunday']) {
     await expect(week.getByTestId(`day-${rest}`)).toContainText('Rest')
   }
+  await page.goto('/')
+  await expect(page.getByTestId('home-context')).toHaveText('Block week 3 of 12')
+  await expect(page.getByRole('list', { name: 'This week' })).toHaveCount(0)
   await expect(page.getByTestId('home-bodyweight')).toContainText('No weigh-ins yet.')
   await expect(page.getByTestId('home-nutrition')).toContainText('Calorie target not calibrated yet.')
   await expect(page.getByTestId('home-recent')).toContainText('No completed sessions yet.')
 })
 
 test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/#/training')
   await page.getByRole('button', { name: 'Start Lower A' }).click()
   await expect(page.getByRole('heading', { name: 'Lower A', level: 1 })).toBeVisible()
   const workoutId = /#\/workouts\/([a-f0-9]+)$/.exec(page.url())?.[1] ?? ''
@@ -87,7 +90,8 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
     await expect(block(page, key)).toBeInViewport()
   }
 
-  // Keyboard: load, Tab, reps, Tab, RIR, Tab (the first row asks for its type once), Tab.
+  // Keyboard: load, Tab, reps, Tab, RIR, Tab — no set type is ever asked.
+  await expect(squat.getByRole('combobox')).toHaveCount(0)
   await squat.getByRole('textbox', { name: 'Load in lb, new set 1' }).click()
   await page.keyboard.type('100')
   await page.keyboard.press('Tab')
@@ -95,11 +99,8 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
   await page.keyboard.press('Tab')
   await page.keyboard.type('2')
   await page.keyboard.press('Tab')
-  await expect(squat.getByRole('combobox', { name: 'Set type, new set 1' })).toBeFocused()
-  await squat.getByRole('combobox', { name: 'Set type, new set 1' }).selectOption('working')
-  await page.keyboard.press('Tab')
   await expect.poll(() => savedRows(squat)).toEqual(['100×8@2'])
-  // The next row starts with the previous load (selected) and type; Tab keeps the load.
+  // The next row starts with the previous load (selected); Tab keeps the load.
   const load2 = squat.getByRole('textbox', { name: 'Load in lb, new set 2' })
   await expect(load2).toBeFocused()
   await expect(load2).toHaveValue('100')
@@ -129,7 +130,6 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
   const rdl = block(page, 'lower_a.02')
   await rdl.getByRole('textbox', { name: 'Load in lb, new set 1' }).fill('80.12345')
   await rdl.getByRole('textbox', { name: 'Reps, new set 1' }).fill('10')
-  await rdl.getByRole('combobox', { name: 'Set type, new set 1' }).selectOption('working')
   await rdl.getByRole('textbox', { name: 'Reps, new set 1' }).press('Enter')
   await expect(rdl.getByRole('alert')).toContainText('Not saved')
   expect(db(`SELECT count(*) FROM performed_set WHERE workout_id = '${workoutId}'`)).toBe('3')
@@ -140,7 +140,11 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
   // Reload and resume: the draft and its sets are the server's truth.
   await page.reload()
   await expect.poll(() => savedRows(block(page, 'lower_a.01'))).toEqual(['100×8@2', '100×7@2', '102.5×6@1'])
+  // Home offers the open draft as today's one thing to do.
   await page.goto('/')
+  await expect(page.getByRole('region', { name: 'Today', exact: true })).toContainText('In progress')
+  await expect(page.getByRole('button', { name: 'Continue Lower A' })).toBeVisible()
+  await page.goto('/#/training')
   await expect(page.getByTestId('planned-lower_a')).toHaveAttribute('data-status', 'draft')
   await page.getByRole('button', { name: 'Resume draft of Lower A' }).click()
   await expect(page).toHaveURL(new RegExp(`#/workouts/${workoutId}$`))
@@ -152,7 +156,7 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
   expect(asked()).toBe('4 actual working sets recorded / 18 planned. Complete anyway?')
   expect(db(`SELECT status FROM workout WHERE id = '${workoutId}'`)).toBe('complete')
   await expect(page.getByTestId('new-set-row')).toHaveCount(0)
-  await page.goto('/')
+  await page.goto('/#/training')
   await expect(page.getByTestId('planned-lower_a')).toHaveAttribute('data-status', 'complete')
   // Never a full "Done" for 4 of 18: the tile says what was recorded against the plan.
   await expect(page.getByTestId('planned-lower_a').getByTestId('session-status')).toHaveText('Shortened')
@@ -170,7 +174,7 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
   await expect(page.getByTestId('workout-status')).toHaveText('Complete')
 
   // Last performance is visible the next time, with nothing copied into the new draft.
-  await page.goto('/')
+  await page.goto('/#/training')
   await page.getByRole('button', { name: 'Start Lower A again' }).click()
   await expect(page.getByRole('heading', { name: 'Lower A', level: 1 })).toBeVisible()
   await expect(block(page, 'lower_a.01').getByTestId('last-performance')).toContainText(
@@ -182,7 +186,8 @@ test('workout: compact blocks, keyboard entry, save, resume, complete, reopen', 
   page.once('dialog', (dialog) => void dialog.accept())
   await page.getByRole('button', { name: 'Details' }).click()
   await page.getByRole('button', { name: 'Discard draft' }).click()
-  await expect(page).toHaveURL(/#\/$/)
+  // Back where it was opened from.
+  await expect(page).toHaveURL(/#\/training$/)
   expect(db(`SELECT count(*) FROM workout WHERE id = '${secondId}'`)).toBe('0')
 })
 
@@ -307,7 +312,7 @@ test('history: chronological lb/reps/RIR per exercise, week by week', async ({ p
   await expect(page.getByTestId('history-exposure').first().getByTestId('history-set')).toHaveText(['80 lb × 10'])
   await page.screenshot({ path: '../artifacts/v2-history-1440x900.png' })
   await page.goto('/')
-  await expect(page.getByTestId('block-week')).toBeVisible()
+  await expect(page.getByTestId('home-context')).toHaveText('Block week 3 of 12')
   await expect(page.getByTestId('home-recent')).toContainText('Smith High-Bar Squat')
   await page.screenshot({ path: '../artifacts/v2-home-1440x900.png' })
 })
