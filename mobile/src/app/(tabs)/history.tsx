@@ -1,11 +1,5 @@
-import { PlaceholderScreen } from '@/features/shell/placeholder-screen';
+import { HistoryScreen } from '@/features/history/history-screen';
 
 export default function HistoryRoute() {
-  return (
-    <PlaceholderScreen
-      title="History"
-      icon="history"
-      note="The day-by-day timeline arrives in a later milestone."
-    />
-  );
+  return <HistoryScreen />;
 }

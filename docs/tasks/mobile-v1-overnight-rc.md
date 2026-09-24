@@ -12,7 +12,7 @@ Native iPhone: **NOT YET VERIFIED** for anything in this file unless stated.
 | M0 | Finalize M2.5 visual calibration (anatomy redraw, compact Home hero) | done | see log |
 | M3 | Real workout logger (lb → reps → RIR) | done | see log |
 | M4 | Nutrition + bodyweight + Quick Add | done | see log |
-| M5 | History (day-first) + Settings | queued | — |
+| M5 | History (day-first) + Settings | done | see log |
 | M6 | Local SQLite persistence (expo-sqlite), Clock | queued | — |
 | M6b | Versioned export (read-only tool) / mobile import | queued | — |
 | VP | Integrated visual consistency pass | queued | — |

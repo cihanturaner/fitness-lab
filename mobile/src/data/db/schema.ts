@@ -1,4 +1,7 @@
 import type { Db } from './database';
+import { SCHEMA_VERSION } from './version';
+
+export { SCHEMA_VERSION };
 
 /**
  * The device database schema, as forward-only numbered migrations. `SCHEMA_VERSION` is the
@@ -12,8 +15,6 @@ import type { Db } from './database';
  * itself is bundled with the app (`data/program.ts`); a workout names its origin by
  * `program_key` + `workout_key` and a set its slot by `slot_key`.
  */
-
-export const SCHEMA_VERSION = 1;
 
 type Migration = { version: number; name: string; sql: string };
 
