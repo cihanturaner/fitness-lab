@@ -1,3 +1,5 @@
+import { parseIsoDate, type IsoDate } from './dates';
+
 /**
  * Session status from facts about one planned session. Planned is not performed: the
  * planned side is a count of non-warm-up sets, the performed side only what was recorded.
@@ -30,4 +32,13 @@ export function sessionProgress(facts: SessionFacts): number {
 
 export function isFinished(status: SessionStatus): boolean {
   return status === 'done' || status === 'shortened';
+}
+
+/** A scheduled day's status: a planned session whose day has passed unopened was not recorded. */
+export type DayStatus = SessionStatus | 'not-recorded';
+
+export function dayStatus(facts: SessionFacts, date: IsoDate, today: IsoDate): DayStatus {
+  const status = sessionStatus(facts);
+  if (status === 'planned' && parseIsoDate(date) < parseIsoDate(today)) return 'not-recorded';
+  return status;
 }

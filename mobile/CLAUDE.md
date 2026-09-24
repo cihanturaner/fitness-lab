@@ -10,9 +10,12 @@ here unchanged; this file does not restate it. Progress lives in `docs/tasks/mob
 - `mobile/` is its own npm project (Expo SDK 57). It never imports from `web/` or `backend/`
   and never calls the FastAPI server: no runtime network at all (enforced by
   `src/__tests__/architecture.test.ts`).
-- Home reads `HomeFacts` from `src/data/home-source.ts`. M1 fills it from
-  `src/data/fixtures/`; on-device persistence replaces that function's body later. Never
-  point it at `data/fitness_lab.db`, and never commit a database, screenshot or user data.
+- Home reads `HomeFacts` from `src/data/home-source.ts`, Training reads `TrainingFacts` from
+  `src/data/training-source.ts`. Both are filled from `src/data/fixtures/`; on-device
+  persistence replaces those function bodies later. Never point them at
+  `data/fitness_lab.db`, and never commit a database, screenshot or user data.
+- Program prescriptions (names, sets, reps, RIR, rest, failure) are copied from the program
+  package, never invented; `training-fixture.test.ts` checks the fixture against it.
 - This environment blocks api.expo.dev: run `npx expo install` / `expo lint` / `expo-doctor`
   with `EXPO_OFFLINE=1`, which resolves versions from the local SDK manifest.
 

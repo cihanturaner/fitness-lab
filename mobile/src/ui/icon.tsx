@@ -15,6 +15,7 @@ const symbols = {
   play: { ios: 'play.fill', android: 'play_arrow', web: 'play_arrow' },
   check: { ios: 'checkmark', android: 'check', web: 'check' },
   chevronRight: { ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' },
+  chevronLeft: { ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' },
   bodyweight: { ios: 'scalemass', android: 'monitor_weight', web: 'monitor_weight' },
   figure: {
     ios: 'figure.strengthtraining.traditional',

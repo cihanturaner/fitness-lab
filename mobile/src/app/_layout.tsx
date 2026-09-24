@@ -33,6 +33,10 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ title: 'Settings', headerBackTitle: 'Home' }} />
         <Stack.Screen
+          name="plan/[date]"
+          options={{ title: 'Workout plan', headerBackTitle: 'Training' }}
+        />
+        <Stack.Screen
           name="quick-add"
           options={{
             presentation: 'formSheet',
