@@ -98,6 +98,15 @@ Status: **M1 done.** Native iPhone behaviour: **NOT YET VERIFIED** (no macOS/Xco
   wrapping; a date title that would overflow for long dates (28 pt + auto-shrink); a
   misleading web placeholder glyph; the Bodyweight card's empty lower half.
 
+## Repair (packaging)
+
+- Commit `c4dbad5` shipped without `mobile/src/data/`: the root `.gitignore` rule `data/`
+  (meant for the SQLite directory) matches any directory named `data`, so `git add -A`
+  skipped the data seam silently and Metro could not resolve `@/data/home-source` from a
+  clean checkout. Fixed by re-including `/src/data/` in `mobile/.gitignore` (root rule
+  untouched; `*.db` / `*.sqlite` stay ignored there) and committing the three original
+  files unchanged.
+
 ## Not verified
 
 - Native iPhone (simulator or device): layout, SF Symbols, Geist loading, `formSheet`

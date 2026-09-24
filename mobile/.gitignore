@@ -41,3 +41,7 @@ example
 # generated native folders
 /ios
 /android
+
+# The root .gitignore ignores every `data/` directory (for the SQLite database). The app's
+# source layer src/data/ is code, not a database: re-include it. *.db / *.sqlite stay ignored.
+!/src/data/
