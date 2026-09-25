@@ -457,4 +457,4 @@ RTL/jest: logger set entry, macros → Home, History past workout, reopen DB fil
 preview/import, independent slots (all in the 283-test suite).
 
 ## Gates
-typecheck ok · lint 0 warnings · jest 20 suites / 283 tests · iOS export ok.
+typecheck ok · lint 0 warnings · jest 20 suites / 283 tests · iOS export ok · web/backend diff empty · no untracked files · final blocker review: 0 blockers (quote-style nit fixed).
