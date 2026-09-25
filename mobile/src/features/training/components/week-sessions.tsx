@@ -46,7 +46,7 @@ export function WeekSessions({ sessions, restLabel, outsideLabel, onSelect }: Pr
                 </View>
                 <View style={styles.body}>
                   <View style={styles.nameRow}>
-                    <Text variant="bodyStrong" numberOfLines={1} style={styles.name}>
+                    <Text variant="label" numberOfLines={1} style={styles.name}>
                       {s.name}
                     </Text>
                     <StatusChip status={s.status} label={s.statusLabel} plain />
@@ -90,17 +90,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
-    minHeight: 64,
+    minHeight: 58,
     paddingHorizontal: space.sm + 2,
-    paddingVertical: space.sm + 2,
+    paddingVertical: space.sm,
     borderRadius: radius.lg,
   },
   rowSelected: { backgroundColor: color.emerald50 },
   rule: { height: StyleSheet.hairlineWidth, backgroundColor: color.hairline, marginHorizontal: space.md },
   date: {
-    width: 44,
-    height: 48,
-    borderRadius: radius.md + 2,
+    width: 40,
+    height: 44,
+    borderRadius: radius.md,
     backgroundColor: color.sunken,
     alignItems: 'center',
     justifyContent: 'center',
@@ -111,5 +111,5 @@ const styles = StyleSheet.create({
   bar: { marginTop: space.xs },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
   name: { flexShrink: 1 },
-  line: { paddingHorizontal: space.sm },
+  line: { paddingHorizontal: space.sm, color: color.faint },
 });

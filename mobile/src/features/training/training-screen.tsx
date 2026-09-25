@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { TrainingFacts } from '@/data/training-facts';
 import { tabBarClearance } from '@/features/shell/tab-bar';
-import { color, gutter, space } from '@/theme/tokens';
+import { color, gutter, radius, space } from '@/theme/tokens';
 import { Card } from '@/ui/card';
 import { Text } from '@/ui/text';
 
@@ -56,13 +56,15 @@ export function TrainingScreen({ facts }: { facts: TrainingFacts }) {
         contentContainerStyle={[styles.content, { paddingBottom: tabBarClearance(insets.bottom) }]}
         showsVerticalScrollIndicator={false}>
         <View style={styles.titles}>
-          <Text variant="screenTitle" accessibilityRole="header">
+          <Text variant="screenTitle" accessibilityRole="header" style={styles.title}>
             Training
           </Text>
           {view.kind === 'planner' ? (
-            <Text variant="label" tone="emerald700">
-              {view.blockLabel}
-            </Text>
+            <View style={styles.badge}>
+              <Text variant="label" tone="emerald700" style={styles.badgeText}>
+                {view.blockLabel}
+              </Text>
+            </View>
           ) : null}
         </View>
 
@@ -85,7 +87,7 @@ export function TrainingScreen({ facts }: { facts: TrainingFacts }) {
               <SelectedSession selected={view.selected} onOpen={openDay} />
             </View>
             <View style={styles.sectionHead}>
-              <Text variant="section" accessibilityRole="header">
+              <Text variant="title" accessibilityRole="header">
                 Sessions
               </Text>
               <Text variant="caption" tone="muted">
@@ -116,9 +118,18 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.paper },
   scroll: { flex: 1 },
   content: { paddingHorizontal: gutter, paddingTop: space.sm },
-  titles: { gap: 2, minHeight: 56, justifyContent: 'center' },
-  navigator: { marginTop: space.md, marginBottom: space.lg },
-  selected: { marginTop: space.md },
-  sectionHead: { gap: 2, marginTop: space.xxl, marginBottom: space.md },
+  titles: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 48 },
+  title: { flex: 1 },
+  badge: {
+    height: 30,
+    paddingHorizontal: space.md,
+    borderRadius: radius.round,
+    backgroundColor: color.emerald50,
+    justifyContent: 'center',
+  },
+  badgeText: { fontSize: 13, lineHeight: 16 },
+  navigator: { marginTop: space.xs, marginBottom: space.sm },
+  selected: { marginTop: space.sm },
+  sectionHead: { gap: 1, marginTop: space.xxl, marginBottom: space.sm },
   noBlock: { marginTop: space.xl, gap: space.xs },
 });

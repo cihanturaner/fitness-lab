@@ -8,6 +8,7 @@ import { Card } from '@/ui/card';
 import { HeroButton } from '@/ui/hero-button';
 import { ProgressBar } from '@/ui/progress-bar';
 import { StatusChip } from '@/ui/status-chip';
+import { QuietState } from '@/ui/quiet-state';
 import { Text } from '@/ui/text';
 
 import type { RestHero, SetupHero, WorkoutHero as WorkoutHeroView } from '../home-view';
@@ -28,80 +29,62 @@ export function WorkoutHero({ hero, focusGroups, onOpenWorkout, onOpenSettings }
 
   if (hero.kind === 'setup') {
     return (
-      <Card size="hero" style={styles.rest}>
-        <Text variant="eyebrow" tone="muted">
-          Training block
-        </Text>
-        <Text variant="workoutName" tone="emerald700" accessibilityRole="header">
-          Not started yet
-        </Text>
-        <Text variant="body" tone="muted" style={styles.setupNote}>
-          {hero.note}
-        </Text>
+      <QuietState icon="program" eyebrow="Training block" title="Not started yet" note={hero.note}>
         <HeroButton label="Set block start" icon="chevronRight" accessibilityLabel="Set block start in Settings" onPress={onOpenSettings} />
-      </Card>
+      </QuietState>
     );
   }
 
   if (hero.kind === 'rest') {
-    return (
-      <Card size="hero" style={styles.rest}>
-        <Text variant="eyebrow" tone="muted">
-          Today
-        </Text>
-        <Text variant="workoutName" tone="emerald700" accessibilityRole="header">
-          Rest day
-        </Text>
-        <Text variant="body" tone="muted">
-          {hero.nextLabel}
-        </Text>
-      </Card>
-    );
+    return <QuietState icon="week" eyebrow="Today" title="Rest day" note={hero.nextLabel} />;
   }
 
+  const started = hero.status !== 'planned';
   return (
     <Card size="hero" style={styles.card}>
       <View style={styles.topRow}>
-        <View style={styles.titles}>
-          <Text variant="workoutName" tone="emerald700" accessibilityRole="header" numberOfLines={1}>
-            {hero.name}
-          </Text>
-          <Text variant="caption" tone="muted">
-            {hero.metaLabel}
-          </Text>
-        </View>
-        <StatusChip status={hero.status} label={hero.statusLabel} />
+        <Text
+          variant="workoutName"
+          tone="emerald700"
+          accessibilityRole="header"
+          numberOfLines={1}
+          style={styles.name}>
+          {hero.name}
+        </Text>
+        <StatusChip status={hero.status} label={hero.statusLabel} plain />
       </View>
+      <Text variant="caption" tone="muted" numberOfLines={1}>
+        {hero.metaLabel}
+        {started ? null : <Text variant="caption" tone="muted">{` · ${hero.setsLabel}`}</Text>}
+      </Text>
 
       <View style={styles.anatomy}>
         <MuscleFocus groups={focusGroups} labels={hero.focus} height={anatomyHeight} />
       </View>
 
-      <View style={styles.progress}>
-        {/* One line: recorded sets, a thin bar, the share — progress stays secondary. */}
-        <View style={styles.progressRow}>
-          <Text variant="numeric">{hero.setsLabel}</Text>
-          {hero.status !== 'planned' ? (
-            <>
-              <View style={styles.bar}>
-                <ProgressBar
-                  value={hero.progress}
-                  height={6}
-                  color={hero.status === 'shortened' ? color.warn : color.emerald600}
-                />
-              </View>
-              <Text variant="numeric" tone="muted">
-                {Math.round(hero.progress * 100)}%
-              </Text>
-            </>
+      {started ? (
+        // Once sets are recorded: one line of progress and what comes next — secondary.
+        <View style={styles.progress}>
+          <View style={styles.progressRow}>
+            <Text variant="numeric">{hero.setsLabel}</Text>
+            <View style={styles.bar}>
+              <ProgressBar
+                value={hero.progress}
+                height={5}
+                color={hero.status === 'shortened' ? color.warn : color.emerald600}
+              />
+            </View>
+            <Text variant="numeric" tone="muted">
+              {Math.round(hero.progress * 100)}%
+            </Text>
+          </View>
+          {hero.nextLabel ? (
+            <Text variant="caption" tone="muted" numberOfLines={1}>
+              Up next · <Text variant="caption" tone="inkSoft">{hero.nextLabel}</Text>
+            </Text>
           ) : null}
         </View>
-        {hero.nextLabel ? (
-          <Text variant="caption" tone="muted" numberOfLines={1}>
-            Up next · <Text variant="caption" tone="inkSoft">{hero.nextLabel}</Text>
-          </Text>
-        ) : null}
-      </View>
+      ) : null}
 
       <HeroButton
         label={hero.cta.label}
@@ -115,12 +98,10 @@ export function WorkoutHero({ hero, focusGroups, onOpenWorkout, onOpenSettings }
 }
 
 const styles = StyleSheet.create({
-  rest: { gap: space.sm },
-  setupNote: { marginBottom: space.sm },
   card: { paddingTop: space.lg + 2, paddingBottom: space.lg + 2 },
-  topRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
-  titles: { flex: 1, gap: 2 },
-  anatomy: { marginTop: space.sm, marginBottom: space.md },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: 2 },
+  name: { flex: 1 },
+  anatomy: { marginTop: space.lg, marginBottom: space.lg },
   progress: { gap: space.xs + 2, marginBottom: space.md + 2 },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   bar: { flex: 1 },

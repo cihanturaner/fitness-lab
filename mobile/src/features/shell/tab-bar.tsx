@@ -8,7 +8,7 @@ import { Icon, type IconName } from '@/ui/icon';
 import { Pressable } from '@/ui/pressable';
 import { Text } from '@/ui/text';
 
-const BAR_HEIGHT = 68;
+const BAR_HEIGHT = 64;
 
 function barBottom(insetBottom: number): number {
   return Math.max(insetBottom - 6, space.md);
@@ -62,7 +62,7 @@ export function TabButton({ icon, label, isFocused, ...rest }: TabButtonProps) {
       accessibilityLabel={label}
       accessibilityState={{ selected: isFocused }}
       style={[styles.tab, isFocused && styles.tabActive]}>
-      <Icon name={icon} size={23} color={tint} />
+      <Icon name={icon} size={22} color={tint} />
       <Text variant="tab" style={{ color: isFocused ? color.emerald800 : color.inkSoft }}>
         {label}
       </Text>
@@ -84,15 +84,15 @@ const styles = StyleSheet.create({
     height: BAR_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 7,
+    paddingHorizontal: 6,
     backgroundColor: color.card,
     borderRadius: BAR_HEIGHT / 2,
     boxShadow: shadow.dock,
   },
   tab: {
     flex: 1,
-    height: BAR_HEIGHT - 14,
-    borderRadius: (BAR_HEIGHT - 14) / 2,
+    height: BAR_HEIGHT - 12,
+    borderRadius: (BAR_HEIGHT - 12) / 2,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,

@@ -23,7 +23,7 @@ export function WeekNavigator(props: Props) {
       <StepButton icon="chevronLeft" {...props.previous} onPress={props.onPrevious} />
       <View style={styles.center}>
         <Text
-          variant="bodyStrong"
+          variant="label"
           accessibilityRole="header"
           accessibilityLabel={props.rangeAccessibilityLabel}
           numberOfLines={1}
@@ -69,34 +69,31 @@ function StepButton({ icon, enabled, accessibilityLabel, onPress }: StepProps) {
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: !enabled }}
-      style={[styles.step, !enabled && styles.stepDisabled]}>
-      <Icon name={icon} size={16} color={enabled ? color.emerald700 : color.faint} />
+      style={styles.step}>
+      <View style={[styles.stepDisc, !enabled && styles.stepDisabled]}>
+        <Icon name={icon} size={14} color={enabled ? color.emerald700 : color.faint} />
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    padding: 5,
-    borderRadius: radius.round,
-    backgroundColor: color.card,
-    boxShadow: shadow.card,
-  },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   center: { flex: 1, alignItems: 'center' },
-  range: { fontVariant: ['tabular-nums'] },
+  range: { fontSize: 15, lineHeight: 19, fontVariant: ['tabular-nums'] },
   caption: { lineHeight: 17 },
   back: { minHeight: 17, justifyContent: 'center' },
   backText: { fontSize: 13, lineHeight: 17 },
-  step: {
-    width: hitTarget,
-    height: hitTarget,
+  // A 44-pt target around a small quiet disc: navigation, not the screen's hero.
+  step: { width: hitTarget, height: hitTarget, alignItems: 'center', justifyContent: 'center' },
+  stepDisc: {
+    width: 32,
+    height: 32,
     borderRadius: radius.round,
-    backgroundColor: color.emerald50,
+    backgroundColor: color.card,
     alignItems: 'center',
     justifyContent: 'center',
+    boxShadow: shadow.card,
   },
-  stepDisabled: { backgroundColor: color.sunken },
+  stepDisabled: { backgroundColor: 'transparent', boxShadow: 'none' },
 });

@@ -44,13 +44,15 @@ export const color = {
   onPrimary: '#FFFFFF',
 
   /** Anatomy figure: neutral body (edge → centre), resting plate and trained plate (lit → deep). */
-  bodyShade: '#D5E0DA',
-  body: '#E2EAE6',
-  bodyPlateLight: '#D6E0DB',
-  bodyPlate: '#B7C6BF',
-  bodyFloor: '#EDF3EF',
-  muscleLight: '#4CC293',
-  muscleDeep: '#17684B',
+  bodyShade: '#D3DED8',
+  body: '#E4ECE8',
+  bodyPlateLight: '#DCE5E0',
+  bodyPlate: '#C3D1CA',
+  /** The soft seam between plates: a tone of the body, not a white cut. */
+  bodySeam: '#EEF3F0',
+  bodyFloor: '#E9F0EC',
+  muscleLight: '#3FB887',
+  muscleDeep: '#15644A',
 } as const;
 
 export const space = {

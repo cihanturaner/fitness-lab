@@ -74,21 +74,21 @@ function Mark({ day }: { day: PlannerDay }) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: space.xs },
-  column: { flex: 1, alignItems: 'center', gap: 6, minHeight: 74 },
+  column: { flex: 1, alignItems: 'center', gap: 5, minHeight: 64 },
   capsule: {
     width: '100%',
-    maxWidth: 46,
-    height: 62,
+    maxWidth: 44,
+    height: 54,
     borderRadius: radius.round,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
   },
-  weekday: { fontSize: 12, lineHeight: 15 },
+  weekday: { fontSize: 11, lineHeight: 14 },
   today: { borderWidth: 1.5, borderColor: color.emerald600 },
   selected: { backgroundColor: color.emerald700, boxShadow: shadow.cta },
   dim: { opacity: 0.45 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  dot: { width: 5, height: 5, borderRadius: 3 },
   dash: { width: 9, height: 2, borderRadius: 1, marginVertical: 2 },
 });
 

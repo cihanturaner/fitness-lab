@@ -56,8 +56,8 @@ function Figure({ art, on, ids, width, height }: FigureProps) {
           key={`p${i}`}
           d={plate.d}
           fill={`url(#${plate.group && on.has(plate.group) ? ids.trained : ids.resting})`}
-          stroke={color.card}
-          strokeWidth={1.3}
+          stroke={color.bodySeam}
+          strokeWidth={0.9}
           strokeLinejoin="round"
         />
       ))}
@@ -80,7 +80,7 @@ function Figure({ art, on, ids, width, height }: FigureProps) {
           <Stop offset="1" stopColor={color.body} />
         </LinearGradient>
       </Defs>
-      <Ellipse cx={CENTER} cy={VIEWBOX.height - 10} rx={48} ry={6} fill={color.bodyFloor} />
+      <Ellipse cx={CENTER} cy={VIEWBOX.height - 10} rx={44} ry={5} fill={color.bodyFloor} />
       <G>{half}</G>
       <G transform={`matrix(-1 0 0 1 ${2 * CENTER} 0)`}>{half}</G>
     </Svg>
@@ -88,5 +88,5 @@ function Figure({ art, on, ids, width, height }: FigureProps) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'center', gap: space.xl },
+  row: { flexDirection: 'row', justifyContent: 'center', gap: space.sm },
 });

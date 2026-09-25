@@ -6,6 +6,7 @@ import { useAnatomyHeight } from '@/ui/anatomy/use-anatomy-height';
 import { Card } from '@/ui/card';
 import { HeroButton } from '@/ui/hero-button';
 import { ProgressBar } from '@/ui/progress-bar';
+import { QuietState } from '@/ui/quiet-state';
 import { StatusChip } from '@/ui/status-chip';
 import { Text } from '@/ui/text';
 
@@ -21,21 +22,16 @@ type Props = {
  * focus, progress, then its one action; rest and off-block days stay a small quiet card.
  */
 export function SelectedSession({ selected, onOpen }: Props) {
-  const anatomyHeight = useAnatomyHeight(0.84);
+  const anatomyHeight = useAnatomyHeight(0.92, 90);
 
   if (selected.kind !== 'workout') {
     return (
-      <Card size="hero" style={styles.quiet}>
-        <Text variant="eyebrow" tone="muted">
-          {selected.eyebrow}
-        </Text>
-        <Text variant="workoutName" tone="inkSoft" accessibilityRole="header">
-          {selected.title}
-        </Text>
-        <Text variant="body" tone="muted">
-          {selected.note}
-        </Text>
-      </Card>
+      <QuietState
+        icon={selected.kind === 'rest' ? 'week' : 'program'}
+        eyebrow={selected.eyebrow}
+        title={selected.title}
+        note={selected.note}
+      />
     );
   }
 
@@ -57,7 +53,7 @@ export function SelectedSession({ selected, onOpen }: Props) {
           style={styles.name}>
           {selected.name}
         </Text>
-        <StatusChip status={selected.status} label={selected.statusLabel} />
+        <StatusChip status={selected.status} label={selected.statusLabel} plain />
       </View>
       <Text variant="caption" tone="muted" style={styles.meta}>
         {selected.metaLabel}
@@ -102,13 +98,12 @@ export function SelectedSession({ selected, onOpen }: Props) {
 }
 
 const styles = StyleSheet.create({
-  quiet: { gap: space.xs },
-  eyebrow: { marginBottom: space.sm },
+  eyebrow: { marginBottom: space.xs },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   name: { flex: 1 },
-  meta: { marginTop: 3 },
+  meta: { marginTop: 2 },
   anatomy: { marginTop: space.lg },
-  progress: { marginTop: space.lg, gap: space.sm },
+  progress: { marginTop: space.md, gap: space.sm },
   progressLabels: { flexDirection: 'row', justifyContent: 'space-between' },
-  cta: { marginTop: space.xl },
+  cta: { marginTop: space.lg },
 });
