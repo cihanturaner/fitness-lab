@@ -22,7 +22,7 @@ type Props = {
  * focus, progress, then its one action; rest and off-block days stay a small quiet card.
  */
 export function SelectedSession({ selected, onOpen }: Props) {
-  const anatomyHeight = useAnatomyHeight(0.92, 90);
+  const anatomyHeight = useAnatomyHeight(0.92, 50);
 
   if (selected.kind !== 'workout') {
     return (
@@ -102,8 +102,8 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   name: { flex: 1 },
   meta: { marginTop: 2 },
-  anatomy: { marginTop: space.lg },
+  anatomy: { marginTop: space.md },
   progress: { marginTop: space.md, gap: space.sm },
   progressLabels: { flexDirection: 'row', justifyContent: 'space-between' },
-  cta: { marginTop: space.lg },
+  cta: { marginTop: space.md + 2 },
 });

@@ -1,11 +1,15 @@
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { color, hitTarget, radius, shadow, space } from '@/theme/tokens';
+import { color, hitTarget, radius, space } from '@/theme/tokens';
 import { Icon } from '@/ui/icon';
 import { Pressable } from '@/ui/pressable';
 import { Text } from '@/ui/text';
 
 type Props = {
+  /** The screen title, drawn on the navigator's own row so the chrome stays one light band. */
+  title: ReactNode;
+  blockLabel: string;
   rangeLabel: string;
   rangeAccessibilityLabel: string;
   previous: { enabled: boolean; accessibilityLabel: string };
@@ -16,24 +20,39 @@ type Props = {
   onCurrent: () => void;
 };
 
-/** One compact pill: previous / next block week around the week's dates. */
+/**
+ * Training's top chrome in two quiet lines: the title beside a small ‹ Week n of 12 ›
+ * stepper, then the week's dates with "This week" (or a way back to it). The selected
+ * workout below is the screen's hero, so nothing here carries a card or a shadow.
+ */
 export function WeekNavigator(props: Props) {
   return (
-    <View style={styles.pill}>
-      <StepButton icon="chevronLeft" {...props.previous} onPress={props.onPrevious} />
-      <View style={styles.center}>
+    <View style={styles.block}>
+      <View style={styles.top}>
+        <View style={styles.title}>{props.title}</View>
+        <View style={styles.stepper}>
+          <StepButton icon="chevronLeft" {...props.previous} onPress={props.onPrevious} />
+          <Text variant="label" tone="emerald700" numberOfLines={1} style={styles.week}>
+            {props.blockLabel}
+          </Text>
+          <StepButton icon="chevronRight" {...props.next} onPress={props.onNext} />
+        </View>
+      </View>
+      <View style={styles.rangeRow}>
         <Text
-          variant="label"
+          variant="caption"
+          tone="ink"
           accessibilityRole="header"
           accessibilityLabel={props.rangeAccessibilityLabel}
           numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.8}
           style={styles.range}>
           {props.rangeLabel}
         </Text>
+        <Text variant="caption" tone="faint">
+          ·
+        </Text>
         {props.isCurrentWeek ? (
-          <Text variant="caption" tone="emerald700" style={styles.caption}>
+          <Text variant="caption" tone="emerald700">
             This week
           </Text>
         ) : (
@@ -41,7 +60,7 @@ export function WeekNavigator(props: Props) {
             onPress={props.onCurrent}
             accessibilityRole="button"
             accessibilityLabel="Back to this week"
-            hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             style={styles.back}>
             <Text variant="label" tone="emerald700" style={styles.backText}>
               Back to this week
@@ -49,7 +68,6 @@ export function WeekNavigator(props: Props) {
           </Pressable>
         )}
       </View>
-      <StepButton icon="chevronRight" {...props.next} onPress={props.onNext} />
     </View>
   );
 }
@@ -69,31 +87,29 @@ function StepButton({ icon, enabled, accessibilityLabel, onPress }: StepProps) {
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: !enabled }}
+      hitSlop={{ left: 5, right: 5 }}
       style={styles.step}>
-      <View style={[styles.stepDisc, !enabled && styles.stepDisabled]}>
-        <Icon name={icon} size={14} color={enabled ? color.emerald700 : color.faint} />
-      </View>
+      <Icon name={icon} size={14} color={enabled ? color.emerald700 : color.hairline} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  pill: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  center: { flex: 1, alignItems: 'center' },
-  range: { fontSize: 15, lineHeight: 19, fontVariant: ['tabular-nums'] },
-  caption: { lineHeight: 17 },
-  back: { minHeight: 17, justifyContent: 'center' },
-  backText: { fontSize: 13, lineHeight: 17 },
-  // A 44-pt target around a small quiet disc: navigation, not the screen's hero.
-  step: { width: hitTarget, height: hitTarget, alignItems: 'center', justifyContent: 'center' },
-  stepDisc: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.round,
-    backgroundColor: color.card,
+  block: { gap: 0 },
+  top: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: hitTarget },
+  title: { flex: 1 },
+  // A light mint capsule: the chevrons keep full 44-pt targets inside it.
+  stepper: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: shadow.card,
+    height: 36,
+    borderRadius: radius.round,
+    backgroundColor: color.emerald50,
   },
-  stepDisabled: { backgroundColor: 'transparent', boxShadow: 'none' },
+  week: { fontSize: 13, lineHeight: 16, fontVariant: ['tabular-nums'] },
+  step: { width: 34, height: hitTarget, alignItems: 'center', justifyContent: 'center' },
+  rangeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 20 },
+  range: { fontVariant: ['tabular-nums'] },
+  back: { minHeight: 20, justifyContent: 'center' },
+  backText: { fontSize: 13, lineHeight: 17 },
 });

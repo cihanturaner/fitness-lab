@@ -32,7 +32,7 @@ export function MuscleFocus({ groups, labels, height }: Props) {
 }
 
 const styles = StyleSheet.create({
-  area: { alignItems: 'center', gap: space.md },
+  area: { alignItems: 'center', gap: space.sm + 2 },
   caption: {
     flexDirection: 'row',
     alignItems: 'center',

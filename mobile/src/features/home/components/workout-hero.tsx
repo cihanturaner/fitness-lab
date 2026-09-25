@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   card: { paddingTop: space.lg + 2, paddingBottom: space.lg + 2 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: 2 },
   name: { flex: 1 },
-  anatomy: { marginTop: space.lg, marginBottom: space.lg },
+  anatomy: { marginTop: space.md, marginBottom: space.md + 2 },
   progress: { gap: space.xs + 2, marginBottom: space.md + 2 },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   bar: { flex: 1 },

@@ -36,11 +36,11 @@ export function WeekSessions({ sessions, restLabel, outsideLabel, onSelect }: Pr
                 <View style={[styles.date, s.isSelected && styles.dateSelected]}>
                   <Text
                     variant="caption"
-                    tone={s.isSelected ? 'emerald100' : s.isToday ? 'emerald700' : 'muted'}
+                    tone={s.isSelected || s.isToday ? 'emerald700' : 'muted'}
                     style={styles.weekday}>
                     {s.weekday}
                   </Text>
-                  <Text variant="day" tone={s.isSelected ? 'onPrimary' : 'ink'}>
+                  <Text variant="day" tone={s.isSelected ? 'emerald800' : 'ink'}>
                     {s.day}
                   </Text>
                 </View>
@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
-    minHeight: 58,
+    minHeight: 54,
     paddingHorizontal: space.sm + 2,
     paddingVertical: space.sm,
     borderRadius: radius.lg,
@@ -98,14 +98,14 @@ const styles = StyleSheet.create({
   rowSelected: { backgroundColor: color.emerald50 },
   rule: { height: StyleSheet.hairlineWidth, backgroundColor: color.hairline, marginHorizontal: space.md },
   date: {
-    width: 40,
-    height: 44,
+    width: 38,
+    height: 42,
     borderRadius: radius.md,
     backgroundColor: color.sunken,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dateSelected: { backgroundColor: color.emerald700 },
+  dateSelected: { backgroundColor: color.emerald100 },
   weekday: { fontSize: 11, lineHeight: 13 },
   body: { flex: 1, gap: 2 },
   bar: { marginTop: space.xs },

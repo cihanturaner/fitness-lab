@@ -1,25 +1,32 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { TrainingFacts } from '@/data/training-facts';
-import { tabBarClearance } from '@/features/shell/tab-bar';
-import { color, gutter, radius, space } from '@/theme/tokens';
-import { Card } from '@/ui/card';
-import { Text } from '@/ui/text';
+import type { TrainingFacts } from "@/data/training-facts";
+import { tabBarClearance } from "@/features/shell/tab-bar";
+import { color, gutter, space } from "@/theme/tokens";
+import { Card } from "@/ui/card";
+import { Text } from "@/ui/text";
 
-import { DaySelector } from './components/day-selector';
-import { SelectedSession } from './components/selected-session';
-import { WeekNavigator } from './components/week-navigator';
-import { WeekSessions } from './components/week-sessions';
-import { buildTrainingView, initialSelection, selectWeek, type TrainingSelection } from './training-view';
+import { DaySelector } from "./components/day-selector";
+import { SelectedSession } from "./components/selected-session";
+import { WeekNavigator } from "./components/week-navigator";
+import { WeekSessions } from "./components/week-sessions";
+import {
+  buildTrainingView,
+  initialSelection,
+  selectWeek,
+  type TrainingSelection,
+} from "./training-view";
 
 /** The 12-week planner: one block week at a time, a selected day, and a read-only plan. */
 export function TrainingScreen({ facts }: { facts: TrainingFacts }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [selection, setSelection] = useState<TrainingSelection | null>(() => initialSelection(facts));
+  const [selection, setSelection] = useState<TrainingSelection | null>(() =>
+    initialSelection(facts),
+  );
   // Without a block there is no selection; the view then says how to start one.
   const view = useMemo(
     () => buildTrainingView(facts, selection ?? { week: 1, date: facts.today }),
@@ -41,11 +48,21 @@ export function TrainingScreen({ facts }: { facts: TrainingFacts }) {
   );
 
   const goToWeek = (week: number) => setSelection(selectWeek(facts, week));
-  const select = (date: string) => setSelection((s) => (s ? { week: s.week, date } : s));
-  const openDay = (date: string, route: 'workout' | 'plan') => {
+  const select = (date: string) =>
+    setSelection((s) => (s ? { week: s.week, date } : s));
+  const openDay = (date: string, route: "workout" | "plan") => {
     returningFromPlan.current = true;
-    router.push({ pathname: route === 'plan' ? '/plan/[date]' : '/workout/[date]', params: { date } });
+    router.push({
+      pathname: route === "plan" ? "/plan/[date]" : "/workout/[date]",
+      params: { date },
+    });
   };
+
+  const title = (
+    <Text variant="screenTitle" accessibilityRole="header">
+      Training
+    </Text>
+  );
 
   // Same frame as Home: the top inset is on a non-scrolling view, so the scroll viewport
   // itself starts below the status bar and nothing scrolls under it.
@@ -53,25 +70,18 @@ export function TrainingScreen({ facts }: { facts: TrainingFacts }) {
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: tabBarClearance(insets.bottom) }]}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.titles}>
-          <Text variant="screenTitle" accessibilityRole="header" style={styles.title}>
-            Training
-          </Text>
-          {view.kind === 'planner' ? (
-            <View style={styles.badge}>
-              <Text variant="label" tone="emerald700" style={styles.badgeText}>
-                {view.blockLabel}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-
-        {view.kind === 'planner' && selection ? (
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: tabBarClearance(insets.bottom) },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {view.kind === "planner" && selection ? (
           <>
             <View style={styles.navigator}>
               <WeekNavigator
+                title={title}
+                blockLabel={view.blockLabel}
                 rangeLabel={view.rangeLabel}
                 rangeAccessibilityLabel={view.rangeAccessibilityLabel}
                 previous={view.previous}
@@ -102,12 +112,15 @@ export function TrainingScreen({ facts }: { facts: TrainingFacts }) {
             />
           </>
         ) : (
-          <Card style={styles.noBlock}>
-            <Text variant="bodyStrong">No training block yet</Text>
-            <Text variant="body" tone="muted">
-              {view.kind === 'no-block' ? view.note : null}
-            </Text>
-          </Card>
+          <>
+            <View style={styles.titles}>{title}</View>
+            <Card style={styles.noBlock}>
+              <Text variant="bodyStrong">No training block yet</Text>
+              <Text variant="body" tone="muted">
+                {view.kind === "no-block" ? view.note : null}
+              </Text>
+            </Card>
+          </>
         )}
       </ScrollView>
     </View>
@@ -118,18 +131,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.paper },
   scroll: { flex: 1 },
   content: { paddingHorizontal: gutter, paddingTop: space.sm },
-  titles: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 48 },
-  title: { flex: 1 },
-  badge: {
-    height: 30,
-    paddingHorizontal: space.md,
-    borderRadius: radius.round,
-    backgroundColor: color.emerald50,
-    justifyContent: 'center',
-  },
-  badgeText: { fontSize: 13, lineHeight: 16 },
-  navigator: { marginTop: space.xs, marginBottom: space.sm },
+  titles: { minHeight: 44, justifyContent: "center" },
+  navigator: { marginBottom: space.sm },
   selected: { marginTop: space.sm },
-  sectionHead: { gap: 1, marginTop: space.xxl, marginBottom: space.sm },
+  sectionHead: { gap: 1, marginTop: space.xl, marginBottom: space.sm },
   noBlock: { marginTop: space.xl, gap: space.xs },
 });

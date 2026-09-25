@@ -74,11 +74,11 @@ function Mark({ day }: { day: PlannerDay }) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: space.xs },
-  column: { flex: 1, alignItems: 'center', gap: 5, minHeight: 64 },
+  column: { flex: 1, alignItems: 'center', gap: 4, minHeight: 56 },
   capsule: {
     width: '100%',
     maxWidth: 44,
-    height: 54,
+    height: 48,
     borderRadius: radius.round,
     alignItems: 'center',
     justifyContent: 'center',

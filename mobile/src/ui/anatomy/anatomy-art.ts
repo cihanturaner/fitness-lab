@@ -9,8 +9,8 @@ import type { MuscleGroup } from '@/data/home-facts';
  *
  * Paths use absolute commands in the 200 × 440 box `VIEWBOX`, painted in order (later
  * plates sit on earlier ones). A plate names the group it belongs to, or null for anatomy
- * drawn for shape only and never highlighted (neck, forearms, serratus, obliques,
- * adductors, knees, shins, lower back, glute medius, soleus). Hand-authored for this app
+ * drawn for shape only and never highlighted (forearms, serratus, obliques,
+ * adductors, shins, lower back, glute medius, soleus). Hand-authored for this app
  * and iterated against Chromium renders — nothing traced or copied.
  */
 
@@ -25,9 +25,9 @@ export type FigureArt = {
 
 /** Head, neck, torso and leg in one outline, and the arm with its hand: the neutral body. */
 const BODY =
-  'M100,6 C89,6 83,14 83,27 C83,38 86,47 92,53 L92,60 C88,66 78,69 66,72 C56,75 48,80 45,88 L60,120 C61,138 63,154 67,170 C69,182 70,192 69,202 C67,212 64,220 63,232 C58,254 57,278 60,300 C62,312 65,320 66,328 C62,340 59,354 60,368 C61,382 65,396 68,408 C64,416 61,423 63,429 C68,433 80,433 88,431 C89,422 87,413 86,406 C87,392 90,376 89,360 C89,346 86,336 85,328 C87,314 91,300 94,284 C97,268 99,254 99,244 L100,244 Z';
+  'M100,8 C90,8 84,16 84,28 C84,39 87,47 92,52 L93,60 C89,66 79,69 67,72 C56,75 48,80 45,88 L60,120 C61,138 65,156 69,172 C71,182 72,192 71,202 C69,212 65,221 63,233 C57,254 55,280 59,302 C61,313 64,321 65,328 C60,340 57,356 59,370 C61,384 65,396 67,406 C63,414 61,421 63,427 C68,432 80,432 87,430 C89,422 88,413 87,406 C89,392 92,376 91,360 C90,346 87,336 86,328 C88,314 92,300 95,284 C98,268 99,254 99,244 L100,244 Z';
 const ARM =
-  'M64,72 C50,73 38,82 35,97 C32,110 31,122 31,134 C30,148 28,160 27,172 C24,190 21,208 20,226 L19,236 C15,244 15,258 19,266 C23,272 30,270 31,260 C32,252 32,244 31,238 L32,232 C35,214 39,198 43,182 C45,172 47,162 49,152 C52,140 55,128 58,118 L62,100 Z';
+  'M64,72 C50,73 38,82 35,97 C32,110 31,122 31,134 C30,148 28,160 26,172 C23,190 21,208 21,224 L20,236 C16,244 15,257 19,265 C23,271 30,269 31,260 C32,252 32,244 31,238 L32,232 C35,214 40,198 44,182 C46,172 48,162 50,152 C53,140 56,128 58,118 L62,100 Z';
 const SILHOUETTE: readonly string[] = [BODY, ARM];
 
 const FOREARM =
@@ -36,7 +36,6 @@ const DELTOID =
   'M64,73 C50,74 38,83 35,98 C34,109 36,118 40,124 C45,113 51,103 58,96 C65,90 70,84 70,79 C68,76 66,74 64,73 Z';
 
 const FRONT_PLATES: readonly Plate[] = [
-  { group: null, d: 'M89,48 C90,56 93,62 98,68 L95,69 C90,63 86,56 85,50 Z' },
   { group: 'back', d: 'M92,58 C87,65 77,70 65,73 C73,76 83,76 91,74 C92,68 92,63 92,58 Z' },
   { group: null, d: FOREARM },
   {
@@ -68,7 +67,6 @@ const FRONT_PLATES: readonly Plate[] = [
     d: 'M71,236 C68,260 70,288 76,308 C79,315 86,315 88,308 C91,288 90,264 86,246 C82,236 75,233 71,236 Z',
   },
   { group: 'quads', d: 'M91,284 C87,296 86,308 88,318 C92,322 95,318 95,310 C95,300 93,290 91,284 Z' },
-  { group: null, d: 'M76,321 C74,327 76,334 81,336 C86,336 88,329 87,322 C84,318 79,318 76,321 Z' },
   { group: null, d: 'M68,340 C65,356 65,374 69,396 L76,396 C75,376 74,358 74,342 Z' },
   { group: 'calves', d: 'M84,336 C88,348 90,362 87,378 C83,380 80,370 80,358 C80,348 81,340 84,336 Z' },
   { group: 'calves', d: 'M62,344 C59,356 59,370 63,384 C65,376 66,362 66,348 Z' },

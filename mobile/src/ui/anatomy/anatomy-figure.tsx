@@ -57,7 +57,7 @@ function Figure({ art, on, ids, width, height }: FigureProps) {
           d={plate.d}
           fill={`url(#${plate.group && on.has(plate.group) ? ids.trained : ids.resting})`}
           stroke={color.bodySeam}
-          strokeWidth={0.9}
+          strokeWidth={0.6}
           strokeLinejoin="round"
         />
       ))}
