@@ -61,12 +61,44 @@ dividers between every plate, flat trunk.
 
 ## Checkpoints / commits
 
-(filled in as work lands)
+| Commit | Content |
+| --- | --- |
+| `c904029` | anatomy redraw, Home header/hero, quiet states, Training recomposition, 64-pt bar, compact-phone header |
+| (this commit) | ledger: QA, gates, review |
 
-## Visual QA
+Session Plan, Logger, Nutrition, History, Settings, Quick Add, Bodyweight: inspected at both
+sizes after the calibration; they already share the cards, radii, CTA and bar clearance, so
+none was changed.
 
-(filled in at the end)
+## Visual QA (Metro web + Playwright Chromium, fixed clock, fresh browser storage)
+
+Viewports 430×932 and 375×667, device scale 2, no simulated safe-area insets. States: Home
+Upper B (Thu 1 Oct), Home scrolled, Home rest (Sat 3 Oct), Home pre-block (25 Sep, block set
+to 1 Oct), Home no block, Training week 1 + scrolled, Training week 12 (next disabled),
+Training no block, Session Plan, Logger, Nutrition, History, Settings, Quick Add,
+Bodyweight. No horizontal overflow on any shot; Home CTA on the first screen at both sizes;
+Training CTA on the first screen at both sizes; last content clears the floating bar.
+
+Not rendered: Home in progress (opening the logger in the browser does not record a set; the
+in-progress hero is covered by the RTL tests: "9 of 21 sets", progress bar, Up next).
+
+Known: web ignores `adjustsFontSizeToFit`; stat-card captions such as "Last session this
+week" truncate at 375 pt (as in the RC).
+
+Metro note: this container's file watcher missed edits; restart Metro with `--clear` before
+each capture.
+
+## Gates (at `c904029`)
+
+typecheck ok · lint 0 warnings · jest 20 suites / 283 tests · `npx expo export --platform
+ios` ok · `git diff 11c1e09..HEAD -- web backend` empty · no untracked files · blocking
+review: 0 blockers.
 
 ## Physical iPhone — left for the user
 
-(filled in at the end)
+1. Home on Thu 1 Oct: header row (date, week badge, gear), figure size, CTA above the bar.
+2. Anatomy on device: soft seams, gradients, mirrored halves.
+3. Training week 1: light week navigator, day capsules, hero, Sessions rows.
+4. Rest day and pre-block Home cards.
+5. Tab bar (64 pt) and + button against the home indicator.
+6. Final design approval against the references.
